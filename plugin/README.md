@@ -6,7 +6,7 @@ resoconto di tre righe a fine turno e una copia dei change OpenSpec della cartel
 prompt, il resto del transcript o l'output dei tool. Se il server non risponde, il lavoro non si
 ferma: gli eventi aspettano in una coda locale.
 
-Richiede **Node.js ≥ 22.18** nel PATH. Senza Node il plugin non fa nulla e `/cantiere` lo dice.
+Richiede **Node.js ≥ 20** nel PATH. Senza Node il plugin non fa nulla e `/cantiere` lo dice.
 
 ## Installazione
 

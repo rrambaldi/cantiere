@@ -7,8 +7,8 @@ if [ "$1" = hook ]; then
   node "$dir/forgia.mjs" "$@" 2>/dev/null
   exit 0
 fi
-if ! node -e 'const [a, b] = process.versions.node.split(".").map(Number); process.exit(a > 22 || (a === 22 && b >= 18) ? 0 : 1)' >/dev/null 2>&1; then
-  echo "cantiere forgia richiede Node.js ≥ 22.18" >&2
+if ! node -e 'const [a] = process.versions.node.split(".").map(Number); process.exit(a >= 20 ? 0 : 1)' >/dev/null 2>&1; then
+  echo "cantiere forgia richiede Node.js ≥ 20" >&2
   exit 127
 fi
 exec node "$dir/forgia.mjs" "$@"

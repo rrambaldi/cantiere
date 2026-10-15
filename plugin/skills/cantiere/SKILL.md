@@ -8,7 +8,7 @@ allowed-tools: Bash(forgia *), mcp__forgia__apri_cantiere, mcp__forgia__elenca_c
 Argomenti: $ARGUMENTS
 
 Fai tutto in questo turno: i comandi `forgia` sono consentiti solo adesso. Non chiedere mai il token in chat.
-Se un comando `forgia` fallisce dicendo che serve Node.js, rispondi in una riga che cantiere forgia richiede Node.js ≥ 22.18 e fermati.
+Se un comando `forgia` fallisce dicendo che serve Node.js, rispondi in una riga che cantiere forgia richiede Node.js ≥ 20 e fermati.
 
 1. Se nel contesto c'è `[forgia] Comando /cantiere gestito`, rispondi con una sola riga: la conferma, o il motivo del rifiuto che contiene. Basta.
 2. `collega <progetto> [url]`: lancia `forgia collega "<progetto>"`, con `--url <url>` se c'è.

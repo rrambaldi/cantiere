@@ -21,7 +21,7 @@ inatteso, git assente. In quei casi l'hook MUST limitarsi alla coda locale o non
 - **THEN** esce con 0 senza output
 
 #### Scenario: Node non installato
-- **WHEN** nel PATH non c'è `node`, o c'è un Node che non esegue TypeScript (prima della 22.18), e scatta un hook qualsiasi
+- **WHEN** nel PATH non c'è `node`, o c'è un Node più vecchio del 20, e scatta un hook qualsiasi
 - **THEN** l'hook esce con 0 senza output e senza scrivere su stderr
 
 ### Requirement: Latenza

@@ -18,7 +18,7 @@ Negli esempi il server è pubblicato su `https://priv.progettazionisoftware.it/c
 
 **Su ogni macchina di lavoro**
 - Claude Code.
-- Node.js ≥ 22.18 nel PATH.
+- Node.js ≥ 20 nel PATH.
 - git e la CLI di OpenSpec (`openspec --version`), che serve a `/cantiere prendi`.
 
 ## 1. Server
@@ -144,7 +144,7 @@ In Claude Code:
 Poi riavvia Claude Code. Il marketplace legge il branch principale della repo: la v2 arriva da lì
 quando `forgia-v2` è unito in `main`. Se avevi la v1, aggiornala dal menu `/plugin`.
 
-**Verifica**: `node --version` dà almeno 22.18 e `openspec --version` risponde.
+**Verifica**: `node --version` dà almeno 20 sulla macchina di lavoro (22.18 sul server) e `openspec --version` risponde.
 
 ## 7. Collegare le cartelle dei sorgenti
 

@@ -93,12 +93,12 @@ il setup con un nuovo URL, o con il token nuovo di `FORGIA_TOKEN`. `/cantiere pe
 - **THEN** il tracciamento si spegne in modo persistente e lo conferma in una riga
 
 ### Requirement: Node mancante
-Se lo script del plugin non parte perché manca Node.js ≥ 22.18, `/cantiere` MUST dirlo all'utente in
+Se lo script del plugin non parte perché manca Node.js ≥ 20, `/cantiere` MUST dirlo all'utente in
 una riga, con la versione minima richiesta, invece di tentare il setup.
 
 #### Scenario: Node assente
 - **WHEN** l'utente scrive `/cantiere` su una macchina senza `node` nel PATH
-- **THEN** Claude risponde che cantiere forgia richiede Node.js ≥ 22.18 e non fa altro
+- **THEN** Claude risponde che cantiere forgia richiede Node.js ≥ 20 e non fa altro
 
 ### Requirement: Primo uso in un turno
 `/cantiere server <url> [nome]` MUST fare il setup e, se c'è un nome, aprire quel cantiere per la sessione
