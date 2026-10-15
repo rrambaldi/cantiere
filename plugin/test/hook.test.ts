@@ -408,6 +408,7 @@ describe("copia dei change OpenSpec", () => {
     mkdirSync(join(change, "specs", "server", "export"), { recursive: true });
     mkdirSync(join(change, "idee"), { recursive: true });
     mkdirSync(join(radice, "openspec", "changes", "archive", "2026-10-20-vecchio-parser"), { recursive: true });
+    writeFileSync(join(radice, "openspec", "changes", "archive", "2026-10-20-vecchio-parser", "tasks.md"), "- [x] 1.1 fatto\n");
     mkdirSync(join(radice, "src"), { recursive: true });
     writeFileSync(join(radice, ".env"), "SEGRETO=1");
     writeFileSync(join(radice, "src", "config.ts"), "export const segreto = 1;");
@@ -429,7 +430,7 @@ describe("copia dei change OpenSpec", () => {
     assert.deepEqual([r.codice, r.stdout], [0, ""]);
     const [copia] = srv.copie();
     assert.deepEqual([copia.metodo, copia.percorso, copia.auth], ["PUT", "/api/v1/progetti/prova/openspec", `Bearer ${TOKEN}`]);
-    assert.deepEqual(copia.corpo.archiviati, [{ change: "vecchio-parser", archiviato_il: "2026-10-20" }]);
+    assert.deepEqual(copia.corpo.archiviati, [{ change: "vecchio-parser", archiviato_il: "2026-10-20", file: [{ percorso: "tasks.md", contenuto: "- [x] 1.1 fatto\n" }] }]);
     const [attivo] = copia.corpo.attivi;
     assert.equal(attivo.change, "export-pdf");
     assert.deepEqual(attivo.file.map((f: any) => f.percorso), [".openspec.yaml", "idee/appunti.txt", "proposal.md", "specs/server/export/spec.md", "tasks.md"]);

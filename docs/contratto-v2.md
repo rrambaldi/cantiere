@@ -113,7 +113,7 @@ Il plugin manda lo stato di `openspec/changes/` dell'area. Corpo (massimo `max_o
     {"change": "idoc-converter", "modificato_il": "<ISO 8601 UTC, mtime più recente tra i file>",
      "file": [{"percorso": "proposal.md", "contenuto": "..."}, {"percorso": "idee/nota.md", "contenuto": "..."}]}
   ],
-  "archiviati": [{"change": "export-pdf", "archiviato_il": "2026-10-20"}]
+  "archiviati": [{"change": "export-pdf", "archiviato_il": "2026-10-20", "file": [{"percorso": "proposal.md", "contenuto": "..."}]}]
 }
 ```
 
@@ -121,7 +121,9 @@ Il plugin manda lo stato di `openspec/changes/` dell'area. Corpo (massimo `max_o
   `design.md`, `tasks.md`, i `.md` sotto `specs/`, i `.md` e `.txt` sotto `idee/`; ciascuno al
   massimo `max_file` byte (default 256 KB). Un percorso assoluto, con `..` o fuori elenco dà 422 e
   non si salva nulla.
-- `archiviati` viene dai nomi `AAAA-MM-GG-<change>` di `openspec/changes/archive/`.
+- `archiviati` viene dai nomi `AAAA-MM-GG-<change>` di `openspec/changes/archive/`. `file` è facoltativo,
+  con gli stessi limiti degli attivi: il server lo tiene come copia finale del change, così specifiche e
+  avanzamento restano visibili dopo l'archiviazione. Il plugin lo manda dai più recenti, finché stanno in 1 MB.
 - Il server sostituisce la copia di un change solo con una più recente (`modificato_il`). Un change
   archiviato resta archiviato. Un change attivo senza cantiere fa nascere un cantiere `aperto` al
   primo livello, con origine `repo`. Un change archiviato porta il suo cantiere `aperto` o `sospeso` a

@@ -59,12 +59,19 @@ export async function riceviCopia(amb: Ambiente, committente: Committente, nomeP
       const c = await perChange(a.change);
       if (!c) continue;
       const salvata = await copiaDi(c.id);
+      // La copia dell'archivio è l'ultima: sostituisce quella presa quando il change era attivo.
+      if (a.file) {
+        await trx.deleteFrom("change_file").where("cantiere_id", "=", c.id).execute();
+        if (a.file.length) await trx.insertInto("change_file").values(a.file.map((f) => ({ cantiere_id: c.id, ...f }))).execute();
+      }
+      const dati = riassunto(a.file ?? []);
       if (salvata) {
-        await trx.updateTable("change_copie").set({ archiviato_il: salvata.archiviato_il ?? a.archiviato_il, visto_il: ora }).where("cantiere_id", "=", c.id).execute();
+        // Senza file nel corpo (plugin vecchio, budget finito) il riassunto della copia salvata resta.
+        await trx.updateTable("change_copie").set({ archiviato_il: salvata.archiviato_il ?? a.archiviato_il, visto_il: ora, ...(a.file && dati) }).where("cantiere_id", "=", c.id).execute();
       } else {
         await trx
           .insertInto("change_copie")
-          .values({ cantiere_id: c.id, modificato_il: ora, archiviato_il: a.archiviato_il, visto_il: ora, ...riassunto([]) })
+          .values({ cantiere_id: c.id, modificato_il: ora, archiviato_il: a.archiviato_il, visto_il: ora, ...dati })
           .execute();
       }
       if (c.stato === "aperto" || c.stato === "sospeso") await cambiaStato(trx, c, "completato", "repo", ora, a.archiviato_il);

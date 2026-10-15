@@ -424,6 +424,21 @@ function elenca(dir, rel = "") {
 const ammesso = (p) => FILE_CHANGE.has(p) || /^specs\/.+\.md$/.test(p) || /^idee\/.+\.(md|txt)$/.test(p);
 // Il corpo di PUT /api/v1/progetti/<p>/openspec: change attivi con i file ammessi e la loro ultima
 // modifica, e i nomi degli archiviati. Null se l'area non ha openspec/changes/.
+// File ammessi di una cartella di change, con l'ultima modifica tra loro e la cartella.
+function leggiChange(radice) {
+    let ultima = statSync(radice).mtimeMs;
+    const file = elenca(radice).filter(ammesso).sort().flatMap((percorso) => {
+        const st = statSync(join(radice, percorso));
+        if (st.size > MAX_FILE)
+            return [];
+        ultima = Math.max(ultima, st.mtimeMs);
+        return [{ percorso, contenuto: readFileSync(join(radice, percorso), "utf8") }];
+    });
+    return { file, modificato_il: new Date(ultima).toISOString() };
+}
+// Degli archiviati si mandano anche i file (specifiche, esito), dal più recente, finché stanno nel
+// budget: il corpo non deve superare max_openspec del server (2 MB).
+const BUDGET_ARCHIVIATI = 1_000_000;
 export function copiaChange(cartella) {
     const dir = join(cartella, "openspec", "changes");
     if (!existsSync(dir))
@@ -432,24 +447,21 @@ export function copiaChange(cartella) {
         .filter((v) => v.isDirectory() && v.name !== "archive" && RE_CHANGE.test(v.name))
         .map((v) => v.name)
         .sort()
-        .map((change) => {
-        const radiceChange = join(dir, change);
-        let ultima = statSync(radiceChange).mtimeMs;
-        const file = elenca(radiceChange).filter(ammesso).sort().flatMap((percorso) => {
-            const st = statSync(join(radiceChange, percorso));
-            if (st.size > MAX_FILE)
-                return [];
-            ultima = Math.max(ultima, st.mtimeMs);
-            return [{ percorso, contenuto: readFileSync(join(radiceChange, percorso), "utf8") }];
-        });
-        return { change, modificato_il: new Date(ultima).toISOString(), file };
-    });
+        .map((change) => ({ change, ...leggiChange(join(dir, change)) }));
     const archivio = join(dir, "archive");
-    const archiviati = (existsSync(archivio) ? readdirSync(archivio).sort() : []).flatMap((n) => {
+    let budget = BUDGET_ARCHIVIATI;
+    const archiviati = (existsSync(archivio) ? readdirSync(archivio).sort().reverse() : []).flatMap((n) => {
         const m = RE_ARCHIVIATO.exec(n);
-        return m ? [{ change: m[2], archiviato_il: m[1] }] : [];
+        if (!m)
+            return [];
+        const { file } = leggiChange(join(archivio, n));
+        const peso = file.reduce((somma, f) => somma + Buffer.byteLength(f.contenuto), 0);
+        if (peso > budget)
+            return [{ change: m[2], archiviato_il: m[1] }];
+        budget -= peso;
+        return [{ change: m[2], archiviato_il: m[1], file }];
     });
-    return { attivi, archiviati };
+    return { attivi, archiviati: archiviati.reverse() };
 }
 export function decidiBlocco(p) {
     return !p.attivo && !!p.conteggio && p.modalita === "forzato" && p.conteggio.strumenti >= p.soglia &&

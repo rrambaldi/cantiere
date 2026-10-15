@@ -162,21 +162,24 @@ export const percorsoAmmesso = (p: string) => FILE_AMMESSI.test(p) && !p.split("
 const giorno = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "atteso AAAA-MM-GG");
 const nomeChangeValido = z.string().regex(KEBAB, "nome di change non kebab-case");
 
+const fileChange = (maxFile: number) =>
+  z.array(
+    z.strictObject({
+      percorso: z.string().refine(percorsoAmmesso, "percorso non ammesso nella copia"),
+      contenuto: z.string().refine((c) => Buffer.byteLength(c) <= maxFile, `file oltre ${maxFile} byte`),
+    }),
+  );
+
 export const schemaCopia = (maxFile: number) =>
   z.strictObject({
     attivi: z.array(
       z.strictObject({
         change: nomeChangeValido,
         modificato_il: z.iso.datetime({ offset: true }).transform((ts) => new Date(ts).toISOString()),
-        file: z.array(
-          z.strictObject({
-            percorso: z.string().refine(percorsoAmmesso, "percorso non ammesso nella copia"),
-            contenuto: z.string().refine((c) => Buffer.byteLength(c) <= maxFile, `file oltre ${maxFile} byte`),
-          }),
-        ),
+        file: fileChange(maxFile),
       }),
     ),
-    archiviati: z.array(z.strictObject({ change: nomeChangeValido, archiviato_il: giorno })),
+    archiviati: z.array(z.strictObject({ change: nomeChangeValido, archiviato_il: giorno, file: fileChange(maxFile).optional() })),
   });
 export type Copia = z.infer<ReturnType<typeof schemaCopia>>;
 

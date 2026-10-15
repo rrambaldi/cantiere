@@ -62,6 +62,16 @@ test("completato dal repo con la data di archivio; poi visto attivo resta comple
   assert.deepEqual(await file("export-pdf"), [{ percorso: "proposal.md", contenuto: "# Proposta" }]);
 });
 
+test("archiviato con i file: la copia finale sostituisce quella attiva e aggiorna l'avanzamento", async () => {
+  await apri(b, "s1", "export-pdf");
+  await copia(b, { attivi: [changeAttivo("export-pdf", { "tasks.md": "- [x] 1\n- [ ] 2" })], archiviati: [] });
+  const finale = [{ percorso: "specs/pdf/spec.md", contenuto: "# Spec" }, { percorso: "tasks.md", contenuto: "- [x] 1\n- [x] 2" }];
+  await copia(b, { attivi: [], archiviati: [{ change: "export-pdf", archiviato_il: "2026-10-20", file: finale }] });
+  assert.deepEqual(await file("export-pdf"), finale);
+  const c = await letto("export-pdf");
+  assert.deepEqual([c.stato, c.task, c.artefatti.specs], ["completato", { fatti: 2, totali: 2 }, true]);
+});
+
 test("archivio dopo un abbandono: resta abbandonato e smette di essere da archiviare", async () => {
   const { id } = (await apri(b, "s1", "vecchio-parser")).corpo.cantiere;
   await cambiaEsito(b, TUTTI, id, "abbandona");
