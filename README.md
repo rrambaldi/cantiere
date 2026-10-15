@@ -16,6 +16,9 @@ prompt, conversazioni o output dei comandi.
 
 ## Come si usa
 
+La guida all'installazione, passo per passo e con le verifiche e i problemi comuni, è in
+[`docs/installazione.md`](docs/installazione.md). In breve:
+
 1. **Server**: installalo con `server/deploy/installa.sh` dietro un reverse proxy con certificato
    client per la dashboard (dettagli in [`server/README.md`](server/README.md)).
 2. **Committenti**: creali dalla dashboard; ognuno ha il suo token, che vede solo i suoi dati.
@@ -40,3 +43,10 @@ spedito compilato in JavaScript (`plugin/bin/forgia.mjs`), perché parta in fret
 
 Il nome tecnico, usato in comandi e identificativi, è `forgia`: `mcp__forgia__*`, `forgia-admin`,
 `FORGIA_*`.
+
+## Licenza
+
+[The Gratitude & Random Kindness License](LICENSE): la licenza MIT, parola per parola, con davanti
+un augurio che non è una condizione. Legalmente è MIT, e così è dichiarata nei `package.json` e nel
+plugin. Testo, motivazioni e traduzione italiana di cortesia in
+[rrambaldi/mit-kindness-license](https://github.com/rrambaldi/mit-kindness-license).

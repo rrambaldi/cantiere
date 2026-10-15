@@ -4,5 +4,6 @@
   "description": "cantiere forgia: tiene traccia del lavoro con Claude Code, raggruppato in cantieri.",
   "author": {
     "name": "rrambaldi"
-  }
+  },
+  "license": "MIT"
 }

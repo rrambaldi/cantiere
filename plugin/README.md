@@ -10,6 +10,8 @@ Richiede **Node.js ≥ 22.18** nel PATH. Senza Node il plugin non fa nulla e `/c
 
 ## Installazione
 
+La guida completa, server e proxy compresi, è in [`../docs/installazione.md`](../docs/installazione.md).
+
 1. In Claude Code: `/plugin marketplace add <percorso o URL git di questa repo>`
 2. `/plugin install forgia@forgia`, poi riavvia Claude Code.
 3. Nella cartella dei sorgenti di un progetto, con `FORGIA_TOKEN` impostata al token del committente:

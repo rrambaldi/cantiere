@@ -1,6 +1,7 @@
 {
   "name": "forgia",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "workspaces": [
     "server"

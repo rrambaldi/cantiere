@@ -81,7 +81,11 @@ richiede. Conta solo il nome del server: con il servizio sotto un percorso,
 `https://esempio.it/cantiere` e `esempio.it` danno lo stesso risultato.
 
 Rilanciato, aggiorna codice, dipendenze e database; configurazione e dati restano. Il codice nuovo
-si prepara a parte: se `npm ci` fallisce, il servizio in funzione non viene toccato.
+si prepara a parte: se `npm ci` fallisce, il servizio in funzione non viene toccato. Da forgia v1 la
+v2 riparte da un database vuoto: lo script se ne accorge, si ferma prima di toccare il servizio e
+chiede `--azzera-v1` (dopo una copia di `/var/lib/forgia`). Tutte le opzioni con `--help`; la guida
+completa, con certificati, plugin e problemi comuni, è in
+[`../docs/installazione.md`](../docs/installazione.md).
 
 Altri comandi di amministrazione in produzione:
 
