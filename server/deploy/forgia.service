@@ -1,0 +1,21 @@
+[Unit]
+Description=cantiere forgia: API eventi e server MCP
+After=network.target
+
+[Service]
+Type=simple
+User=forgia
+Group=forgia
+WorkingDirectory=/opt/forgia/server
+EnvironmentFile=/etc/forgia/forgia.env
+# Un processo solo: il rate limit è in memoria. Node >= 22.18 esegue TypeScript senza build.
+ExecStart=/usr/bin/node /opt/forgia/server/src/main.ts
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/forgia
+
+[Install]
+WantedBy=multi-user.target

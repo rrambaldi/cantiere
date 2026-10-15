@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook session_start", "timeout": 5}]}],
+    "UserPromptSubmit": [{"hooks": [
+      {"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook prompt", "timeout": 5},
+      {"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook prompt_invio", "async": true}
+    ]}],
+    "PostToolUse": [{"matcher": "TodoWrite|TaskCreate|TaskUpdate", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook todo", "async": true}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook stop", "timeout": 10}]}],
+    "SessionEnd": [{"hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook session_end", "async": true}]}]
+  }
+}

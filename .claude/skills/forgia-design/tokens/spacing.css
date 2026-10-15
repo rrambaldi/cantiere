@@ -1,0 +1,13 @@
+:root{
+  --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:24px; --s-6:32px; --s-7:48px; --s-8:64px;
+  --r-1:2px;   /* campioni, chip */
+  --r-2:4px;   /* pulsanti, campi, terminale */
+  --r-3:8px;   /* schede */
+  --r-icona:14px; /* icona 64 px */
+  --bordo:1px solid var(--linea);
+  --bordo-forte:1px solid var(--linea-forte);
+  --ombra-dialogo:0 16px 40px rgba(14,32,65,.5);
+  --griglia-passo:16px;
+  --durata-1:120ms; --durata-2:200ms;
+  --curva:cubic-bezier(.2,0,0,1);
+}

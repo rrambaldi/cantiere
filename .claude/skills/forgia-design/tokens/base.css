@@ -1,0 +1,7 @@
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--sfondo);color:var(--testo);font:var(--t-corpo);-webkit-font-smoothing:antialiased}
+a{color:var(--testo-link);text-decoration:underline;text-decoration-color:var(--linea-forte);text-underline-offset:3px}
+a:hover{text-decoration-color:var(--segnale)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+code,kbd,pre{font-family:var(--font-mono)}
+::selection{background:var(--giallo-500);color:var(--prussia-800)}

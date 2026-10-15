@@ -1,0 +1,23 @@
+<!-- @dsCard group="Components" viewport="700x330" name="Feedback" -->
+<!doctype html><html lang="it"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.26.2/babel.min.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{padding:20px 24px}.l{font:var(--t-etichetta);letter-spacing:var(--t-etichetta-spaziatura);text-transform:uppercase;color:var(--testo-2)}</style>
+</head><body><div id="root"></div>
+<script type="text/babel">
+const NS = (() => { for (const k of Object.keys(window)) { try { const v = window[k]; if (v && v !== window && typeof v === 'object' && !(v instanceof Window) && v.StatoBadge && v.Toast && v.Dialog && v.Button) return v; } catch (e) {} } return null; })();
+if (!NS) { document.getElementById('root').innerHTML = '<p style="font:var(--t-piccolo);color:var(--testo-2)">Bundle dei componenti non ancora generato.</p>'; throw new Error('bundle mancante'); }
+const { StatoBadge, Toast, Dialog, Button } = NS;
+function Card(){ return <div style={{display:'flex',gap:20}}>
+<div style={{display:'flex',flexDirection:'column',gap:12,width:300}}>
+<div style={{display:'flex',flexWrap:'wrap',gap:16}}><StatoBadge stato="in-corso"/><StatoBadge stato="completato"/><StatoBadge stato="sospeso"/><StatoBadge stato="abbandonato"/></div>
+<Toast titolo="Cantiere chiuso">auth-refactor · completato</Toast>
+<Toast tono="attenzione" titolo="Server non raggiungibile">Il lavoro continua; gli aggiornamenti partono appena torna.</Toast>
+</div>
+<Dialog inline titolo="Chiudere auth-refactor?" azioni={<><Button variant="fantasma" size="sm">Annulla</Button><Button size="sm">Chiudi come completato</Button></>}>4 sessioni · 7/7 todo. L’esito resta nel giornale dei lavori.</Dialog>
+</div>; }
+ReactDOM.createRoot(document.getElementById('root')).render(<Card/>);
+</script></body></html>

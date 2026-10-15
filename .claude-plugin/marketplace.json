@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "forgia",
+  "description": "cantiere forgia: traccia del lavoro con Claude Code, raggruppato in cantieri.",
+  "owner": {
+    "name": "rrambaldi"
+  },
+  "plugins": [
+    {
+      "name": "forgia",
+      "source": "./plugin",
+      "description": "cantiere forgia: tiene traccia del lavoro con Claude Code, raggruppato in cantieri. Comando /cantiere.",
+      "version": "0.1.0"
+    }
+  ]
+}

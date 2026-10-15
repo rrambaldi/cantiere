@@ -1,0 +1,24 @@
+{"type": "queue-operation", "operation": "enqueue", "sessionId": "00000000-0000-4000-8000-000000000001"}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "attachment", "attachment": {"type": "hook_additional_context"}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "user", "message": {"role": "user", "content": "…"}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "assistant", "message": {"role": "assistant", "content": [{"type": "thinking", "thinking": "…"}]}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_1", "name": "Read", "input": {}}]}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_1", "content": "…"}]}, "toolUseResult": {}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "…"}]}}
+{"type": "last-prompt", "lastPrompt": "\u2026", "sessionId": "00000000-0000-4000-8000-000000000001"}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "user", "message": {"role": "user", "content": "…"}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "user", "isMeta": true, "message": {"role": "user", "content": [{"type": "text", "text": "…"}]}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "attachment", "attachment": {"type": "skill_listing"}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "assistant", "message": {"role": "assistant", "content": [{"type": "thinking", "thinking": "…"}]}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_2", "name": "TaskCreate", "input": {}}]}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_3", "name": "TaskCreate", "input": {}}]}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_2", "content": "…"}]}, "toolUseResult": {}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_3", "content": "…"}]}, "toolUseResult": {}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_4", "name": "Bash", "input": {}}]}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_5", "name": "Edit", "input": {}}]}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_4", "content": "…"}]}, "toolUseResult": {}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_5", "content": "…"}]}, "toolUseResult": {}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_6", "name": "TaskUpdate", "input": {}}]}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_6", "content": "…"}]}, "toolUseResult": {}}
+{"isSidechain": false, "sessionId": "00000000-0000-4000-8000-000000000001", "type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "…"}]}}
+{"type": "atis-latch", "atis": {}, "sessionId": "00000000-0000-4000-8000-000000000001"}

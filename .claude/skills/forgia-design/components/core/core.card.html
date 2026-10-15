@@ -1,0 +1,22 @@
+<!-- @dsCard group="Components" viewport="700x360" name="Core" -->
+<!doctype html><html lang="it"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.26.2/babel.min.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{padding:20px 24px}.l{font:var(--t-etichetta);letter-spacing:var(--t-etichetta-spaziatura);text-transform:uppercase;color:var(--testo-2)}</style>
+</head><body><div id="root"></div>
+<script type="text/babel">
+const NS = (() => { for (const k of Object.keys(window)) { try { const v = window[k]; if (v && v !== window && typeof v === 'object' && !(v instanceof Window) && v.Button && v.Input && v.Checkbox && v.Switch && v.Tabs) return v; } catch (e) {} } return null; })();
+if (!NS) { document.getElementById('root').innerHTML = '<p style="font:var(--t-piccolo);color:var(--testo-2)">Bundle dei componenti non ancora generato.</p>'; throw new Error('bundle mancante'); }
+const { Button, Input, Checkbox, Switch, Tabs } = NS;
+function Card(){ const [c,setC]=React.useState(true);const [s,setS]=React.useState(true);const [t,setT]=React.useState('aperti');
+return <div style={{display:'flex',flexDirection:'column',gap:18}}>
+<div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}><Button>Chiudi cantiere</Button><Button variant="secondario">Sospendi</Button><Button variant="fantasma">Annulla</Button><Button variant="secondario" mono size="sm">/forgia nome</Button><Button disabled size="sm">Disattivo</Button></div>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}><Input label="Nome cantiere" prefix="/" mono placeholder="auth-refactor"/><Input label="Macchina" value="studio" error="Nome già in uso" onChange={()=>{}}/></div>
+<div style={{display:'flex',gap:24,alignItems:'center'}}><Checkbox checked={c} onChange={setC} label="Migrare il login a OAuth"/><Checkbox label="Rimuovere le vecchie sessioni"/><Switch on={s} onChange={setS} label="Aggiornamenti automatici"/></div>
+<Tabs value={t} onChange={setT} items={[{id:'aperti',label:'Aperti',count:4},{id:'chiusi',label:'Chiusi',count:12},{id:'tutti',label:'Tutti',count:16}]}/>
+</div>; }
+ReactDOM.createRoot(document.getElementById('root')).render(<Card/>);
+</script></body></html>

@@ -1,0 +1,27 @@
+{
+  "name": "forgia-server",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "bin": {
+    "forgia-admin": "src/admin.ts"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/main.ts",
+    "typecheck": "tsc -p .",
+    "test": "tsc -p . && node --test \"test/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.3.1",
+    "@types/better-sqlite3": "^9.6.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/node": "^2.1.1",
+    "@modelcontextprotocol/server": "^2.3.1",
+    "better-sqlite3": "^13.0.3",
+    "kysely": "^0.29.6",
+    "zod": "^4.6.7"
+  }
+}

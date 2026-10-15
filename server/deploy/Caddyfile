@@ -1,0 +1,13 @@
+# cantiere forgia dietro Caddy: TLS automatico, solo le route del contratto.
+forgia.example.org {
+	@forgia path /api/v1/* /mcp /mcp/*
+	handle @forgia {
+		reverse_proxy 127.0.0.1:8765 {
+			# Niente buffering: le risposte MCP possono essere stream SSE.
+			flush_interval -1
+		}
+	}
+	handle {
+		respond 404
+	}
+}

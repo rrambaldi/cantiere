@@ -1,0 +1,8 @@
+{
+  "name": "forgia",
+  "version": "0.1.0",
+  "description": "cantiere forgia: tiene traccia del lavoro con Claude Code, raggruppato in cantieri.",
+  "author": {
+    "name": "rrambaldi"
+  }
+}

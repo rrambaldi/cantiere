@@ -1,0 +1,24 @@
+<!-- @dsCard group="Components" viewport="700x400" name="Cantiere" -->
+<!doctype html><html lang="it"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.26.2/babel.min.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{padding:20px 24px}.l{font:var(--t-etichetta);letter-spacing:var(--t-etichetta-spaziatura);text-transform:uppercase;color:var(--testo-2)}</style>
+</head><body><div id="root"></div>
+<script type="text/babel">
+const NS = (() => { for (const k of Object.keys(window)) { try { const v = window[k]; if (v && v !== window && typeof v === 'object' && !(v instanceof Window) && v.Resoconto && v.Scheda && v.Nastro && v.CantiereRiga) return v; } catch (e) {} } return null; })();
+if (!NS) { document.getElementById('root').innerHTML = '<p style="font:var(--t-piccolo);color:var(--testo-2)">Bundle dei componenti non ancora generato.</p>'; throw new Error('bundle mancante'); }
+const { Resoconto, Scheda, Nastro, CantiereRiga } = NS;
+function Card(){ return <div style={{display:'flex',flexDirection:'column',gap:14}}>
+<Resoconto cantiere="auth-refactor" chi="marco@studio" branch="main" fatto="login migrato a OAuth, test verdi" dopo="rimuovere le vecchie sessioni"/>
+<Scheda titolo="Cantieri aperti" meta="3" griglia style={{overflow:'hidden'}}>
+<Nastro fine/>
+<CantiereRiga nome="auth-refactor" chi="marco" macchina="studio" fatti={3} totali={7} stato="in-corso" aggiornato="09:42"/>
+<CantiereRiga nome="migrazione-db" chi="giulia" macchina="portatile" fatti={7} totali={7} stato="completato" aggiornato="ieri"/>
+<CantiereRiga nome="export-csv" chi="marco" macchina="ufficio" fatti={2} totali={5} stato="sospeso" aggiornato="12 ott" ultima/>
+</Scheda>
+</div>; }
+ReactDOM.createRoot(document.getElementById('root')).render(<Card/>);
+</script></body></html>

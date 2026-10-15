@@ -1,0 +1,15 @@
+[Unit]
+Description=cantiere forgia: elimina eventi e stati oltre FORGIA_RETENTION_GIORNI
+
+[Service]
+Type=oneshot
+User=forgia
+Group=forgia
+WorkingDirectory=/opt/forgia/server
+EnvironmentFile=/etc/forgia/forgia.env
+ExecStart=/usr/bin/node /opt/forgia/server/src/admin.ts pulizia
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/forgia

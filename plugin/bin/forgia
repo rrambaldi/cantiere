@@ -1,0 +1,14 @@
+#!/bin/sh
+# Lancia forgia.mjs (compilato da forgia.mts) con Node. Gli hook non falliscono mai e non scrivono
+# su stderr: senza Node, o con un Node troppo vecchio, non fanno nulla.
+dir=${0%/*}
+if [ "$1" = hook ]; then
+  command -v node >/dev/null 2>&1 || exit 0
+  node "$dir/forgia.mjs" "$@" 2>/dev/null
+  exit 0
+fi
+if ! node -e 'const [a, b] = process.versions.node.split(".").map(Number); process.exit(a > 22 || (a === 22 && b >= 18) ? 0 : 1)' >/dev/null 2>&1; then
+  echo "cantiere forgia richiede Node.js ≥ 22.18" >&2
+  exit 127
+fi
+exec node "$dir/forgia.mjs" "$@"

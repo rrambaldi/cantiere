@@ -1,0 +1,181 @@
+{
+  "_nota": "Forme registrate con Claude Code 2.1.299 (esperimento 7.1, claude -p). Testi e percorsi sostituiti.",
+  "session_start": {
+    "session_id": "00000000-0000-4000-8000-000000000001",
+    "transcript_path": "/tmp/forgia-esempio/transcript.jsonl",
+    "cwd": "/tmp/forgia-esempio/progetto",
+    "hook_event_name": "SessionStart",
+    "source": "startup"
+  },
+  "prompt": {
+    "session_id": "00000000-0000-4000-8000-000000000001",
+    "transcript_path": "/tmp/forgia-esempio/transcript.jsonl",
+    "cwd": "/tmp/forgia-esempio/progetto",
+    "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+    "permission_mode": "default",
+    "hook_event_name": "UserPromptSubmit",
+    "prompt": "/cantiere prova-x"
+  },
+  "espansione": {
+    "session_id": "00000000-0000-4000-8000-000000000001",
+    "transcript_path": "/tmp/forgia-esempio/transcript.jsonl",
+    "cwd": "/tmp/forgia-esempio/progetto",
+    "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+    "permission_mode": "default",
+    "hook_event_name": "UserPromptExpansion",
+    "expansion_type": "slash_command",
+    "command_name": "forgia:cantiere",
+    "command_args": "prova-x",
+    "command_source": "plugin",
+    "prompt": "/forgia:cantiere prova-x"
+  },
+  "stop": {
+    "session_id": "00000000-0000-4000-8000-000000000001",
+    "transcript_path": "/tmp/forgia-esempio/transcript.jsonl",
+    "cwd": "/tmp/forgia-esempio/progetto",
+    "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+    "permission_mode": "default",
+    "effort": {
+      "level": "medium"
+    },
+    "hook_event_name": "Stop",
+    "stop_hook_active": false,
+    "last_assistant_message": "<oscurato>",
+    "background_tasks": [],
+    "session_crons": []
+  },
+  "session_end": {
+    "session_id": "00000000-0000-4000-8000-000000000001",
+    "transcript_path": "/tmp/forgia-esempio/transcript.jsonl",
+    "cwd": "/tmp/forgia-esempio/progetto",
+    "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+    "permission_mode": "default",
+    "hook_event_name": "SessionEnd",
+    "reason": "other"
+  },
+  "todowrite": {
+    "session_id": "00000000-0000-4000-8000-000000000001",
+    "transcript_path": "/tmp/forgia-esempio/transcript.jsonl",
+    "cwd": "/tmp/forgia-esempio/progetto",
+    "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+    "permission_mode": "default",
+    "effort": {
+      "level": "medium"
+    },
+    "hook_event_name": "PostToolUse",
+    "tool_name": "TodoWrite",
+    "tool_input": {
+      "todos": [
+        {
+          "content": "alfa",
+          "status": "in_progress",
+          "activeForm": "alfa"
+        },
+        {
+          "content": "beta",
+          "status": "pending",
+          "activeForm": "beta"
+        }
+      ]
+    },
+    "tool_response": {
+      "oldTodos": [],
+      "newTodos": [
+        {
+          "content": "alfa",
+          "status": "in_progress",
+          "activeForm": "alfa"
+        },
+        {
+          "content": "beta",
+          "status": "pending",
+          "activeForm": "beta"
+        }
+      ]
+    },
+    "tool_use_id": "toolu_esempio",
+    "duration_ms": 3
+  },
+  "taskcreate": {
+    "session_id": "00000000-0000-4000-8000-000000000001",
+    "transcript_path": "/tmp/forgia-esempio/transcript.jsonl",
+    "cwd": "/tmp/forgia-esempio/progetto",
+    "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+    "permission_mode": "default",
+    "effort": {
+      "level": "medium"
+    },
+    "hook_event_name": "PostToolUse",
+    "tool_name": "TaskCreate",
+    "tool_input": {
+      "subject": "alfa",
+      "description": "Task alfa"
+    },
+    "tool_response": {
+      "task": {
+        "id": "1",
+        "subject": "alfa"
+      }
+    },
+    "tool_use_id": "toolu_esempio",
+    "duration_ms": 3
+  },
+  "taskupdate_completed": {
+    "session_id": "00000000-0000-4000-8000-000000000001",
+    "transcript_path": "/tmp/forgia-esempio/transcript.jsonl",
+    "cwd": "/tmp/forgia-esempio/progetto",
+    "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+    "permission_mode": "default",
+    "effort": {
+      "level": "medium"
+    },
+    "hook_event_name": "PostToolUse",
+    "tool_name": "TaskUpdate",
+    "tool_input": {
+      "taskId": "1",
+      "status": "completed"
+    },
+    "tool_response": {
+      "success": true,
+      "taskId": "1",
+      "updatedFields": [
+        "status"
+      ],
+      "statusChange": {
+        "from": "pending",
+        "to": "completed"
+      }
+    },
+    "tool_use_id": "toolu_esempio",
+    "duration_ms": 3
+  },
+  "taskupdate_deleted": {
+    "session_id": "00000000-0000-4000-8000-000000000001",
+    "transcript_path": "/tmp/forgia-esempio/transcript.jsonl",
+    "cwd": "/tmp/forgia-esempio/progetto",
+    "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+    "permission_mode": "default",
+    "effort": {
+      "level": "medium"
+    },
+    "hook_event_name": "PostToolUse",
+    "tool_name": "TaskUpdate",
+    "tool_input": {
+      "taskId": "2",
+      "status": "deleted"
+    },
+    "tool_response": {
+      "success": true,
+      "taskId": "2",
+      "updatedFields": [
+        "deleted"
+      ],
+      "statusChange": {
+        "from": "pending",
+        "to": "deleted"
+      }
+    },
+    "tool_use_id": "toolu_esempio",
+    "duration_ms": 3
+  }
+}

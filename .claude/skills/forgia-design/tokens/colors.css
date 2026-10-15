@@ -1,0 +1,66 @@
+:root{
+  /* base */
+  --prussia-900:#0E2041;
+  --prussia-800:#142B52; /* notte */
+  --prussia-700:#1E3F73; /* prussia: colore di identità */
+  --prussia-650:#24487F;
+  --prussia-600:#2A5290;
+  --prussia-300:#9DB0CC;
+  --prussia-200:#C9D4E5;
+  --carta-50:#F2F4F7;
+  --carta-0:#FFFFFF;
+  --grafite:#4A5D7A;
+  --giallo-500:#F2C230; /* segnale */
+  --giallo-600:#D9A916;
+  --giallo-100:#FBEFC4;
+  --errore-chiaro:#FF9A82;
+  --errore-scuro:#B23A22;
+
+  /* semantica — tema cianotipia (predefinito) */
+  --sfondo:var(--prussia-700);
+  --sfondo-profondo:var(--prussia-800);
+  --superficie:var(--prussia-650);
+  --superficie-alta:var(--prussia-600);
+  --linea:rgba(242,244,247,.16);
+  --linea-forte:rgba(242,244,247,.34);
+  --testo:var(--carta-50);
+  --testo-2:var(--prussia-300);
+  --testo-link:var(--carta-50);
+  --segnale:var(--giallo-500);
+  --segnale-hover:var(--giallo-600);
+  --testo-su-segnale:var(--prussia-800);
+  --segno:var(--carta-50);
+  --errore:var(--errore-chiaro);
+  --griglia:rgba(255,255,255,.09);
+  --focus:var(--giallo-500);
+
+  /* stati del cantiere */
+  --stato-in-corso:var(--giallo-500);
+  --stato-completato:var(--carta-50);
+  --stato-sospeso:var(--carta-50);
+  --stato-abbandonato:var(--prussia-300);
+
+  /* motivi */
+  --nastro:repeating-linear-gradient(-45deg,var(--giallo-500) 0 10px,var(--prussia-700) 10px 20px);
+  --nastro-fine:repeating-linear-gradient(-45deg,var(--giallo-500) 0 2px,transparent 2px 4px);
+}
+/* tema carta: README, documentazione, stampa */
+[data-tema="carta"]{
+  --sfondo:var(--carta-50);
+  --sfondo-profondo:var(--prussia-800);
+  --superficie:var(--carta-0);
+  --superficie-alta:var(--carta-0);
+  --linea:rgba(30,63,115,.14);
+  --linea-forte:rgba(30,63,115,.32);
+  --testo:var(--prussia-800);
+  --testo-2:var(--grafite);
+  --testo-link:var(--prussia-700);
+  --segno:var(--prussia-700);
+  --errore:var(--errore-scuro);
+  --griglia:rgba(30,63,115,.08);
+  --focus:var(--prussia-700);
+  --stato-completato:var(--prussia-700);
+  --stato-sospeso:var(--prussia-700);
+  --stato-abbandonato:var(--grafite);
+  --nastro:repeating-linear-gradient(-45deg,var(--giallo-500) 0 10px,var(--prussia-700) 10px 20px);
+}
