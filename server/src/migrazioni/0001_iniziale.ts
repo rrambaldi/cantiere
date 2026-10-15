@@ -1,10 +1,14 @@
 import { PostgresAdapter, type CreateTableBuilder, type Kysely } from "kysely";
 
-export async function up(db: Kysely<any>): Promise<void> {
-  // SQLite: "integer primary key" è l'alias del rowid; PostgreSQL vuole serial.
+/** Colonna id intera autoincrementale. SQLite: "integer primary key" è l'alias del rowid; PostgreSQL vuole serial. */
+export function colonnaId(db: Kysely<any>) {
   const pg = db.getExecutor().adapter instanceof PostgresAdapter;
-  const id = <T extends string>(t: CreateTableBuilder<T>) =>
+  return <T extends string>(t: CreateTableBuilder<T>) =>
     pg ? t.addColumn("id", "serial", (c) => c.primaryKey()) : t.addColumn("id", "integer", (c) => c.primaryKey().autoIncrement());
+}
+
+export async function up(db: Kysely<any>): Promise<void> {
+  const id = colonnaId(db);
 
   await id(db.schema.createTable("clienti"))
     .addColumn("nome", "text", (c) => c.notNull())

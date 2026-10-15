@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { contaTurno, datiTodo, decidiBlocco, normalizzaRepo, normalizzaUrl, riconosci } from "../bin/forgia.mts";
+import { areaDi, contaTurno, datiTodo, decidiBlocco, normalizzaRepo, normalizzaUrl, riconosci, slug, titoloSessione, type Area } from "../bin/forgia.mts";
 import { DATI, TRANSCRIPT } from "./aiuti.ts";
 
 describe("normalizzaRepo", () => {
@@ -28,31 +28,67 @@ describe("riconosci /cantiere", () => {
   test("descrizione dopo --", () =>
     assert.deepEqual(riconosci("/cantiere oauth -- login"), { op: "apri", nome: "oauth", padre: null, descrizione: "login" }));
   test("padre con --padre o nel nome a percorso", () => {
-    assert.deepEqual(riconosci("/cantiere oauth --padre logiquo-v2 — login"),
-      { op: "apri", nome: "oauth", padre: "logiquo-v2", descrizione: "login" });
-    assert.deepEqual(riconosci("/cantiere logiquo-v2/oauth — login"),
-      { op: "apri", nome: "logiquo-v2/oauth", padre: null, descrizione: "login" });
-    assert.deepEqual(riconosci("/cantiere --padre logiquo-v2"), { op: null });
+    assert.deepEqual(riconosci("/cantiere preprod --padre idoc-converter — verso il server di prova"),
+      { op: "apri", nome: "preprod", padre: "idoc-converter", descrizione: "verso il server di prova" });
+    assert.deepEqual(riconosci("/cantiere idoc-converter/preprod — verso il server di prova"),
+      { op: "apri", nome: "idoc-converter/preprod", padre: null, descrizione: "verso il server di prova" });
+    assert.deepEqual(riconosci("/cantiere --padre idoc-converter"), { op: null });
   });
-  test("prefisso del plugin e chiusura", () =>
-    assert.deepEqual(riconosci("/forgia:cantiere chiudi sospeso"), { op: "chiudi", esito: "sospeso", nota: null, forza: false }));
-  test("chiusura forzata con -f o --force", () => {
-    assert.deepEqual(riconosci("/cantiere chiudi -f sospeso"), { op: "chiudi", esito: "sospeso", nota: null, forza: true });
-    assert.deepEqual(riconosci("/cantiere chiudi --force"), { op: "chiudi", esito: "completato", nota: null, forza: true });
-  });
-  test("chiusura con nota e esito di default", () => {
-    assert.deepEqual(riconosci("/cantiere chiudi abbandonato non serve più"), { op: "chiudi", esito: "abbandonato", nota: "non serve più", forza: false });
-    assert.deepEqual(riconosci("/cantiere chiudi"), { op: "chiudi", esito: "completato", nota: null, forza: false });
-  });
-  test("esito non valido: nessuna operazione", () => assert.deepEqual(riconosci("/cantiere chiudi finito"), { op: null }));
-  test("forme gestite dal comando", () => {
+  test("prefisso del plugin con un percorso", () =>
+    assert.deepEqual(riconosci("/forgia:cantiere idoc-converter/preprod"), { op: "apri", nome: "idoc-converter/preprod", padre: null, descrizione: null }));
+  test("forme gestite dal comando, compresi chiudi e server di v1", () => {
     for (const p of ["/cantiere", "/cantiere stato", "/cantiere server", "/cantiere server https://x.example nome",
-      "/cantiere permessi", "/cantiere on", "/forgia:cantiere off"]) {
+      "/cantiere permessi", "/cantiere on", "/forgia:cantiere off", "/cantiere prendi idoc-converter",
+      "/cantiere collega poker https://priv.progettazionisoftware.it/cantiere", "/cantiere chiudi -f sospeso", "/cantiere chiudi finito"]) {
       assert.deepEqual(riconosci(p), { op: null }, p);
     }
   });
   test("comandi simili ma diversi", () => {
     for (const p of ["/cantieri", "/cantiere-x prova", "fai /cantiere x", "cantiere x"]) assert.equal(riconosci(p), null, p);
+  });
+});
+
+describe("areaDi", () => {
+  const area = (cartella: string, progetto: string): Area =>
+    ({ cartella, url: "https://x.example", token: "t", committente: "PRIV", progetto, mcp_registrato_il: null });
+  const aree = [area("/srv/lavori", "cantiere"), area("/srv/lavori/poker", "poker")];
+  test("la più specifica che contiene la cwd", () => {
+    assert.equal(areaDi(aree, "/srv/lavori/poker/web")?.progetto, "poker");
+    assert.equal(areaDi(aree, "/srv/lavori/poker")?.progetto, "poker");
+    assert.equal(areaDi(aree, "/srv/lavori/mercurius")?.progetto, "cantiere");
+  });
+  test("confronto per segmenti e cwd fuori da ogni area", () => {
+    assert.equal(areaDi([area("/srv/lavori/poker", "poker")], "/srv/lavori/pok"), null);
+    assert.equal(areaDi([area("/srv/lavori/pok", "pok")], "/srv/lavori/poker"), null);
+    assert.equal(areaDi(aree, "/srv/altro"), null);
+    assert.equal(areaDi([], "/srv/lavori"), null);
+  });
+});
+
+describe("slug come nel Contratto v2", () => {
+  for (const [nome, atteso] of [["iDOC converter", "idoc-converter"], ["tassi BCE,BoJ,SNB", "tassi-bce-boj-snb"], ["Città  già", "citta-gia"], ["--Poker--", "poker"], ["!!", ""]]) {
+    test(nome, () => assert.equal(slug(nome), atteso));
+  }
+});
+
+describe("titoloSessione", () => {
+  const dati = (nome: string) => fileURLToPath(new URL(`./dati/${nome}`, import.meta.url));
+  test("custom-title vince anche se dopo c'è un ai-title", () => assert.equal(titoloSessione(dati("titoli.jsonl")), "fix login mobile"));
+  test("solo ai-title: l'ultimo", () => assert.equal(titoloSessione(dati("titoli-solo-ai.jsonl")), "Aggiornamento dipendenze"));
+  test("transcript assente o non stringa: null", () => {
+    assert.equal(titoloSessione(dati("manca.jsonl")), null);
+    assert.equal(titoloSessione(undefined), null);
+  });
+  test("transcript senza titoli: null", () => assert.equal(titoloSessione(dati("transcript.jsonl")), null));
+  test("righe scritte a metà ignorate, titolo troncato a 200 caratteri, custom oltre la prima finestra", () => {
+    const dir = mkdtempSync(join(tmpdir(), "forgia-titoli-"));
+    const lungo = "t".repeat(300);
+    const riempi = JSON.stringify({ type: "user", message: { content: "x".repeat(400_000) } });
+    const p = join(dir, "t.jsonl");
+    writeFileSync(p, [JSON.stringify({ type: "custom-title", customTitle: lungo }), riempi,
+      JSON.stringify({ type: "ai-title", aiTitle: "generato" }), '{"type":"custom-title","customTi'].join("\n"));
+    assert.equal(titoloSessione(p), "t".repeat(200));
+    rmSync(dir, { recursive: true, force: true });
   });
 });
 

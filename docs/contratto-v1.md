@@ -1,5 +1,7 @@
 # Contratto v1
 
+> **Superato dal [Contratto v2](contratto-v2.md).** Resta come storico di forgia v1.
+
 Contratto condiviso tra il server e il plugin di cantiere forgia. Copiato da `server.md` (identico
 in `prompt-plugin.cmd`) con due modifiche, fatte prima del primo rilascio:
 

@@ -1,30 +1,38 @@
 // cantiere forgia: hook di Claude Code e comandi `forgia ...`. Solo moduli interni di Node.
-// Il contratto con il server è in docs/contratto-v1.md. Si spedisce compilato in forgia.mjs
+// Il contratto con il server è in docs/contratto-v2.md. Si spedisce compilato in forgia.mjs
 // (npx tsc -p plugin/tsconfig.build.json): il type stripping a ogni hook costava ~280 ms.
 import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { appendFileSync, closeSync, copyFileSync, existsSync, fstatSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, realpathSync, renameSync, rmSync, statSync, writeFileSync, } from "node:fs";
 import { homedir, hostname } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 export const NOME = "forgia";
 export const NOME_VISIBILE = "cantiere forgia";
-const VERSIONE_CONTRATTO = 1;
+const VERSIONE_CONTRATTO = 2;
 const TIMEOUT_HTTP = 1500;
+const TIMEOUT_COMANDO = 5000;
 const TIMEOUT_GIT = 1000;
 const MAX_CODA = 500;
 const SCADENZA_ATTESA = 10 * 60_000;
 const VITA_SESSIONE = 7 * 24 * 3600_000;
 const SORGENTI = ["startup", "resume", "clear", "compact"];
-const ESITI = ["completato", "sospeso", "abbandonato"];
+const MAX_FILE = 256 * 1024; // come max_file del server: un file più grande renderebbe la copia invalida
+const MAX_TITOLO = 200;
+const MAX_FINESTRA_TITOLO = 1 << 24;
+const RE_CHANGE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const RE_ARCHIVIATO = /^(\d{4}-\d{2}-\d{2})-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
+const FILE_CHANGE = new Set([".openspec.yaml", "proposal.md", "design.md", "tasks.md"]);
 const STATI_TODO = ["pending", "in_progress", "completed", "deleted"];
 const RIFIUTI_DEFINITIVI = [409, 413, 422];
 const OSCURATI = new Set(["prompt", "last_assistant_message", "token"]);
 export const RE_CANTIERE = /^\/(\S+:)?cantiere(\s|$)/;
-// Prime parole di /cantiere che gestisce il comando, non l'hook.
-const RISERVATE = ["stato", "server", "permessi", "on", "off"];
+// Prime parole di /cantiere che gestisce il comando, non l'hook. `chiudi` e `server` erano di v1:
+// il comando spiega cosa usare adesso.
+const RISERVATE = ["prendi", "collega", "chiudi", "server", "stato", "permessi", "on", "off"];
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), NOME);
+const NON_COLLEGATA = `questa cartella non è collegata a ${NOME_VISIBILE}: lancia /cantiere collega <progetto> <url>`;
 class Errore extends Error {
 }
 const errore = (msg) => { throw new Errore(msg); };
@@ -50,14 +58,40 @@ function scriviJson(p, v, mode) {
     writeFileSync(tmp, JSON.stringify(v, null, 2), { mode });
     renameSync(tmp, p);
 }
-export function leggiConfig() {
+// Una config di v1 (url e token, senza aree) vale come nessuna area: si ricollega con /cantiere collega.
+export function leggiGenerale() {
     const f = leggiJson(fileConfig()) ?? {};
-    const url = process.env.FORGIA_URL || f.url;
-    const token = process.env.FORGIA_TOKEN || f.token;
-    if (!url || !token)
-        return null;
-    return { abilitato: true, nome_server_mcp: NOME, modalita_resoconto: null, mcp_registrato_il: null, ...f, url, token };
+    return {
+        abilitato: f.abilitato ?? true, nome_server_mcp: f.nome_server_mcp ?? NOME,
+        modalita_resoconto: f.modalita_resoconto ?? null, aree: Array.isArray(f.aree) ? f.aree : [],
+    };
 }
+function salvaArea(gen, area) {
+    scriviJson(fileConfig(), { ...gen, aree: [...gen.aree.filter((a) => a.cartella !== area.cartella), area] }, 0o600);
+}
+const reale = (p) => {
+    try {
+        return realpathSync(p);
+    }
+    catch {
+        return resolve(p); // cartella sparita: si confronta il percorso così com'è
+    }
+};
+// L'area la cui cartella contiene la cwd, la più specifica. Confronto per segmenti: ~/lavori/pok non
+// sta dentro ~/lavori/poker.
+export function areaDi(aree, cwd) {
+    const qui = reale(cwd);
+    const dentro = (a) => qui === a.cartella || qui.startsWith(a.cartella.endsWith(sep) ? a.cartella : a.cartella + sep);
+    return aree.filter(dentro).sort((a, b) => b.cartella.length - a.cartella.length)[0] ?? null;
+}
+const configDi = (gen, area) => ({ ...area, nome_server_mcp: gen.nome_server_mcp, modalita_resoconto: gen.modalita_resoconto });
+function areaCorrente() {
+    const gen = leggiGenerale();
+    return configDi(gen, areaDi(gen.aree, process.cwd()) ?? errore(NON_COLLEGATA));
+}
+// Come lo slug del server (Contratto v2), per confrontare i nomi dei progetti.
+export const slug = (s) => s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+const chiaveCartella = (p) => createHash("sha256").update(resolve(p)).digest("hex").slice(0, 16);
 function debug(...voci) {
     if (process.env.FORGIA_DEBUG !== "1")
         return;
@@ -127,8 +161,8 @@ function pulisciSessioni() {
             rmSync(join(dir, f), { force: true });
     }
 }
-// Il percorso (padre/figlio) se il server lo manda, altrimenti il nome.
-const nomeCantiere = (c) => (c ? c.percorso ?? c.nome : null);
+// Il percorso dal primo livello del progetto (padre/figlio); null per il lavoro diretto.
+const nomeCantiere = (c) => c?.percorso ?? null;
 export function ultimaSessione(cwd) {
     const dir = cache("sessioni");
     if (!existsSync(dir))
@@ -146,13 +180,13 @@ function evento(c, tipo, dati) {
     c.git ??= leggiGit(c.cwd);
     return {
         evento_id: randomUUID(), ts: adesso(), tipo, session_id: c.sid, host: hostname(), cwd: c.cwd,
-        repo: c.git.repo, branch: c.git.branch, dati,
+        repo: c.git.repo, branch: c.git.branch, progetto: c.cfg.progetto, dati,
     };
 }
 const fileInCoda = (ev) => cache("coda", `${String(Date.parse(ev.ts)).padStart(15, "0")}-${ev.evento_id}.json`);
 const inCoda = () => (existsSync(cache("coda")) ? readdirSync(cache("coda")).filter((f) => f.endsWith(".json")).sort() : []);
-function accoda(ev) {
-    scriviJson(fileInCoda(ev), ev);
+function accoda(cartella, ev) {
+    scriviJson(fileInCoda(ev), { cartella, evento: ev });
     const file = inCoda();
     for (const f of file.slice(0, Math.max(0, file.length - MAX_CODA)))
         rmSync(cache("coda", f), { force: true });
@@ -196,21 +230,28 @@ function registraRisposta(ev, r, inietta) {
     });
 }
 // Prima l'evento nuovo, poi il resto della coda in ordine, solo se il server risponde e con un
-// tetto di tempo: un hook sincrono non resta appeso a svuotare una coda lunga.
+// tetto di tempo: un hook sincrono non resta appeso a svuotare una coda lunga. Ogni evento in coda
+// parte con URL e token della sua area; quello di un'area che non c'è più si scarta.
 async function invia(c, ev, inietta = false) {
-    accoda(ev);
+    accoda(c.cfg.cartella, ev);
     const r = await consegna(c.cfg, ev, inietta);
     if (!r)
         return null;
     const fine = Date.now() + TIMEOUT_HTTP;
+    const aree = leggiGenerale().aree;
     for (const f of inCoda()) {
-        const vecchio = leggiJson(cache("coda", f));
-        if (Date.now() > fine || (vecchio && !(await consegna(c.cfg, vecchio, false))))
+        const voce = leggiJson(cache("coda", f));
+        const area = voce?.evento && aree.find((a) => a.cartella === voce.cartella);
+        if (!voce?.evento || !area) {
+            rmSync(cache("coda", f), { force: true }); // area cancellata, o evento di v1 senza area
+            continue;
+        }
+        if (Date.now() > fine || !(await consegna({ ...c.cfg, ...area }, voce.evento, false)))
             break;
     }
     return r;
 }
-const fileAttesa = (cwd) => cache("attesa", `${createHash("sha256").update(resolve(cwd)).digest("hex").slice(0, 16)}.json`);
+const fileAttesa = (cwd) => cache("attesa", `${chiaveCartella(cwd)}.json`);
 function prendiAttesa(cwd) {
     const p = fileAttesa(cwd);
     const mia = `${p}.${process.pid}`;
@@ -236,32 +277,23 @@ async function preliminari(c) {
     if (op)
         await invia(c, evento(c, op.tipo, op.dati));
 }
-const FORZA = ["-f", "--force"];
 export function riconosci(prompt) {
     const testo = prompt.trimStart();
     const m = RE_CANTIERE.exec(testo);
     if (!m)
         return null;
     const args = testo.slice(m[0].length).trim();
-    const [primo = "", ...resto] = args.split(/\s+/);
+    const [primo = ""] = args.split(/\s+/);
     if (!primo || RISERVATE.includes(primo))
         return { op: null };
-    if (primo === "chiudi") {
-        const [esito = "completato", ...nota] = resto.filter((p) => !FORZA.includes(p));
-        if (!ESITI.includes(esito))
-            return { op: null };
-        return { op: "chiudi", esito: esito, nota: nota.join(" ") || null, forza: resto.some((p) => FORZA.includes(p)) };
-    }
     const d = /^(.+?)\s+(?:—|--)\s+(.+)$/s.exec(args);
     // Il nome può essere un percorso padre/figlio: lo risolve il server.
     const p = /(?:^|\s)--padre\s+(\S+)/.exec(d ? d[1] : args);
     const nome = (d ? d[1] : args).replace(p?.[0] ?? "", "").trim();
     return nome ? { op: "apri", nome, padre: p?.[1] ?? null, descrizione: d ? d[2] : null } : { op: null };
 }
-const eventoComando = (cmd) => cmd.op === "apri"
-    ? { tipo: "apri_cantiere", dati: { nome: cmd.nome, descrizione: cmd.descrizione, origine: "utente", padre: cmd.padre } }
-    : { tipo: "chiudi_cantiere", dati: { esito: cmd.esito, nota: cmd.nota, forza: cmd.forza } };
-// Il motivo di un 409 (padre con figli aperti, padre diverso, precedenza), dal corpo del server.
+const datiApertura = (cmd) => ({ nome: cmd.nome, descrizione: cmd.descrizione, origine: "utente", padre: cmd.padre });
+// Il motivo di un 409 (precedenza, cantiere sospeso o chiuso, idea, nome di change preso), dal corpo del server.
 const motivoRifiuto = (r) => r.corpo?.errore;
 export function datiTodo(strumento, inp, ris, noti) {
     const valida = (v) => typeof v.testo === "string" && STATI_TODO.includes(v.stato);
@@ -338,17 +370,98 @@ export function contaTurno(percorso, server) {
         return null; // transcript assente, troncato o di forma inattesa: conteggio non affidabile
     }
 }
+// Il titolo della sessione: l'ultimo `custom-title` (da /rename) se c'è, altrimenti l'ultimo
+// `ai-title`. Dopo un /rename Claude Code ripete `custom-title` lungo la sessione, quindi basta
+// leggere la coda del file, a finestre crescenti fino a un tetto. Formato interno: ogni sorpresa è null.
+export function titoloSessione(percorso) {
+    if (typeof percorso !== "string")
+        return null;
+    try {
+        const fd = openSync(percorso, "r");
+        try {
+            const dim = fstatSync(fd).size;
+            for (let finestra = 1 << 18;; finestra *= 4) {
+                const da = Math.max(0, dim - finestra);
+                const buf = Buffer.alloc(dim - da);
+                readSync(fd, buf, 0, buf.length, da);
+                const righe = buf.toString("utf8").split("\n");
+                let generato = null;
+                for (let i = righe.length - 1; i >= (da > 0 ? 1 : 0); i--) {
+                    if (!righe[i].includes("-title"))
+                        continue;
+                    let r;
+                    try {
+                        r = JSON.parse(righe[i]);
+                    }
+                    catch {
+                        continue; // riga scritta a metà: non è un titolo
+                    }
+                    if (r?.type === "custom-title" && typeof r.customTitle === "string" && r.customTitle)
+                        return r.customTitle.slice(0, MAX_TITOLO);
+                    if (r?.type === "ai-title" && typeof r.aiTitle === "string" && r.aiTitle)
+                        generato ??= r.aiTitle;
+                }
+                if (da === 0 || finestra >= MAX_FINESTRA_TITOLO)
+                    return generato?.slice(0, MAX_TITOLO) ?? null;
+            }
+        }
+        finally {
+            closeSync(fd);
+        }
+    }
+    catch {
+        return null;
+    }
+}
+// ---- copia dei change OpenSpec (D8 del design)
+// Percorsi relativi (con `/`) dei file sotto una cartella; i link simbolici non si seguono.
+function elenca(dir, rel = "") {
+    return readdirSync(join(dir, rel), { withFileTypes: true }).flatMap((v) => {
+        const p = rel ? `${rel}/${v.name}` : v.name;
+        return v.isDirectory() ? elenca(dir, p) : v.isFile() ? [p] : [];
+    });
+}
+const ammesso = (p) => FILE_CHANGE.has(p) || /^specs\/.+\.md$/.test(p) || /^idee\/.+\.(md|txt)$/.test(p);
+// Il corpo di PUT /api/v1/progetti/<p>/openspec: change attivi con i file ammessi e la loro ultima
+// modifica, e i nomi degli archiviati. Null se l'area non ha openspec/changes/.
+export function copiaChange(cartella) {
+    const dir = join(cartella, "openspec", "changes");
+    if (!existsSync(dir))
+        return null;
+    const attivi = readdirSync(dir, { withFileTypes: true })
+        .filter((v) => v.isDirectory() && v.name !== "archive" && RE_CHANGE.test(v.name))
+        .map((v) => v.name)
+        .sort()
+        .map((change) => {
+        const radiceChange = join(dir, change);
+        let ultima = statSync(radiceChange).mtimeMs;
+        const file = elenca(radiceChange).filter(ammesso).sort().flatMap((percorso) => {
+            const st = statSync(join(radiceChange, percorso));
+            if (st.size > MAX_FILE)
+                return [];
+            ultima = Math.max(ultima, st.mtimeMs);
+            return [{ percorso, contenuto: readFileSync(join(radiceChange, percorso), "utf8") }];
+        });
+        return { change, modificato_il: new Date(ultima).toISOString(), file };
+    });
+    const archivio = join(dir, "archive");
+    const archiviati = (existsSync(archivio) ? readdirSync(archivio).sort() : []).flatMap((n) => {
+        const m = RE_ARCHIVIATO.exec(n);
+        return m ? [{ change: m[2], archiviato_il: m[1] }] : [];
+    });
+    return { attivi, archiviati };
+}
 export function decidiBlocco(p) {
     return !p.attivo && !!p.conteggio && p.modalita === "forzato" && p.conteggio.strumenti >= p.soglia &&
         !p.conteggio.resoconto && !!p.avvio && !!p.registrato && p.avvio > p.registrato;
 }
 const contestoHook = (hookEventName, additionalContext) => console.log(JSON.stringify({ hookSpecificOutput: { hookEventName, additionalContext } }));
-function avvisaNonConfigurato() {
+function avvisaSenzaAree() {
     const oggi = adesso().slice(0, 10);
     if (leggiJson(cache("avviso.json")) === oggi)
         return;
     scriviJson(cache("avviso.json"), oggi);
-    console.log(JSON.stringify({ systemMessage: `${NOME_VISIBILE} non configurato: lancia /cantiere` }));
+    console.log(JSON.stringify({ systemMessage: `${NOME_VISIBILE}: nessuna cartella collegata, lancia /cantiere collega <progetto>` }));
 }
 const HOOK = {
     async session_start(c, input) {
@@ -370,8 +483,7 @@ const HOOK = {
             if (!cmd.op)
                 return;
             await preliminari(c);
-            const { tipo, dati } = eventoComando(cmd);
-            const r = await invia(c, evento(c, tipo, dati), true);
+            const r = await invia(c, evento(c, "apri_cantiere", datiApertura(cmd)), true);
             const motivo = r?.codice === 409 && motivoRifiuto(r);
             const contesto = typeof motivo === "string"
                 ? `[${NOME}] Comando /cantiere gestito: ${motivo} Rispondi all'utente con una sola riga.`
@@ -414,6 +526,7 @@ const HOOK = {
         });
         await invia(c, evento(c, "stop", {
             strumenti_nel_turno: conteggio?.strumenti ?? 0, resoconto_inviato: conteggio?.resoconto ?? false, bloccato,
+            titolo: titoloSessione(input.transcript_path),
         }));
         if (bloccato) {
             console.log(JSON.stringify({
@@ -424,7 +537,34 @@ const HOOK = {
     },
     async session_end(c, input) {
         await preliminari(c);
-        await invia(c, evento(c, "session_end", { reason: String(input.reason ?? "other") }));
+        await invia(c, evento(c, "session_end", { reason: String(input.reason ?? "other"), titolo: titoloSessione(input.transcript_path) }));
+    },
+    // Asincrono, accanto allo Stop: manda la copia dei change solo se è cambiata dall'ultimo invio.
+    // Niente coda: è uno snapshot, e il prossimo Stop la rimanda intera.
+    async copia(c) {
+        const corpo = copiaChange(c.cfg.cartella);
+        if (!corpo)
+            return;
+        const testo = JSON.stringify(corpo);
+        const hash = createHash("sha256").update(`${c.cfg.url} ${c.cfg.progetto} ${testo}`).digest("hex");
+        const ultimo = cache("copie", `${chiaveCartella(c.cfg.cartella)}.json`);
+        if (leggiJson(ultimo) === hash)
+            return;
+        try {
+            const r = await fetch(`${c.cfg.url}/api/v1/progetti/${encodeURIComponent(c.cfg.progetto)}/openspec`, {
+                method: "PUT",
+                headers: { authorization: `Bearer ${c.cfg.token}`, "content-type": "application/json" },
+                body: testo,
+                signal: AbortSignal.timeout(TIMEOUT_COMANDO),
+            });
+            debug("copia", r.status);
+            // Un rifiuto definitivo non si ripete finché la copia non cambia.
+            if (r.ok || RIFIUTI_DEFINITIVI.includes(r.status))
+                scriviJson(ultimo, hash);
+        }
+        catch {
+            // server giù: la copia riparte al prossimo Stop
+        }
     },
 };
 async function hook(nome) {
@@ -435,16 +575,17 @@ async function hook(nome) {
     const cwd = typeof input.cwd === "string" ? input.cwd : process.cwd();
     if (progettoEscluso(cwd))
         return;
-    const cfg = leggiConfig();
-    if (!cfg) {
-        if (nome === "session_start")
-            avvisaNonConfigurato();
-        return;
+    const gen = leggiGenerale();
+    const area = areaDi(gen.aree, cwd);
+    if (!area) {
+        if (nome === "session_start" && !gen.aree.length)
+            avvisaSenzaAree();
+        return; // fuori da ogni area non parte nulla
     }
-    if (!cfg.abilitato || typeof input.session_id !== "string" || !/^[\w-]+$/.test(input.session_id))
+    if (!gen.abilitato || typeof input.session_id !== "string" || !/^[\w-]+$/.test(input.session_id))
         return;
     pulisciSessioni();
-    await HOOK[nome]({ sid: input.session_id, cwd, cfg }, input);
+    await HOOK[nome]({ sid: input.session_id, cwd, cfg: configDi(gen, area) }, input);
 }
 // ---- comandi
 export function normalizzaUrl(grezzo) {
@@ -460,19 +601,29 @@ export function normalizzaUrl(grezzo) {
         errore("serve un URL https (http solo per localhost)");
     return u.origin + u.pathname.replace(/\/+$/, "");
 }
-async function salute(url, token) {
+// Una chiamata ai comandi (non agli hook): errori di rete e HTTP diventano messaggi per l'utente.
+async function chiamaApi(cfg, metodo, percorso, corpo) {
     let r;
     try {
-        r = await fetch(`${url}/api/v1/salute`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(5000) });
+        r = await fetch(`${cfg.url}${percorso}`, {
+            method: metodo,
+            headers: { authorization: `Bearer ${cfg.token}`, ...(corpo === undefined ? {} : { "content-type": "application/json" }) },
+            body: corpo === undefined ? undefined : JSON.stringify(corpo),
+            signal: AbortSignal.timeout(TIMEOUT_COMANDO),
+        });
     }
     catch (e) {
-        throw new Errore(`server non raggiungibile: ${url}`, { cause: e });
+        throw new Errore(`server non raggiungibile: ${cfg.url}`, { cause: e });
     }
     if (r.status === 401)
         errore("token non valido: il server risponde 401");
+    const risposta = await r.json().catch(() => null);
     if (!r.ok)
-        errore(`il server risponde ${r.status}`);
-    const s = await r.json();
+        errore(`il server risponde ${r.status}${risposta?.errore ? `: ${risposta.errore}` : ""}`);
+    return risposta;
+}
+async function salute(url, token) {
+    const s = await chiamaApi({ url, token }, "GET", "/api/v1/salute");
     if (s?.versione_contratto !== VERSIONE_CONTRATTO) {
         errore(`il server usa la versione ${s?.versione_contratto} del contratto, serve la ${VERSIONE_CONTRATTO}`);
     }
@@ -503,82 +654,107 @@ function chiediNascosto(domanda) {
         stdin.on("data", leggi).resume();
     });
 }
-// Registra il server MCP a livello utente. Il token passa solo da qui, mai da un comando scritto da Claude.
+// Registra il server MCP per la sola cartella dell'area (scope local: in un repo git vale anche nelle
+// sottocartelle). Il token passa solo da qui, mai da un comando scritto da Claude.
 function registraMcp(cfg) {
     const nome = cfg.nome_server_mcp;
+    const opz = { cwd: cfg.cartella, stdio: "ignore" };
     try {
-        execFileSync("claude", ["mcp", "remove", nome, "--scope", "user"], { stdio: "ignore" });
+        execFileSync("claude", ["mcp", "remove", nome, "--scope", "local"], opz);
     }
     catch (e) {
         if (assente(e)) {
-            console.log(`Comando claude non trovato. Aggiungi a mano in ~/.claude.json, con il tuo token:\n${JSON.stringify({ mcpServers: { [nome]: { type: "http", url: `${cfg.url}/mcp`, headers: { Authorization: "Bearer <token>" } } } }, null, 2)}`);
+            console.log(`Comando claude non trovato. Aggiungi a mano in ~/.claude.json, dentro "projects" → "${cfg.cartella}", con il tuo token:\n${JSON.stringify({ mcpServers: { [nome]: { type: "http", url: `${cfg.url}/mcp`, headers: { Authorization: "Bearer <token>" } } } }, null, 2)}`);
             return null;
         }
         // altrimenti non era registrato: niente da togliere
     }
     try {
-        execFileSync("claude", ["mcp", "add", "--transport", "http", "--scope", "user", nome, `${cfg.url}/mcp`,
-            "--header", `Authorization: Bearer ${cfg.token}`], { stdio: "ignore" });
+        execFileSync("claude", ["mcp", "add", "--transport", "http", "--scope", "local", nome, `${cfg.url}/mcp`,
+            "--header", `Authorization: Bearer ${cfg.token}`], opz);
     }
     catch (e) {
         throw new Errore(`claude mcp add non è riuscito (codice ${e.status})`, { cause: e });
     }
     return adesso();
 }
-async function setup(args) {
-    const { values } = parseArgs({ args, options: { url: { type: "string" }, "token-stdin": { type: "boolean" } } });
-    const url = normalizzaUrl(values.url ?? errore("manca --url"));
+// Collega la cartella (la radice git, o la cwd senza git) a un progetto del committente del token.
+async function collega(args) {
+    const { values, positionals } = parseArgs({
+        args, allowPositionals: true,
+        options: { url: { type: "string" }, "token-stdin": { type: "boolean" }, crea: { type: "boolean" } },
+    });
+    const nome = positionals.join(" ").trim() || errore("manca il nome del progetto: forgia collega <progetto> --url <url>");
+    const gen = leggiGenerale();
+    const qui = areaDi(gen.aree, process.cwd());
+    const url = normalizzaUrl(values.url ?? process.env.FORGIA_URL ?? qui?.url ?? errore("manca l'URL del server: /cantiere collega <progetto> <url>"));
+    // Una sottocartella di un'area già collegata riusa il suo token, se il server è lo stesso.
     const token = values["token-stdin"] ? readFileSync(0, "utf8").trim()
-        : process.env.FORGIA_TOKEN || (process.stdin.isTTY ? await chiediNascosto("Token: ")
-            : errore(`manca il token: imposta FORGIA_TOKEN e rilancia, oppure da un terminale: ${SCRIPT} setup --url ${url}`));
+        : process.env.FORGIA_TOKEN || (qui?.url === url ? qui.token : "") || (process.stdin.isTTY ? await chiediNascosto("Token: ")
+            : errore(`manca il token: imposta FORGIA_TOKEN e rilancia, oppure da un terminale: ${SCRIPT} collega ${nome} --url ${url}`));
     if (!token)
         errore("token vuoto");
-    const { cliente } = await salute(url, token);
-    const prima = leggiJson(fileConfig()) ?? {};
-    const cfg = { nome_server_mcp: NOME, modalita_resoconto: null, ...prima, url, token, abilitato: true, mcp_registrato_il: null };
-    scriviJson(fileConfig(), cfg, 0o600);
-    cfg.mcp_registrato_il = registraMcp(cfg);
-    scriviJson(fileConfig(), cfg, 0o600);
+    const { cliente: committente } = await salute(url, token);
+    const { progetti } = await chiamaApi({ url, token }, "GET", "/api/v1/progetti");
+    let progetto = progetti.find((p) => p.slug === slug(nome))?.nome;
+    if (!progetto) {
+        if (!values.crea) {
+            errore(`il progetto "${nome}" non esiste in ${committente}. Progetti: ${progetti.map((p) => p.nome).join(", ") || "nessuno"}. ` +
+                `Per crearlo: forgia collega ${nome} --crea`);
+        }
+        progetto = (await chiamaApi({ url, token }, "POST", "/api/v1/progetti", { nome })).progetto.nome;
+    }
+    const area = { cartella: reale(radiceGit(process.cwd()) ?? process.cwd()), url, token, committente, progetto, mcp_registrato_il: null };
+    salvaArea(gen, area);
+    area.mcp_registrato_il = registraMcp(configDi(gen, area));
+    salvaArea(gen, area);
     console.log([
-        `${NOME_VISIBILE} configurato: ${url} (cliente ${cliente}). Il tracciamento è attivo.`,
-        cfg.mcp_registrato_il
-            ? `Server MCP "${cfg.nome_server_mcp}" registrato: i suoi tool arrivano dal prossimo avvio di Claude Code.`
+        `${NOME_VISIBILE}: ${area.cartella} collegata a ${committente}/${progetto} (${url}). Il tracciamento è attivo in questa cartella.`,
+        area.mcp_registrato_il
+            ? `Server MCP "${gen.nome_server_mcp}" registrato per questa cartella: i suoi tool arrivano dal prossimo avvio di Claude Code.`
             : "Server MCP non registrato: il resoconto forzato resta spento finché non lo registri.",
-        `Per usare i tool senza conferme: /cantiere permessi (aggiunge mcp__${cfg.nome_server_mcp} ai permessi).`,
+        `Per usare i tool senza conferme: /cantiere permessi (aggiunge mcp__${gen.nome_server_mcp} ai permessi).`,
     ].join("\n"));
 }
+const maschera = (token) => `…${token.slice(-4)}`;
 async function status(args) {
     const { values } = parseArgs({ args, options: { json: { type: "boolean" } } });
-    const cfg = leggiConfig();
-    const server = cfg && await salute(cfg.url, cfg.token).then((s) => ({ raggiungibile: true, cliente: s.cliente }), (e) => ({ raggiungibile: false, errore: e.message }));
+    const gen = leggiGenerale();
+    const area = areaDi(gen.aree, process.cwd());
+    const server = area && await salute(area.url, area.token).then((s) => ({ raggiungibile: true, cliente: s.cliente }), (e) => ({ raggiungibile: false, errore: e.message }));
+    const descrivi = (a) => ({ cartella: a.cartella, committente: a.committente, progetto: a.progetto, url: a.url, token: maschera(a.token) });
     const info = {
-        configurato: !!cfg, abilitato: cfg?.abilitato ?? false, url: cfg?.url ?? null,
-        token: cfg ? `…${cfg.token.slice(-4)}` : null, token_da_ambiente: !!process.env.FORGIA_TOKEN,
-        nome_server_mcp: cfg?.nome_server_mcp ?? NOME, modalita_resoconto: cfg?.modalita_resoconto ?? null,
-        mcp_registrato_il: cfg?.mcp_registrato_il ?? null, server, ultima_sessione: ultimaSessione(process.cwd()),
+        in_area: !!area, abilitato: gen.abilitato, nome_server_mcp: gen.nome_server_mcp, modalita_resoconto: gen.modalita_resoconto,
+        area: area && { ...descrivi(area), mcp_registrato_il: area.mcp_registrato_il }, server,
+        aree: gen.aree.map(descrivi), ultima_sessione: ultimaSessione(process.cwd()),
     };
     if (values.json)
         return console.log(JSON.stringify(info, null, 2));
-    if (!cfg)
-        return console.log(`${NOME_VISIBILE} non configurato: lancia /cantiere server <url> [nome]`);
+    const elenco = gen.aree.length
+        ? `aree collegate: ${gen.aree.map((a) => `${a.cartella} (${a.committente}/${a.progetto})`).join(", ")}`
+        : "nessuna area collegata";
+    if (!area)
+        return console.log(`${NON_COLLEGATA}\n${elenco}`);
     const u = info.ultima_sessione;
     console.log([
-        `${NOME_VISIBILE}: tracciamento ${cfg.abilitato ? "acceso" : "spento"}`,
-        `server: ${cfg.url} (${server?.raggiungibile ? `raggiungibile, cliente ${server.cliente}` : `non raggiungibile: ${server?.errore}`})`,
-        `token: ${info.token}`,
-        `server MCP: ${info.nome_server_mcp}${cfg.mcp_registrato_il ? `, registrato il ${cfg.mcp_registrato_il}` : ", non registrato: rilancia il setup con /cantiere server"}`,
-        u ? `ultima sessione qui: ${u.session_id}, cantiere ${u.cantiere ?? "nessuno"} (${u.visto_il})` : "nessuna sessione vista in questa cartella",
+        `${NOME_VISIBILE}: tracciamento ${gen.abilitato ? "acceso" : "spento"}`,
+        `area: ${area.cartella} → ${area.committente}/${area.progetto}`,
+        `server: ${area.url} (${server?.raggiungibile ? `raggiungibile, cliente ${server.cliente}` : `non raggiungibile: ${server?.errore}`})`,
+        `token: ${maschera(area.token)}`,
+        `server MCP: ${gen.nome_server_mcp}${area.mcp_registrato_il ? `, registrato il ${area.mcp_registrato_il}` : ", non registrato: rilancia /cantiere collega"}`,
+        u ? `ultima sessione qui: ${u.session_id}, ${u.cantiere ? `cantiere ${u.cantiere}` : "lavoro diretto"} (${u.visto_il})` : "nessuna sessione vista in questa cartella",
+        elenco,
     ].join("\n"));
 }
 function imposta(abilitato) {
-    const f = leggiJson(fileConfig()) ?? errore(`${NOME_VISIBILE} non configurato: lancia /cantiere`);
+    const f = leggiJson(fileConfig()) ?? errore(`${NOME_VISIBILE} non configurato: lancia /cantiere collega <progetto> <url>`);
     scriviJson(fileConfig(), { ...f, abilitato }, 0o600);
     console.log(`Tracciamento ${abilitato ? "acceso" : "spento"}.`);
 }
 // Con un session_id (opzione o ambiente di Claude Code) l'operazione parte subito; senza, resta in
 // attesa e la manda il primo hook della stessa cartella.
 async function operazione(sid, tipo, dati) {
-    const cfg = leggiConfig() ?? errore(`${NOME_VISIBILE} non configurato: lancia /cantiere`);
+    const cfg = areaCorrente();
     const cwd = process.cwd();
     sid ??= process.env.CLAUDE_CODE_SESSION_ID;
     if (!sid) {
@@ -593,7 +769,7 @@ async function operazione(sid, tipo, dati) {
     if (r.codice >= 400)
         errore(`il server ha rifiutato l'operazione (${r.codice}): ${motivoRifiuto(r) ?? JSON.stringify(r.corpo)}`);
     const cant = r.risposta?.cantiere;
-    console.log(cant ? `Cantiere "${nomeCantiere(cant)}" (id ${cant.id}).` : "Cantiere chiuso.");
+    console.log(cant ? `Cantiere "${nomeCantiere(cant)}" (change ${cant.change}).` : "Lavoro diretto sul progetto.");
 }
 async function apri(args) {
     const { values, positionals } = parseArgs({
@@ -603,19 +779,61 @@ async function apri(args) {
     const nome = positionals.join(" ").trim() || errore("manca il nome del cantiere");
     await operazione(values["session-id"], "apri_cantiere", { nome, descrizione: values.descrizione ?? null, origine: "utente", padre: values.padre ?? null });
 }
-async function chiudi(args) {
-    const { values } = parseArgs({
-        args, options: {
-            esito: { type: "string", default: "completato" }, nota: { type: "string" }, forza: { type: "boolean", short: "f" },
-            "session-id": { type: "string" },
-        },
-    });
-    if (!ESITI.includes(values.esito))
-        errore(`esito non valido: usa ${ESITI.join(", ")}`);
-    await operazione(values["session-id"], "chiudi_cantiere", { esito: values.esito, nota: values.nota ?? null, forza: !!values.forza });
+// Prende in lavorazione un cantiere (di solito un'idea): il server lo porta ad aperto e manda i file
+// dell'idea, che finiscono in openspec/changes/<change>/idee/ senza sovrascrivere nulla (D9).
+async function prendi(args) {
+    const { values, positionals } = parseArgs({ args, allowPositionals: true, options: { "session-id": { type: "string" } } });
+    const percorso = positionals.join(" ").trim() || errore("manca il percorso del cantiere: forgia prendi <percorso>");
+    const cfg = areaCorrente();
+    try {
+        execFileSync("openspec", ["--version"], { stdio: "ignore" });
+    }
+    catch (e) {
+        errore(assente(e) ? "serve OpenSpec: installalo (npm install -g @fission-ai/openspec) e rilancia" : "openspec --version non risponde");
+    }
+    if (!existsSync(join(cfg.cartella, "openspec")))
+        errore(`in ${cfg.cartella} manca openspec/: lancia prima openspec init`);
+    const cwd = process.cwd();
+    const sid = values["session-id"] ?? process.env.CLAUDE_CODE_SESSION_ID ?? ultimaSessione(cwd)?.session_id
+        ?? errore("nessuna sessione di Claude Code vista in questa cartella: lancia /cantiere prendi da Claude Code");
+    const segmenti = percorso.split("/").map((s) => s.trim()).filter(Boolean).map(encodeURIComponent).join("/");
+    const r = await chiamaApi(cfg, "POST", `/api/v1/progetti/${encodeURIComponent(cfg.progetto)}/cantieri/${segmenti}/prendi`, { session_id: sid, host: hostname(), cwd, ...leggiGit(cwd) });
+    if (!RE_CHANGE.test(r.change))
+        errore(`nome di change non valido dal server: ${r.change}`);
+    aggiornaSessione(sid, (s) => (s.cantiere = r.cantiere));
+    const dirChange = join(cfg.cartella, "openspec", "changes", r.change);
+    if (!existsSync(dirChange)) {
+        try {
+            execFileSync("openspec", ["new", "change", r.change], { cwd: cfg.cartella, stdio: "ignore" });
+        }
+        catch {
+            errore(`il cantiere "${r.cantiere.percorso}" è preso, ma openspec new change ${r.change} non è riuscito: rilancia forgia prendi ${percorso}`);
+        }
+    }
+    const idee = join(dirChange, "idee");
+    mkdirSync(idee, { recursive: true });
+    const scritti = [];
+    const presenti = [];
+    for (const f of r.file) {
+        if (basename(f.nome) !== f.nome || f.nome.startsWith("."))
+            continue; // si scrive solo dentro idee/
+        try {
+            writeFileSync(join(idee, f.nome), f.contenuto, { flag: "wx" });
+            scritti.push(f.nome);
+        }
+        catch (e) {
+            if (e.code !== "EEXIST")
+                throw e;
+            presenti.push(f.nome);
+        }
+    }
+    console.log([
+        `Cantiere "${r.cantiere.percorso}" preso: change ${r.change} in openspec/changes/${r.change}/.`,
+        `${scritti.length} file scritti in idee/${presenti.length ? `; già presenti, lasciati com'erano: ${presenti.join(", ")}` : ""}.`,
+    ].join("\n"));
 }
 function permettiMcp() {
-    const regola = `mcp__${leggiConfig()?.nome_server_mcp ?? NOME}`;
+    const regola = `mcp__${leggiGenerale().nome_server_mcp}`;
     const p = join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"), "settings.json");
     let s;
     try {
@@ -636,7 +854,7 @@ function permettiMcp() {
     console.log(`Aggiunto ${regola} ai permessi consentiti di ${p}${existsSync(backup) ? ` (backup: ${backup})` : ""}.`);
 }
 const COMANDI = {
-    setup, status, apri, chiudi, on: () => imposta(true), off: () => imposta(false), "permetti-mcp": permettiMcp,
+    collega, prendi, status, apri, on: () => imposta(true), off: () => imposta(false), "permetti-mcp": permettiMcp,
 };
 export async function principale(argv) {
     const [comando = "", ...args] = argv;

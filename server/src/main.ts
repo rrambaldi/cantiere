@@ -10,6 +10,10 @@ try {
   process.exit(1);
 }
 
+if (config.ui_certificato === "off") {
+  console.error("Attenzione: FORGIA_UI_CERTIFICATO=off, la dashboard risponde senza certificato client. Solo per lo sviluppo.");
+}
+
 const db = await apriDb(config.database_url);
 const mancanti = await migrazioniMancanti(db);
 if (mancanti.length) {

@@ -1,9 +1,9 @@
 #!/bin/sh
 # Installa o aggiorna il server cantiere forgia come servizio systemd. Il reverse proxy è a parte.
-# Uso, da una copia della repo: sudo server/deploy/installa.sh [--host <host pubblico>] [--cliente <nome>]
+# Uso, da una copia della repo: sudo server/deploy/installa.sh [--host <host pubblico>] [--committente <nome>]
 #   --host     host pubblico dietro il proxy (FORGIA_PUBLIC_HOST): obbligatorio la prima volta;
 #              va bene anche l'URL intero (https://esempio.it/forgia), si tiene solo il nome
-#   --cliente  crea un cliente e stampa il suo token, una volta sola
+#   --committente  crea un committente e stampa il suo token, una volta sola
 # Rilanciato aggiorna codice, dipendenze e database; configurazione e dati restano.
 set -eu
 
@@ -16,11 +16,11 @@ REPO=$(cd "$(dirname "$0")/../.." && pwd)
 
 errore() { echo "errore: $*" >&2; exit 1; }
 
-HOST= CLIENTE=
+HOST= COMMITTENTE=
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--host) HOST=${2:?manca il valore di --host}; shift 2 ;;
-		--cliente) CLIENTE=${2:?manca il valore di --cliente}; shift 2 ;;
+		--committente) COMMITTENTE=${2:?manca il valore di --committente}; shift 2 ;;
 		*) errore "opzione sconosciuta: $1 (l'uso è in testa allo script)" ;;
 	esac
 done
@@ -95,8 +95,16 @@ for tentativo in 1 2 3 4 5 6 7 8 9 10; do
 done
 echo "forgia attivo su ${BIND:-127.0.0.1:8765}; pulizia giornaliera con forgia-pulizia.timer."
 
-if [ -n "$CLIENTE" ]; then
-	echo "== token del cliente $CLIENTE"
-	admin token crea --cliente "$CLIENTE"
+# Senza l'header del certificato la dashboard deve rispondere 403; 200 vuol dire FORGIA_UI_CERTIFICATO=off.
+DASHBOARD=$("$NODE" -e 'fetch(process.argv[1]).then((r) => console.log(r.status), () => console.log(0))' "http://${BIND:-127.0.0.1:8765}/")
+case "$DASHBOARD" in
+	403) echo "Dashboard attiva, aperta solo col certificato client: configura il proxy come nel README." ;;
+	200) echo "attenzione: la dashboard risponde senza certificato (FORGIA_UI_CERTIFICATO=off), va bene solo in sviluppo" >&2 ;;
+	*) errore "la dashboard risponde $DASHBOARD invece di 403" ;;
+esac
+
+if [ -n "$COMMITTENTE" ]; then
+	echo "== committente $COMMITTENTE e il suo token"
+	admin committente crea "$COMMITTENTE"
 fi
-echo "Altri token: cd $CODICE/server && sudo -u $UTENTE node --env-file=$CONF src/admin.ts token crea --cliente <nome>"
+echo "Altri committenti: dalla dashboard, oppure cd $CODICE/server && sudo -u $UTENTE node --env-file=$CONF src/admin.ts committente crea <nome>"

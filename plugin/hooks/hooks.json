@@ -6,7 +6,10 @@
       {"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook prompt_invio", "async": true}
     ]}],
     "PostToolUse": [{"matcher": "TodoWrite|TaskCreate|TaskUpdate", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook todo", "async": true}]}],
-    "Stop": [{"hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook stop", "timeout": 10}]}],
+    "Stop": [{"hooks": [
+      {"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook stop", "timeout": 10},
+      {"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook copia", "async": true}
+    ]}],
     "SessionEnd": [{"hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook session_end", "async": true}]}]
   }
 }

@@ -1,0 +1,93 @@
+// Colonna sinistra: committenti → progetti → cantieri, filtrati per scheda (aperti, idee, chiusi).
+import type { Cantiere, Committente } from "./api.ts";
+import { Logo } from "./ds/brand.tsx";
+import { Button, Tabs } from "./ds/core.tsx";
+import { StatoBadge } from "./ds/feedback.tsx";
+import { ora, profondita, VISTA_DI, type Vista } from "./formato.ts";
+import { Vuoto } from "./ui.tsx";
+
+export type Selezione = { tipo: "committente" | "progetto" | "cantiere"; id: number };
+
+const stessa = (a: Selezione | null, b: Selezione) => a?.tipo === b.tipo && a.id === b.id;
+
+/** Ordine per segmenti, così i figli seguono subito il padre (`a/b` dopo `a`, prima di `a-x`). */
+function perPercorso(a: Cantiere, b: Cantiere): number {
+  const x = a.percorso.split("/");
+  const y = b.percorso.split("/");
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    const c = x[i].localeCompare(y[i], "it");
+    if (c) return c;
+  }
+  return x.length - y.length;
+}
+
+function Voce({ attiva, rientro = 0, onClick, children, titolo }: {
+  attiva: boolean; rientro?: number; onClick: () => void; children: React.ReactNode; titolo?: string;
+}) {
+  return (
+    <button className={"voce" + (attiva ? " attiva" : "")} style={{ paddingLeft: 16 + rientro * 14 }} onClick={onClick} title={titolo} aria-current={attiva || undefined}>
+      {children}
+    </button>
+  );
+}
+
+export function Indice({ committenti, selezione, onScegli, vista, onVista, ristretta, onNuovoCommittente, aggiornato, errore }: {
+  committenti: Committente[]; selezione: Selezione | null; onScegli: (s: Selezione) => void; vista: Vista;
+  onVista: (v: Vista) => void; ristretta: boolean; onNuovoCommittente: () => void; aggiornato: string | null; errore: string | null;
+}) {
+  const tutti = committenti.flatMap((c) => c.progetti.flatMap((p) => p.cantieri));
+  const conta = (v: Vista) => tutti.filter((c) => VISTA_DI[c.stato] === v).length;
+  return (
+    <aside className="indice" aria-label="Indice">
+      <div className="indice-testa">
+        <Logo size={22} wordmark />
+        {ristretta && committenti[0] && <span className="committente-ristretto">{committenti[0].nome}</span>}
+      </div>
+      <div style={{ padding: "0 16px" }}>
+        <Tabs value={vista} onChange={onVista} items={[
+          { id: "aperti", label: "Aperti", count: conta("aperti") },
+          { id: "idee", label: "Idee", count: conta("idee") },
+          { id: "chiusi", label: "Chiusi", count: conta("chiusi") },
+        ]} />
+      </div>
+      <nav className="albero">
+        {committenti.length === 0 && <Vuoto>Nessun committente. {ristretta ? "" : "Crea il primo con «Nuovo committente»."}</Vuoto>}
+        {committenti.map((cm) => (
+          <div key={cm.id} className="gruppo">
+            <Voce attiva={stessa(selezione, { tipo: "committente", id: cm.id })} onClick={() => onScegli({ tipo: "committente", id: cm.id })}>
+              <span className="nome-committente">{cm.nome}</span>
+            </Voce>
+            {cm.progetti.map((p) => {
+              const visibili = p.cantieri.filter((c) => VISTA_DI[c.stato] === vista).sort(perPercorso);
+              const ids = new Set(visibili.map((c) => c.id));
+              return (
+                <div key={p.id}>
+                  <Voce rientro={0.5} attiva={stessa(selezione, { tipo: "progetto", id: p.id })} onClick={() => onScegli({ tipo: "progetto", id: p.id })}>
+                    <span className="nome-progetto">{p.nome}</span>
+                    {p.non_censite > 0 && <span className="a-destra" title="attività non censite">{p.non_censite} non censite</span>}
+                  </Voce>
+                  {visibili.map((c) => {
+                    // Un figlio il cui padre sta in un'altra scheda mostra il percorso intero.
+                    const orfano = c.padre_id != null && !ids.has(c.padre_id);
+                    return (
+                      <Voce key={c.id} rientro={1.5 + (orfano ? 0 : profondita(c))} titolo={c.percorso}
+                        attiva={stessa(selezione, { tipo: "cantiere", id: c.id })} onClick={() => onScegli({ tipo: "cantiere", id: c.id })}>
+                        <StatoBadge stato={c.stato} etichetta={false} />
+                        <span className="nome-cantiere">{orfano ? c.percorso : c.nome}</span>
+                        {c.sessioni.length > 0 && <span className="a-destra" title="sessioni attive">{c.sessioni.length}</span>}
+                      </Voce>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
+      <div className="indice-piede">
+        {!ristretta && <Button variant="secondario" size="sm" onClick={onNuovoCommittente} style={{ width: "100%" }}>Nuovo committente</Button>}
+        <span className={"connessione" + (errore ? " errore" : "")}>{errore ?? (aggiornato ? `aggiornato ${ora(aggiornato)}` : "caricamento")}</span>
+      </div>
+    </aside>
+  );
+}

@@ -1,7 +1,19 @@
-# cantiere forgia dietro Caddy: TLS automatico, solo le route del contratto.
+# cantiere forgia dietro Caddy, pubblicato su https://forgia.example.org/cantiere/.
+# TLS automatico; certificato client facoltativo. Il server apre la dashboard solo se
+# X-SSL-Client-Verify vale SUCCESS: l'header del client si toglie sempre, poi si scrive solo
+# quando Caddy ha verificato un certificato.
 forgia.example.org {
-	@forgia path /api/v1/* /mcp /mcp/*
-	handle @forgia {
+	tls {
+		client_auth {
+			mode verify_if_given
+			trusted_ca_cert_file /etc/caddy/ca-client.pem
+		}
+	}
+	@con_certificato expression {http.request.tls.client.fingerprint} != ""
+	redir /cantiere /cantiere/
+	handle_path /cantiere/* {
+		request_header -X-SSL-Client-Verify
+		request_header @con_certificato X-SSL-Client-Verify SUCCESS
 		reverse_proxy 127.0.0.1:8765 {
 			# Niente buffering: le risposte MCP possono essere stream SSE.
 			flush_interval -1

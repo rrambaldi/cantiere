@@ -1,18 +1,20 @@
 #!/usr/bin/env node
 import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { creaCliente, elencaClienti, revocaCliente } from "./accesso.ts";
+import { creaCommittente, elencaCommittenti, rigeneraToken } from "./accesso.ts";
+import { progettiDi, TUTTI } from "./ambito.ts";
 import { leggiConfig } from "./config.ts";
 import { apriDb, migra } from "./db.ts";
-import { elencaCantieri, elencaSessioni, pulizia } from "./dominio.ts";
+import { elencaProgetti, elencaSessioni, leggiCantieri, pulizia } from "./dominio.ts";
 import { NOME_VISIBILE } from "./nome.ts";
 
 const AIUTO = `forgia-admin: amministrazione del server ${NOME_VISIBILE}
 
   migra                          applica le migrazioni mancanti
-  token crea --cliente <nome>    crea un cliente e stampa il suo token (una volta sola)
-  token elenca                   elenca i clienti
-  token revoca --cliente <nome>  revoca il token del cliente
+  committente crea <nome>        crea un committente e stampa il suo token (una volta sola)
+  committente elenca             elenca i committenti
+  committente rigenera <nome>    stampa un token nuovo e revoca il precedente
+  progetti                       tabella dei progetti
   sessioni                       tabella delle sessioni
   cantieri                       tabella dei cantieri
   pulizia                        elimina eventi e stati più vecchi di FORGIA_RETENTION_GIORNI
@@ -29,50 +31,60 @@ export function tabella(righe: Record<string, unknown>[]): string {
   return [colonne, ...celle].map((r) => r.map((v, i) => v.padEnd(larghezze[i])).join("  ").trimEnd()).join("\n");
 }
 
+const TOKEN_UNA_VOLTA = "Copia il token adesso: non verrà mostrato di nuovo.";
+
 async function main(argv: string[]): Promise<number> {
   // Come npm start: legge .env della cartella corrente, e l'ambiente vince sul file.
   if (existsSync(".env")) process.loadEnvFile(".env");
-  const { values, positionals } = parseArgs({
-    args: argv,
-    allowPositionals: true,
-    options: { cliente: { type: "string" }, help: { type: "boolean", short: "h" } },
-  });
-  const comando = positionals.join(" ");
-  if (values.help || !comando) {
+  const { values, positionals } = parseArgs({ args: argv, allowPositionals: true, options: { help: { type: "boolean", short: "h" } } });
+  if (values.help || !positionals.length) {
     console.log(AIUTO);
     return values.help ? 0 : 1;
   }
   const config = leggiConfig();
   const db = await apriDb(config.database_url);
   const amb = { db, config };
-  const cliente = () => {
-    if (!values.cliente) throw new Error("Manca --cliente <nome>.");
-    return values.cliente;
+  const nome = () => {
+    if (!positionals[2]) throw new Error("Manca il nome del committente.");
+    return positionals[2];
+  };
+  const committenti = async () => new Map((await elencaCommittenti(db)).map((c) => [c.id, c.nome]));
+  const progetti = async () => {
+    const perCommittente = await committenti();
+    const righe = await progettiDi(db, TUTTI).select(["progetti.id", "progetti.committente_id"]).execute();
+    return new Map(righe.map((p) => [p.id, perCommittente.get(p.committente_id)]));
   };
   try {
-    switch (comando) {
+    switch (positionals.slice(0, 2).join(" ")) {
       case "migra": {
         const applicate = await migra(db);
         console.log(applicate.length ? `Applicate: ${applicate.join(", ")}` : "Database già aggiornato.");
         break;
       }
-      case "token crea":
-        console.log(await creaCliente(db, cliente()));
-        console.error("Copia il token adesso: non verrà mostrato di nuovo.");
+      case "committente crea":
+        console.log((await creaCommittente(db, nome())).token);
+        console.error(TOKEN_UNA_VOLTA);
         break;
-      case "token elenca":
-        console.log(tabella(await elencaClienti(db)));
+      case "committente elenca":
+        console.log(tabella((await elencaCommittenti(db)).map((c) => ({ committente: c.nome, creato: c.creato_il, ultimo_token: c.token_il }))));
         break;
-      case "token revoca":
-        await revocaCliente(db, cliente());
-        console.log(`Cliente "${cliente()}" revocato.`);
+      case "committente rigenera":
+        console.log(await rigeneraToken(db, { nome: nome() }));
+        console.error(TOKEN_UNA_VOLTA);
         break;
-      case "sessioni":
+      case "progetti": {
+        const committenteDi = await progetti();
+        console.log(tabella((await elencaProgetti(db, TUTTI)).map((p) => ({ committente: committenteDi.get(p.id), progetto: p.nome, ...p.cantieri }))));
+        break;
+      }
+      case "sessioni": {
+        const committenteDi = await progetti();
         console.log(
           tabella(
-            (await elencaSessioni(amb)).map((s) => ({
+            (await elencaSessioni(db, config, TUTTI)).map((s) => ({
               sessione: s.session_id.slice(0, 8),
-              cliente: s.cliente,
+              committente: committenteDi.get(s.progetto_id),
+              progetto: s.progetto,
               host: s.host,
               branch: s.branch,
               cantiere: s.cantiere,
@@ -83,27 +95,33 @@ async function main(argv: string[]): Promise<number> {
           ),
         );
         break;
-      case "cantieri":
+      }
+      case "cantieri": {
+        const committenteDi = await progetti();
         console.log(
           tabella(
-            (await elencaCantieri(amb)).map((c) => ({
+            (await leggiCantieri(db, config, TUTTI)).map((c) => ({
               id: c.id,
+              committente: committenteDi.get(c.progetto_id),
+              progetto: c.progetto,
               percorso: c.percorso,
               stato: c.stato,
-              origine: c.origine,
-              sessioni_attive: c.sessioni.length,
+              change: c.change,
+              avanzamento: c.fasi ? `${c.fasi.completate}/${c.fasi.totali} fasi` : c.task ? `${c.task.fatti}/${c.task.totali}` : null,
+              sessioni_attive: c.sessioni?.length ?? 0,
               aggiornato: c.aggiornato_il,
             })),
           ),
         );
         break;
+      }
       case "pulizia": {
         const eliminati = await pulizia(amb);
         console.log(`Eliminati ${eliminati.eventi} eventi e ${eliminati.stati} stati più vecchi di ${config.retention_giorni} giorni.`);
         break;
       }
       default:
-        console.error(`Comando sconosciuto: ${comando}\n\n${AIUTO}`);
+        console.error(`Comando sconosciuto: ${positionals.join(" ")}\n\n${AIUTO}`);
         return 1;
     }
     return 0;

@@ -1,83 +1,110 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import { avvia, evento, invia } from "./aiuto.ts";
+import { after, before, beforeEach, describe, test } from "node:test";
+import { TUTTI } from "../src/ambito.ts";
+import { cambiaEsito, creaProgetto } from "../src/dominio.ts";
+import { creaIdea } from "../src/idee.ts";
+import { apri, avvia, cantiere, changeAttivo, copia, evento, invia, type Banco } from "./aiuto.ts";
 
-const REGOLE = `Regole:
-- Cantiere provvisorio e lavoro chiaramente diverso? Chiama apri_cantiere (server MCP forgia, origine "claude") con un nome breve e specifico.
-- Se l'utente cambia argomento in modo netto, fai lo stesso.`;
+const DOMANDA =
+  '- Al primo messaggio dell\'utente, prima di rispondere, chiedi con una domanda a scelta dove va questa sessione: un cantiere aperto, un\'idea (si prende con /cantiere prendi <percorso>), un cantiere nuovo (apri_cantiere con origine "utente"), oppure lavoro diretto sul progetto.';
 const RESOCONTO =
   "- Prima di chiudere un turno in cui hai lavorato, chiama aggiorna_stato: fatto, prossimo, bloccato_da. Frasi brevi; mai segreti, dati personali o dati dei clienti.";
 
-test("contesto di avvio: provvisorio, confermato, modalità off", async () => {
-  const b = await avvia();
-  const off = await avvia({ modalita_resoconto: "off" });
-  try {
-    const avvio = await invia(b, evento("session_start", { source: "startup" }, { session_id: "abc" }));
-    assert.equal(avvio.corpo.contesto, `[forgia] session_id=abc\nCantiere: app@main (auto, provvisorio)\n${REGOLE}\n${RESOCONTO}`);
+describe("contesto", () => {
+  let b: Banco;
+  let poker: number;
+  before(async () => {
+    b = await avvia();
+    poker = (await creaProgetto(b.db, b.committente.id, "poker")).id;
+  });
+  after(() => b.chiudi());
+  beforeEach(async () => {
+    for (const t of ["eventi", "sessioni", "cantieri", "esiti", "change_copie", "change_file"] as const) await b.db.deleteFrom(t).execute();
+    await b.db.updateTable("progetti").set({ openspec_il: null }).execute();
+  });
+  const inPoker = { progetto: "poker" };
+  const avvio = (session_id: string, source = "startup") => invia(b, evento("session_start", { source }, { session_id, ...inPoker }));
 
-    await invia(b, evento("apri_cantiere", { nome: "oauth-logiquo", descrizione: null, origine: "utente" }, { session_id: "abc" }));
-    const ripresa = await invia(b, evento("session_start", { source: "compact" }, { session_id: "abc" }));
-    assert.equal(ripresa.corpo.contesto.split("\n")[1], "Cantiere: oauth-logiquo (utente, confermato)");
-
-    const senza = await invia(off, evento("session_start", { source: "startup" }, { session_id: "abc" }));
-    assert.equal(senza.corpo.contesto, `[forgia] session_id=abc\nCantiere: app@main (auto, provvisorio)\n${REGOLE}`);
-  } finally {
-    await b.chiudi();
-    await off.chiudi();
-  }
-});
-
-test("hint del provvisorio nei primi hint_max prompt, reinvii esclusi; poi null", async () => {
-  const b = await avvia({ hint_max: 3 });
-  try {
-    const primo = evento("prompt", {});
-    const contesti = [];
-    for (const ev of [primo, primo, evento("prompt", {}), evento("prompt", {}), evento("prompt", {})]) {
-      contesti.push((await invia(b, ev)).corpo.contesto);
-    }
-    const hint = "[forgia] Cantiere provvisorio: app@main. Se non corrisponde al lavoro, apri_cantiere.";
-    assert.deepEqual(contesti, [hint, hint, hint, hint, null]);
-  } finally {
-    await b.chiudi();
-  }
-});
-
-test("conferme dei comandi, niente contesto per prompt confermati, todo, stop, session_end", async () => {
-  const b = await avvia();
-  try {
-    const apertura = await invia(b, evento("apri_cantiere", { nome: "oauth-logiquo", descrizione: null, origine: "utente" }));
+  test("sessione nuova in un progetto: lavoro diretto, cantieri aperti, idee e domanda iniziale", async () => {
+    await apri(b, "altra", "pdfconverter", "utente", inPoker);
+    await creaIdea(b, TUTTI, poker, { nome: "idoc-converter" });
+    const r = await avvio("abc");
     assert.equal(
-      apertura.corpo.contesto,
-      `[forgia] Comando /cantiere gestito: cantiere "oauth-logiquo" aperto (id ${apertura.corpo.cantiere.id}). Rispondi all'utente con una sola riga di conferma.`,
+      r.corpo.contesto,
+      [
+        "[forgia] session_id=abc",
+        "Progetto: CVSTUDIO/poker",
+        "Cantiere: nessuno, lavoro diretto sul progetto",
+        "Cantieri aperti: pdfconverter",
+        "Idee: idoc-converter",
+        "Regole:",
+        DOMANDA,
+        RESOCONTO,
+      ].join("\n"),
+    );
+  });
+
+  test("ripresa di una sessione in un cantiere: niente domanda iniziale", async () => {
+    await apri(b, "abc", "idoc-converter/prototipo", "utente", inPoker);
+    const righe = (await avvio("abc", "resume")).corpo.contesto.split("\n");
+    assert.equal(righe[2], "Cantiere: idoc-converter/prototipo (utente)");
+    assert.deepEqual(righe[3].replace("Cantieri aperti: ", "").split(", ").sort(), ["idoc-converter", "idoc-converter/prototipo"]);
+    assert.equal(righe[4], "Idee: nessuna");
+    assert.deepEqual(righe.slice(5), ["Regole:", RESOCONTO]);
+  });
+
+  test("abbandonato da archiviare: riga e regola con il comando", async () => {
+    const { id } = (await apri(b, "x", "vecchio-parser", "utente", inPoker)).corpo.cantiere;
+    await cambiaEsito(b, TUTTI, id, "abbandona");
+    await copia(b, { attivi: [changeAttivo("vecchio-parser")], archiviati: [] }, "poker");
+    const contesto = (await avvio("abc")).corpo.contesto;
+    assert.ok(contesto.includes("\nDa archiviare: vecchio-parser\nRegole:\n"), contesto);
+    assert.ok(contesto.includes("\n- Proponi all'utente di archiviare vecchio-parser con: openspec archive vecchio-parser --skip-specs --yes\n"));
+  });
+
+  test("elenchi corti: i 10 più recenti seguiti da e altri n", async () => {
+    for (let i = 1; i <= 13; i++) {
+      await apri(b, `s${i}`, `c${i}`, "utente", inPoker);
+      await b.db.updateTable("cantieri").set({ aggiornato_il: `2026-10-${String(i + 10).padStart(2, "0")}T00:00:00.000Z` }).where("id", "=", (await cantiere(b, `c${i}`, poker)).id).execute();
+    }
+    const riga = (await avvio("abc")).corpo.contesto.split("\n")[3];
+    assert.equal(riga, "Cantieri aperti: c13, c12, c11, c10, c9, c8, c7, c6, c5, c4 e altri 3");
+  });
+
+  test("avviso al primo prompt dopo una sospensione; altrimenti null", async () => {
+    const { id } = (await apri(b, "s1", "export-pdf", "utente", inPoker)).corpo.cantiere;
+    assert.equal((await invia(b, evento("prompt", {}, inPoker))).corpo.contesto, null);
+    await cambiaEsito(b, TUTTI, id, "sospendi");
+    assert.equal(
+      (await invia(b, evento("prompt", {}, inPoker))).corpo.contesto,
+      "[forgia] Il cantiere export-pdf è sospeso: ora lavori direttamente su poker. Dillo all'utente in una riga.",
+    );
+  });
+
+  test("conferma dell'apertura da comando; niente contesto per todo, stop, session_end", async () => {
+    const r = await apri(b, "s1", "idoc-converter/preprod", "utente", inPoker);
+    assert.equal(
+      r.corpo.contesto,
+      '[forgia] Comando /cantiere gestito: cantiere "idoc-converter/preprod" aperto (change idoc-converter-preprod). Rispondi all\'utente con una sola riga di conferma.',
     );
     const altri = [
-      evento("prompt", {}),
-      evento("todo", { strumento: "TodoWrite", completo: true, todos: [] }),
-      evento("stop", { strumenti_nel_turno: 1, resoconto_inviato: false, bloccato: false }),
-      evento("session_end", { reason: "other" }),
+      evento("todo", { strumento: "TodoWrite", completo: true, todos: [] }, inPoker),
+      evento("stop", { strumenti_nel_turno: 1, resoconto_inviato: false, bloccato: false, titolo: null }, inPoker),
+      evento("session_end", { reason: "other", titolo: null }, inPoker),
     ];
     for (const ev of altri) assert.equal((await invia(b, ev)).corpo.contesto, null, ev.tipo);
-    const chiusura = await invia(b, evento("chiudi_cantiere", { esito: "sospeso", nota: null }));
-    assert.ok(chiusura.corpo.contesto.startsWith('[forgia] Comando /cantiere gestito: cantiere "oauth-logiquo" chiuso (esito sospeso)'));
-  } finally {
-    await b.chiudi();
-  }
-});
+  });
 
-test("cantieri figli: percorso nel contesto di avvio e conferma della chiusura forzata", async () => {
-  const b = await avvia();
-  try {
-    await invia(b, evento("apri_cantiere", { nome: "logiquo-v2/oauth", descrizione: null, origine: "utente" }, { session_id: "f1" }));
-    const avvio = await invia(b, evento("session_start", { source: "resume" }, { session_id: "f1" }));
-    assert.equal(avvio.corpo.contesto.split("\n")[1], "Cantiere: logiquo-v2/oauth (utente, confermato)");
-
-    await invia(b, evento("apri_cantiere", { nome: "logiquo-v2", descrizione: null, origine: "utente" }, { session_id: "p1" }));
-    const chiusura = await invia(b, evento("chiudi_cantiere", { esito: "completato", nota: null, forza: true }, { session_id: "p1" }));
-    assert.ok(
-      chiusura.corpo.contesto.startsWith('[forgia] Comando /cantiere gestito: cantiere "logiquo-v2" chiuso (esito completato), con i figli oauth'),
-      chiusura.corpo.contesto,
-    );
-  } finally {
-    await b.chiudi();
-  }
+  test("modalità off: in un cantiere non resta nessuna regola", async () => {
+    const off = await avvia({ modalita_resoconto: "off" });
+    try {
+      await apri(off, "abc", "pdfconverter");
+      const contesto = (await invia(off, evento("session_start", { source: "compact" }, { session_id: "abc" }))).corpo.contesto;
+      assert.ok(!contesto.includes("Regole:") && !contesto.includes("aggiorna_stato"), contesto);
+      const diretto = (await invia(off, evento("session_start", { source: "startup" }, { session_id: "nuova" }))).corpo.contesto;
+      assert.ok(diretto.endsWith(`Regole:\n${DOMANDA}`), diretto);
+    } finally {
+      await off.chiudi();
+    }
+  });
 });

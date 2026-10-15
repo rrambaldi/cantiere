@@ -4,12 +4,16 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { DATI, TRANSCRIPT, WRAPPER, ambiente, esegui, fileSotto, hook, portaChiusa, RISPOSTA, serverFinto } from "./aiuti.ts";
+import { fileURLToPath } from "node:url";
+import { DATI, TOKEN, TRANSCRIPT, WRAPPER, ambiente, esegui, fileSotto, hook, portaChiusa, RISPOSTA, serverFinto } from "./aiuti.ts";
 
-// Ambiente configurato con FORGIA_URL/FORGIA_TOKEN e una sessione nuova.
+const TITOLI = fileURLToPath(new URL("./dati/titoli.jsonl", import.meta.url));
+
+// Ambiente con un'area sulla cartella del progetto e una sessione nuova.
 async function preparato(t: { after: (f: () => unknown) => void }, rispondi?: Parameters<typeof serverFinto>[0]) {
   const srv = await serverFinto(rispondi);
-  const amb = ambiente({ FORGIA_URL: srv.url, FORGIA_TOKEN: "tok-prova-9876" });
+  const amb = ambiente();
+  amb.configura({ url: srv.url });
   t.after(async () => { await srv.chiudi(); amb.pulisci(); });
   const sid = randomUUID();
   const input = (nome: string, extra: object = {}) => ({ ...DATI[nome], session_id: sid, cwd: amb.progetto, ...extra });
@@ -26,13 +30,35 @@ describe("fail-open ed esclusioni", () => {
     assert.deepEqual([r.codice, r.stdout, r.stderr], [0, "", ""]);
   });
 
-  test("non configurato: avviso una volta al giorno e nessun contesto", async (t) => {
+  test("nessuna area: avviso una volta al giorno e nessun contesto", async (t) => {
     const amb = ambiente();
     t.after(amb.pulisci);
     const input = { ...DATI.session_start, session_id: randomUUID(), cwd: amb.progetto };
     const primo = await hook("session_start", input, { env: amb.env });
-    assert.deepEqual(JSON.parse(primo.stdout), { systemMessage: "cantiere forgia non configurato: lancia /cantiere" });
+    assert.deepEqual(JSON.parse(primo.stdout), { systemMessage: "cantiere forgia: nessuna cartella collegata, lancia /cantiere collega <progetto>" });
     assert.equal((await hook("session_start", input, { env: amb.env })).stdout, "");
+  });
+
+  test("config v1 (url e token senza aree): vale come nessuna area", async (t) => {
+    const srv = await serverFinto();
+    const amb = ambiente();
+    t.after(async () => { await srv.chiudi(); amb.pulisci(); });
+    mkdirSync(join(amb.dir, "config", "forgia"), { recursive: true });
+    writeFileSync(amb.fileConfig, JSON.stringify({ url: srv.url, token: TOKEN, abilitato: true }));
+    const r = await hook("session_start", { ...DATI.session_start, session_id: randomUUID(), cwd: amb.progetto }, { env: amb.env });
+    assert.match(r.stdout, /nessuna cartella collegata/);
+    assert.equal(srv.richieste.length, 0);
+  });
+
+  test("fuori da ogni area: nessun evento e nessun contesto, nemmeno l'avviso", async (t) => {
+    const { srv, amb, input } = await preparato(t);
+    const fuori = join(amb.dir, "altrove");
+    mkdirSync(fuori);
+    for (const nome of ["session_start", "prompt", "prompt_invio", "stop", "copia"]) {
+      const r = await hook(nome, input(nome === "prompt_invio" ? "prompt" : nome, { cwd: fuori }), { env: amb.env, cwd: fuori });
+      assert.deepEqual([r.codice, r.stdout], [0, ""], nome);
+    }
+    assert.equal(srv.richieste.length, 0);
   });
 
   test(".forgia-off nella radice git vale anche nelle sottocartelle", async (t) => {
@@ -49,8 +75,7 @@ describe("fail-open ed esclusioni", () => {
     const { srv, amb, input, opz } = await preparato(t);
     await hook("prompt_invio", input("prompt", { prompt: "ciao" }), { ...opz, env: { ...amb.env, FORGIA_DISABLED: "1" } });
     amb.configura({ url: srv.url, abilitato: false });
-    const { FORGIA_URL, FORGIA_TOKEN, ...senzaOverride } = amb.env;
-    await hook("prompt_invio", input("prompt", { prompt: "ciao" }), { ...opz, env: senzaOverride });
+    await hook("prompt_invio", input("prompt", { prompt: "ciao" }), opz);
     assert.equal(srv.richieste.length, 0);
   });
 
@@ -66,13 +91,44 @@ describe("fail-open ed esclusioni", () => {
   });
 });
 
+describe("aree", () => {
+  test("aree annidate: vale la più specifica, con il suo token e il suo progetto", async (t) => {
+    const { srv, amb, input } = await preparato(t);
+    const poker = join(amb.progetto, "poker");
+    const web = join(poker, "web");
+    mkdirSync(web, { recursive: true });
+    amb.configura({ aree: [
+      { cartella: amb.progetto, url: srv.url, token: "tok-priv-1111", committente: "PRIV", progetto: "cantiere", mcp_registrato_il: null },
+      { cartella: poker, url: srv.url, token: "tok-cvstudio-2222", committente: "CVSTUDIO", progetto: "poker", mcp_registrato_il: null },
+    ] });
+    await hook("session_start", input("session_start", { cwd: web }), { env: amb.env, cwd: web });
+    const [r] = srv.richieste;
+    assert.deepEqual([r.auth, r.corpo.progetto, r.corpo.cwd], ["Bearer tok-cvstudio-2222", "poker", web]);
+  });
+
+  test("cartella con un nome che ne prolunga un'altra: confronto per segmenti", async (t) => {
+    const { srv, amb, input } = await preparato(t);
+    const pok = `${amb.progetto}-bis`;
+    mkdirSync(pok);
+    await hook("session_start", input("session_start", { cwd: pok }), { env: amb.env, cwd: pok });
+    assert.equal(srv.richieste.length, 0);
+  });
+
+  test("FORGIA_TOKEN negli hook non vale: parte il token dell'area", async (t) => {
+    const { srv, amb, input, opz } = await preparato(t);
+    await hook("session_start", input("session_start"), { ...opz, env: { ...amb.env, FORGIA_TOKEN: "tok-di-un-altro", FORGIA_URL: "http://127.0.0.1:9" } });
+    assert.deepEqual(srv.richieste.map((r) => r.auth), [`Bearer ${TOKEN}`]);
+  });
+});
+
 describe("session_start", () => {
   test("inietta il contesto del server e salva l'avvio reale", async (t) => {
     const { srv, amb, sid, input, opz } = await preparato(t, () => ({ corpo: { ...RISPOSTA, contesto: `[forgia] session_id=x` } }));
     const r = await hook("session_start", input("session_start"), opz);
     assert.equal(contesto(r.stdout), "[forgia] session_id=x");
     const [ev] = srv.eventi();
-    assert.deepEqual([ev.tipo, ev.dati, ev.session_id, ev.cwd, ev.repo, ev.branch], ["session_start", { source: "startup" }, sid, amb.progetto, null, null]);
+    assert.deepEqual([ev.tipo, ev.dati, ev.session_id, ev.cwd, ev.repo, ev.branch, ev.progetto],
+      ["session_start", { source: "startup" }, sid, amb.progetto, null, null, "prova"]);
     assert.match(ev.evento_id, /^[0-9a-f-]{36}$/);
     assert.ok(JSON.parse(readFileSync(amb.cache("sessioni", `${sid}.json`), "utf8")).avvio_reale_il);
   });
@@ -94,30 +150,53 @@ describe("session_start", () => {
 });
 
 describe("coda locale", () => {
-  test("server giù: riga minima, exit 0 sotto 2 s; al ritorno la coda parte con id e ts originali", async (t) => {
+  test("server giù: riga minima, exit 0 sotto 2 s; al ritorno la coda parte con id, ts e progetto originali", async (t) => {
     const { srv, amb, sid, input, opz } = await preparato(t);
-    const giu = { ...opz, env: { ...amb.env, FORGIA_URL: await portaChiusa() } };
-    const r = await hook("session_start", input("session_start"), giu);
+    amb.configura({ url: await portaChiusa() });
+    const r = await hook("session_start", input("session_start"), opz);
     assert.equal(r.codice, 0);
     assert.ok(r.ms < 2000, `${r.ms} ms`);
     assert.equal(contesto(r.stdout), `[forgia] session_id=${sid} (server non raggiungibile)`);
-    await hook("prompt_invio", input("prompt", { prompt: "lavora" }), giu);
-    await hook("stop", input("stop", { transcript_path: join(amb.dir, "manca.jsonl") }), giu);
+    await hook("prompt_invio", input("prompt", { prompt: "lavora" }), opz);
+    await hook("stop", input("stop", { transcript_path: join(amb.dir, "manca.jsonl") }), opz);
     const inCoda = readdirSync(amb.cache("coda")).sort().map((f) => JSON.parse(readFileSync(amb.cache("coda", f), "utf8")));
-    assert.deepEqual(tipi(inCoda), ["session_start", "prompt", "stop"]);
+    assert.deepEqual(tipi(inCoda.map((v) => v.evento)), ["session_start", "prompt", "stop"]);
+    assert.ok(inCoda.every((v) => v.cartella === amb.progetto && !JSON.stringify(v).includes(TOKEN)), "in coda la cartella, mai il token");
 
+    amb.configura({ url: srv.url });
     await hook("session_end", input("session_end"), opz);
     const arrivati = srv.eventi();
     assert.deepEqual(tipi(arrivati), ["session_end", "session_start", "prompt", "stop"]);
-    assert.deepEqual(arrivati.slice(1), inCoda);
+    assert.deepEqual(arrivati.slice(1), inCoda.map((v) => v.evento));
+    assert.deepEqual(readdirSync(amb.cache("coda")), []);
+  });
+
+  test("eventi di due aree: ognuno parte con il token della sua area; quelli di un'area cancellata si scartano", async (t) => {
+    const { srv, amb, input } = await preparato(t);
+    const poker = join(amb.dir, "poker");
+    const mercurius = join(amb.dir, "mercurius");
+    const vecchia = join(amb.dir, "vecchia");
+    for (const d of [poker, mercurius, vecchia]) mkdirSync(d);
+    const area = (cartella: string, url: string, token: string, committente: string, progetto: string) =>
+      ({ cartella, url, token, committente, progetto, mcp_registrato_il: null });
+    const chiusa = await portaChiusa();
+    amb.configura({ aree: [area(poker, chiusa, "tok-cvstudio", "CVSTUDIO", "poker"), area(mercurius, chiusa, "tok-priv", "PRIV", "mercurius"),
+      area(vecchia, chiusa, "tok-vecchio", "DGT", "monitor")] });
+    for (const cwd of [poker, mercurius, vecchia]) await hook("prompt_invio", input("prompt", { prompt: "x", cwd }), { env: amb.env, cwd });
+    assert.ok(!fileSotto(amb.cache("coda")).some((f) => f.testo.includes("tok-")), "nessun token in coda");
+    amb.configura({ aree: [area(poker, srv.url, "tok-cvstudio", "CVSTUDIO", "poker"), area(mercurius, srv.url, "tok-priv", "PRIV", "mercurius")] });
+    await hook("session_end", input("session_end", { cwd: poker }), { env: amb.env, cwd: poker });
+    const prompt = srv.richieste.filter((r) => r.corpo?.tipo === "prompt").map((r) => [r.auth, r.corpo.progetto]);
+    assert.deepEqual(prompt, [["Bearer tok-cvstudio", "poker"], ["Bearer tok-priv", "mercurius"]]);
     assert.deepEqual(readdirSync(amb.cache("coda")), []);
   });
 
   test("al massimo 500 eventi: si scartano i più vecchi", async (t) => {
     const { amb, input, opz } = await preparato(t);
+    amb.configura({ url: await portaChiusa() });
     mkdirSync(amb.cache("coda"), { recursive: true });
     for (let i = 0; i < 500; i++) writeFileSync(amb.cache("coda", `${String(i).padStart(15, "0")}-vecchio.json`), "{}");
-    await hook("prompt_invio", input("prompt", { prompt: "x" }), { ...opz, env: { ...amb.env, FORGIA_URL: await portaChiusa() } });
+    await hook("prompt_invio", input("prompt", { prompt: "x" }), opz);
     const coda = readdirSync(amb.cache("coda")).sort();
     assert.equal(coda.length, 500);
     assert.ok(!coda.includes(`${"0".repeat(15)}-vecchio.json`));
@@ -150,12 +229,12 @@ describe("sessione tardiva, operazioni in attesa, pulizia, debug", () => {
     assert.deepEqual(tipi(srv.eventi()), ["session_start", "apri_cantiere", "stop"]);
     assert.deepEqual(srv.eventi()[1].dati, { nome: "prova-attesa", descrizione: null, origine: "utente", padre: null });
 
-    await esegui(["chiudi", "--esito", "sospeso"], opz);
+    await esegui(["apri", "scade"], opz);
     const [file] = readdirSync(amb.cache("attesa"));
     const op = JSON.parse(readFileSync(amb.cache("attesa", file), "utf8"));
     writeFileSync(amb.cache("attesa", file), JSON.stringify({ ...op, creato_il: new Date(Date.now() - 11 * 60_000).toISOString() }));
     await hook("session_end", input("session_end"), opz);
-    assert.ok(!tipi(srv.eventi()).includes("chiudi_cantiere"));
+    assert.equal(srv.eventi().filter((e) => e.tipo === "apri_cantiere").length, 1);
     assert.deepEqual(readdirSync(amb.cache("attesa")), []);
   });
 
@@ -184,54 +263,53 @@ describe("sessione tardiva, operazioni in attesa, pulizia, debug", () => {
 });
 
 describe("prompt e /cantiere", () => {
-  test("/cantiere nome — descrizione: apri_cantiere sincrono con conferma, niente evento prompt", async (t) => {
-    const conferma = `[forgia] Comando /cantiere gestito: cantiere "oauth-logiquo" aperto (id 12). Rispondi all'utente con una sola riga di conferma.`;
+  test("/cantiere nome — descrizione: apri_cantiere sincrono con progetto e conferma, niente evento prompt", async (t) => {
+    const conferma = `[forgia] Comando /cantiere gestito: cantiere "pdfconverter" aperto (change pdfconverter). Rispondi all'utente con una sola riga di conferma.`;
     const { srv, input, opz } = await preparato(t, (r) => (r.corpo?.tipo === "apri_cantiere" ? { corpo: { ...RISPOSTA, contesto: conferma } } : undefined));
     await hook("session_start", input("session_start"), opz);
-    const p = input("prompt", { prompt: "/cantiere oauth-logiquo — login con Logiquo" });
+    const p = input("prompt", { prompt: "/cantiere pdfconverter — conversione dei PDF caricati" });
     const r = await hook("prompt", p, opz);
     await hook("prompt_invio", p, opz);
     assert.equal(contesto(r.stdout), conferma);
     assert.deepEqual(tipi(srv.eventi()), ["session_start", "apri_cantiere"]);
-    assert.deepEqual(srv.eventi()[1].dati, { nome: "oauth-logiquo", descrizione: "login con Logiquo", origine: "utente", padre: null });
+    assert.deepEqual(srv.eventi()[1].dati, { nome: "pdfconverter", descrizione: "conversione dei PDF caricati", origine: "utente", padre: null });
+    assert.equal(srv.eventi()[1].progetto, "prova");
   });
 
-  test("/forgia:cantiere chiudi sospeso, /cantieri, /cantiere-x e /cantiere chiudi finito", async (t) => {
+  test("prefisso del plugin e percorso; parole riservate e comandi simili non mandano nulla", async (t) => {
     const { srv, input, opz } = await preparato(t);
     await hook("session_start", input("session_start"), opz);
-    for (const prompt of ["/forgia:cantiere chiudi sospeso", "/cantieri", "/cantiere-x", "/cantiere chiudi finito", "/cantiere stato"]) {
+    for (const prompt of ["/forgia:cantiere idoc-converter/preprod", "/cantieri", "/cantiere-x", "/cantiere chiudi -f sospeso", "/cantiere chiudi finito",
+      "/cantiere stato", "/cantiere prendi idoc-converter", "/cantiere collega poker https://x.example", "/cantiere server https://x.example"]) {
       await hook("prompt", input("prompt", { prompt }), opz);
     }
-    assert.deepEqual(tipi(srv.eventi()), ["session_start", "chiudi_cantiere"]);
-    assert.deepEqual(srv.eventi()[1].dati, { esito: "sospeso", nota: null, forza: false });
+    assert.deepEqual(tipi(srv.eventi()), ["session_start", "apri_cantiere"]);
+    assert.equal(srv.eventi()[1].dati.nome, "idoc-converter/preprod");
   });
 
-  test("/cantiere con --padre e chiudi -f: padre e forza nell'evento", async (t) => {
+  test("/cantiere con --padre: padre nell'evento", async (t) => {
     const { srv, input, opz } = await preparato(t);
     await hook("session_start", input("session_start"), opz);
-    await hook("prompt", input("prompt", { prompt: "/cantiere oauth --padre logiquo-v2 — login" }), opz);
-    await hook("prompt", input("prompt", { prompt: "/cantiere chiudi -f sospeso" }), opz);
-    assert.deepEqual(srv.eventi().slice(1).map((e) => e.dati), [
-      { nome: "oauth", descrizione: "login", origine: "utente", padre: "logiquo-v2" },
-      { esito: "sospeso", nota: null, forza: true },
-    ]);
+    await hook("prompt", input("prompt", { prompt: "/cantiere preprod --padre idoc-converter — verso il server di prova" }), opz);
+    assert.deepEqual(srv.eventi()[1].dati, { nome: "preprod", descrizione: "verso il server di prova", origine: "utente", padre: "idoc-converter" });
   });
 
   test("409 a un /cantiere: il motivo del server arriva a Claude, e l'evento esce dalla coda", async (t) => {
-    const errore = `Il cantiere "logiquo-v2" ha figli aperti: oauth. Chiudili prima, o usa forza.`;
-    const { amb, input, opz } = await preparato(t, (r) => (r.corpo?.tipo === "chiudi_cantiere" ? { codice: 409, corpo: { errore } } : undefined));
+    const errore = `Il cantiere "export-pdf" è sospeso: riattivalo dalla dashboard.`;
+    const { amb, input, opz } = await preparato(t, (r) => (r.corpo?.tipo === "apri_cantiere" ? { codice: 409, corpo: { errore } } : undefined));
     await hook("session_start", input("session_start"), opz);
-    const r = await hook("prompt", input("prompt", { prompt: "/cantiere chiudi" }), opz);
+    const r = await hook("prompt", input("prompt", { prompt: "/cantiere export-pdf" }), opz);
     assert.equal(contesto(r.stdout), `[forgia] Comando /cantiere gestito: ${errore} Rispondi all'utente con una sola riga.`);
     assert.deepEqual(readdirSync(amb.cache("coda")), []);
   });
 
   test("il contesto restituito per un prompt si inietta una volta, al prompt dopo", async (t) => {
-    const { input, opz } = await preparato(t, (r) => (r.corpo?.tipo === "prompt" ? { corpo: { ...RISPOSTA, contesto: "[forgia] Cantiere provvisorio: app@main." } } : undefined));
+    const avviso = "[forgia] Il cantiere export-pdf è sospeso: ora lavori direttamente su prova. Dillo all'utente in una riga.";
+    const { input, opz } = await preparato(t, (r) => (r.corpo?.tipo === "prompt" ? { corpo: { ...RISPOSTA, cantiere: null, contesto: avviso } } : undefined));
     await hook("session_start", input("session_start"), opz);
     await hook("prompt_invio", input("prompt", { prompt: "primo" }), opz);
     const secondo = await hook("prompt", input("prompt", { prompt: "secondo" }), opz);
-    assert.equal(contesto(secondo.stdout), "[forgia] Cantiere provvisorio: app@main.");
+    assert.equal(contesto(secondo.stdout), avviso);
     assert.equal((await hook("prompt", input("prompt", { prompt: "terzo" }), opz)).stdout, "");
   });
 
@@ -262,45 +340,51 @@ describe("todo, stop, session_end", () => {
 
   test("stop: blocca il turno con 3 strumenti senza resoconto, poi non blocca due volte", async (t) => {
     const { srv, amb, sid, input, opz } = await preparato(t);
-    const { FORGIA_URL, FORGIA_TOKEN, ...env } = amb.env;
     amb.configura({ url: srv.url, mcp_registrato_il: new Date(Date.now() - 3600_000).toISOString() });
-    const o = { ...opz, env };
-    await hook("session_start", input("session_start"), o);
+    await hook("session_start", input("session_start"), opz);
     const transcript = join(amb.dir, "t.jsonl");
     writeFileSync(transcript, TRANSCRIPT + JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Grep" }] } }) + "\n");
-    const r = await hook("stop", input("stop", { transcript_path: transcript }), o);
+    const r = await hook("stop", input("stop", { transcript_path: transcript }), opz);
     assert.deepEqual(JSON.parse(r.stdout), {
       decision: "block",
       reason: `[forgia] Prima di chiudere chiama aggiorna_stato (session_id=${sid}): fatto, prossimo, bloccato_da in frasi brevi. Poi termina senza ripetere la risposta.`,
     });
-    const di = await hook("stop", input("stop", { transcript_path: transcript, stop_hook_active: true }), o);
+    const di = await hook("stop", input("stop", { transcript_path: transcript, stop_hook_active: true }), opz);
     assert.equal(di.stdout, "");
     const stop = srv.eventi().filter((e) => e.tipo === "stop").map((e) => e.dati);
     assert.deepEqual(stop, [
-      { strumenti_nel_turno: 3, resoconto_inviato: false, bloccato: true },
-      { strumenti_nel_turno: 3, resoconto_inviato: false, bloccato: false },
+      { strumenti_nel_turno: 3, resoconto_inviato: false, bloccato: true, titolo: null },
+      { strumenti_nel_turno: 3, resoconto_inviato: false, bloccato: false, titolo: null },
     ]);
   });
 
   test("stop: MCP registrato dopo l'avvio o modalità leggera locale non bloccano", async (t) => {
     const { srv, amb, input, opz } = await preparato(t);
-    const { FORGIA_URL, FORGIA_TOKEN, ...env } = amb.env;
-    const o = { ...opz, env };
     amb.configura({ url: srv.url, mcp_registrato_il: new Date(Date.now() - 3600_000).toISOString() });
-    await hook("session_start", input("session_start"), o);
+    await hook("session_start", input("session_start"), opz);
     amb.configura({ url: srv.url, mcp_registrato_il: new Date(Date.now() + 3600_000).toISOString() });
     const transcript = join(amb.dir, "t.jsonl");
     writeFileSync(transcript, TRANSCRIPT + JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Grep" }] } }) + "\n");
-    assert.equal((await hook("stop", input("stop", { transcript_path: transcript }), o)).stdout, "");
+    assert.equal((await hook("stop", input("stop", { transcript_path: transcript }), opz)).stdout, "");
     amb.configura({ url: srv.url, mcp_registrato_il: "2000-01-01T00:00:00.000Z", modalita_resoconto: "leggero" });
-    assert.equal((await hook("stop", input("stop", { transcript_path: transcript }), o)).stdout, "");
+    assert.equal((await hook("stop", input("stop", { transcript_path: transcript }), opz)).stdout, "");
   });
 
-  test("session_end con reason", async (t) => {
+  test("stop e session_end portano il titolo della sessione dal transcript", async (t) => {
     const { srv, input, opz } = await preparato(t);
     await hook("session_start", input("session_start"), opz);
-    await hook("session_end", input("session_end", { reason: "prompt_input_exit" }), opz);
-    assert.deepEqual(srv.eventi().at(-1).dati, { reason: "prompt_input_exit" });
+    await hook("stop", input("stop", { transcript_path: TITOLI }), opz);
+    await hook("session_end", input("session_end", { reason: "prompt_input_exit", transcript_path: TITOLI }), opz);
+    const [stop, fine] = srv.eventi().slice(1);
+    assert.equal(stop.dati.titolo, "fix login mobile");
+    assert.deepEqual(fine.dati, { reason: "prompt_input_exit", titolo: "fix login mobile" });
+  });
+
+  test("session_end con reason e transcript assente: titolo null", async (t) => {
+    const { srv, amb, input, opz } = await preparato(t);
+    await hook("session_start", input("session_start"), opz);
+    await hook("session_end", input("session_end", { reason: "prompt_input_exit", transcript_path: join(amb.dir, "manca.jsonl") }), opz);
+    assert.deepEqual(srv.eventi().at(-1).dati, { reason: "prompt_input_exit", titolo: null });
   });
 
   test("latenza degli hook sincroni dal wrapper", async (t) => {
@@ -314,5 +398,63 @@ describe("todo, stop, session_end", () => {
     const prompt = await misura("prompt", input("prompt", { prompt: "ciao" }));
     t.diagnostic(`mediana: session_start ${avvio} ms, prompt ${prompt} ms`);
     assert.ok(prompt < 1000 && avvio < 1000, `${avvio} / ${prompt} ms`); // larga: la misura vera è nel diagnostic
+  });
+});
+
+describe("copia dei change OpenSpec", () => {
+  // Una cartella openspec/ di prova: un change attivo con file ammessi e non, un archiviato.
+  function openspecDiProva(radice: string) {
+    const change = join(radice, "openspec", "changes", "export-pdf");
+    mkdirSync(join(change, "specs", "server", "export"), { recursive: true });
+    mkdirSync(join(change, "idee"), { recursive: true });
+    mkdirSync(join(radice, "openspec", "changes", "archive", "2026-10-20-vecchio-parser"), { recursive: true });
+    mkdirSync(join(radice, "src"), { recursive: true });
+    writeFileSync(join(radice, ".env"), "SEGRETO=1");
+    writeFileSync(join(radice, "src", "config.ts"), "export const segreto = 1;");
+    writeFileSync(join(change, ".openspec.yaml"), "schema: spec-driven\n");
+    writeFileSync(join(change, "proposal.md"), "# Proposta\n");
+    writeFileSync(join(change, "tasks.md"), "- [ ] 1.1 primo\n- [ ] 1.2 secondo\n");
+    writeFileSync(join(change, "specs", "server", "export", "spec.md"), "# Spec\n");
+    writeFileSync(join(change, "idee", "appunti.txt"), "appunti\n");
+    writeFileSync(join(change, "idee", "schema.pdf"), "%PDF");
+    writeFileSync(join(change, "note.json"), "{}");
+    writeFileSync(join(change, "design.md"), "x".repeat(256 * 1024 + 1));
+    return change;
+  }
+
+  test("manda solo i file ammessi e gli archiviati; niente se nulla è cambiato; di nuovo dopo un task spuntato", async (t) => {
+    const { srv, amb, input, opz } = await preparato(t);
+    const change = openspecDiProva(amb.progetto);
+    const r = await hook("copia", input("stop"), opz);
+    assert.deepEqual([r.codice, r.stdout], [0, ""]);
+    const [copia] = srv.copie();
+    assert.deepEqual([copia.metodo, copia.percorso, copia.auth], ["PUT", "/api/v1/progetti/prova/openspec", `Bearer ${TOKEN}`]);
+    assert.deepEqual(copia.corpo.archiviati, [{ change: "vecchio-parser", archiviato_il: "2026-10-20" }]);
+    const [attivo] = copia.corpo.attivi;
+    assert.equal(attivo.change, "export-pdf");
+    assert.deepEqual(attivo.file.map((f: any) => f.percorso), [".openspec.yaml", "idee/appunti.txt", "proposal.md", "specs/server/export/spec.md", "tasks.md"]);
+    assert.ok(!Number.isNaN(Date.parse(attivo.modificato_il)));
+    assert.ok(!JSON.stringify(copia.corpo).includes("SEGRETO") && !JSON.stringify(copia.corpo).includes("segreto"));
+
+    await hook("copia", input("stop"), opz);
+    assert.equal(srv.copie().length, 1, "nulla di cambiato: nessun invio");
+
+    writeFileSync(join(change, "tasks.md"), "- [x] 1.1 primo\n- [ ] 1.2 secondo\n");
+    await hook("copia", input("stop"), opz);
+    assert.equal(srv.copie().length, 2);
+    assert.match(srv.copie()[1].corpo.attivi[0].file.find((f: any) => f.percorso === "tasks.md").contenuto, /\[x\] 1\.1/);
+  });
+
+  test("area senza openspec/: niente; server giù: exit 0 e la copia riparte allo stop dopo", async (t) => {
+    const { srv, amb, input, opz } = await preparato(t);
+    await hook("copia", input("stop"), opz);
+    assert.equal(srv.copie().length, 0);
+    openspecDiProva(amb.progetto);
+    amb.configura({ url: await portaChiusa() });
+    const r = await hook("copia", input("stop"), opz);
+    assert.deepEqual([r.codice, r.stdout, r.stderr], [0, "", ""]);
+    amb.configura({ url: srv.url });
+    await hook("copia", input("stop"), opz);
+    assert.equal(srv.copie().length, 1);
   });
 });

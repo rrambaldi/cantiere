@@ -9,11 +9,15 @@ const schema = z.object({
   public_host: z.string().default(""),
   modalita_resoconto: z.enum(MODALITA_RESOCONTO).default("forzato"),
   soglia_strumenti: z.coerce.number().int().min(0).default(3),
-  hint_max: z.coerce.number().int().min(0).default(3),
   inattivita_minuti: z.coerce.number().int().positive().default(30),
   retention_giorni: z.coerce.number().int().positive().default(180),
   rate_limit: z.coerce.number().int().positive().default(120),
   max_body: z.coerce.number().int().positive().default(65536),
+  max_openspec: z.coerce.number().int().positive().default(2_097_152),
+  max_file: z.coerce.number().int().positive().default(262_144),
+  max_file_idea: z.coerce.number().int().positive().default(50),
+  ui_header_certificato: z.string().min(1).default("X-SSL-Client-Verify"),
+  ui_certificato: z.enum(["richiesto", "off"]).default("richiesto"),
 });
 
 export type Config = z.infer<typeof schema>;

@@ -1,6 +1,6 @@
 // Strumenti comuni ai test: server finto, ambiente isolato, esecuzione dello script come processo.
 import { spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -12,13 +12,16 @@ export const WRAPPER = fileURLToPath(new URL("../bin/forgia", import.meta.url));
 export const DATI = JSON.parse(readFileSync(new URL("./dati/hook.json", import.meta.url), "utf8"));
 export const TRANSCRIPT = readFileSync(new URL("./dati/transcript.jsonl", import.meta.url), "utf8");
 
+export const TOKEN = "tok-segreto-1234";
 export const RISPOSTA = {
-  cantiere: { id: 1, nome: "app@main", origine: "auto", confermato: false },
+  progetto: "prova",
+  cantiere: { id: 1, nome: "pdfconverter", percorso: "pdfconverter", origine: "utente", stato: "aperto", change: "pdfconverter" },
   contesto: null as string | null,
   config: { modalita_resoconto: "forzato", soglia_strumenti: 3 },
 };
+export const PROGETTI = { progetti: [{ id: 1, nome: "prova", slug: "prova", creato_il: "2026-10-15T08:00:00.000Z", cantieri: {} }] };
 
-export type Richiesta = { percorso: string; auth?: string; corpo: any };
+export type Richiesta = { metodo: string; percorso: string; auth?: string; corpo: any };
 type Rispondi = (r: Richiesta) => { codice?: number; corpo?: unknown } | undefined;
 
 export async function serverFinto(rispondi: Rispondi = () => undefined) {
@@ -26,9 +29,13 @@ export async function serverFinto(rispondi: Rispondi = () => undefined) {
   const srv = createServer(async (req, res) => {
     let testo = "";
     for await (const pezzo of req) testo += pezzo;
-    const r = { percorso: req.url!, auth: req.headers.authorization, corpo: testo ? JSON.parse(testo) : null };
+    const r = { metodo: req.method!, percorso: req.url!, auth: req.headers.authorization, corpo: testo ? JSON.parse(testo) : null };
     richieste.push(r);
-    const predefinito = r.percorso.endsWith("/salute") ? { ok: true, versione_contratto: 1, cliente: "prova" } : RISPOSTA;
+    // Le risposte di base del Contratto v2; ogni test cambia quelle che gli servono.
+    const predefinito = r.percorso.endsWith("/salute") ? { ok: true, versione_contratto: 2, cliente: "PRIV" }
+      : r.percorso === "/api/v1/progetti" ? (r.metodo === "POST" ? { progetto: { id: 2, nome: r.corpo.nome, slug: r.corpo.nome } } : PROGETTI)
+      : r.percorso.endsWith("/openspec") ? { cantieri: [] }
+      : RISPOSTA;
     const { codice = 200, corpo = predefinito } = rispondi(r) ?? {};
     res.writeHead(codice, { "content-type": "application/json" }).end(JSON.stringify(corpo));
   });
@@ -37,6 +44,7 @@ export async function serverFinto(rispondi: Rispondi = () => undefined) {
     url: `http://127.0.0.1:${(srv.address() as AddressInfo).port}`,
     richieste,
     eventi: () => richieste.filter((r) => r.percorso === "/api/v1/eventi").map((r) => r.corpo),
+    copie: () => richieste.filter((r) => r.percorso.endsWith("/openspec")),
     chiudi: () => new Promise((ok) => srv.close(ok)),
   };
 }
@@ -51,7 +59,7 @@ export async function portaChiusa() {
 // Cartelle temporanee per config, cache, settings di Claude Code e progetto. PATH ridotto a quello
 // del processo: niente CLAUDE_CODE_SESSION_ID ereditato.
 export function ambiente(extra: Record<string, string> = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "forgia-test-"));
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "forgia-test-")));
   const progetto = join(dir, "progetto");
   mkdirSync(progetto);
   const env: Record<string, string> = {
@@ -62,12 +70,26 @@ export function ambiente(extra: Record<string, string> = {}) {
     dir, progetto, env,
     cache: (...p: string[]) => join(dir, "cache", "forgia", ...p),
     fileConfig: join(dir, "config", "forgia", "config.json"),
-    configura(cfg: Record<string, unknown>) {
+    // Config v2 con un'area sulla cartella del progetto; `aree` le sostituisce tutte. Gli altri campi
+    // sono le impostazioni generali.
+    configura(cfg: Record<string, unknown> = {}) {
+      const { url, token = TOKEN, committente = "PRIV", progetto: nome = "prova", cartella = progetto, mcp_registrato_il = null, aree, ...generale } = cfg;
       mkdirSync(join(dir, "config", "forgia"), { recursive: true });
-      writeFileSync(this.fileConfig, JSON.stringify({ token: "tok-segreto-1234", ...cfg }));
+      writeFileSync(this.fileConfig, JSON.stringify({ ...generale, aree: aree ?? [{ cartella, url, token, committente, progetto: nome, mcp_registrato_il }] }));
     },
     pulisci: () => rmSync(dir, { recursive: true, force: true }),
   };
+}
+
+// Un eseguibile finto nel PATH dell'ambiente: registra "<cwd>|<argomenti>" e poi esegue `corpo`.
+export function finto(amb: ReturnType<typeof ambiente>, nome: string, corpo = "") {
+  const bin = join(amb.dir, "bin");
+  const log = join(amb.dir, `${nome}.log`);
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(join(bin, nome), `#!/bin/sh\necho "$(pwd)|$*" >> "${log}"\n${corpo}\n`);
+  chmodSync(join(bin, nome), 0o755);
+  if (!amb.env.PATH.startsWith(`${bin}:`)) amb.env.PATH = `${bin}:${amb.env.PATH}`;
+  return () => (existsSync(log) ? readFileSync(log, "utf8").trim().split("\n") : []);
 }
 
 export type Esito = { codice: number | null; stdout: string; stderr: string; ms: number };

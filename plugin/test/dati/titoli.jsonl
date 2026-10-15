@@ -1,0 +1,8 @@
+{"type":"user","sessionId":"00000000-0000-4000-8000-000000000002","message":{"role":"user","content":"…"}}
+{"type":"ai-title","aiTitle":"Correzione login","sessionId":"00000000-0000-4000-8000-000000000002"}
+{"type":"assistant","sessionId":"00000000-0000-4000-8000-000000000002","message":{"role":"assistant","content":[{"type":"text","text":"…"}]}}
+{"type":"custom-title","customTitle":"fix login mobile","sessionId":"00000000-0000-4000-8000-000000000002"}
+{"type":"ai-title","aiTitle":"Correzione login","sessionId":"00000000-0000-4000-8000-000000000002"}
+{"type":"user","sessionId":"00000000-0000-4000-8000-000000000002","message":{"role":"user","content":"…"}}
+{"type":"custom-title","customTitle":"fix login mobile","sessionId":"00000000-0000-4000-8000-000000000002"}
+{"type":"ai-title","aiTitle":"Correzione login e test","sessionId":"00000000-0000-4000-8000-000000000002"}

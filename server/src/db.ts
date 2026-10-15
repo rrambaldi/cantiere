@@ -4,48 +4,66 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import Database from "better-sqlite3";
 import { Kysely, PostgresDialect, SqliteDialect, type Generated } from "kysely";
 import { Migrator, type Migration, type MigrationProvider } from "kysely/migration";
-import type { Origine, StatoSessione } from "./modelli.ts";
+import type { Origine, OrigineCantiere, StatoCantiere, StatoSessione } from "./modelli.ts";
 
 export interface DB {
-  clienti: {
+  committenti: {
     id: Generated<number>;
     nome: string;
+    /** Nome in minuscolo: rende il nome unico senza distinzione di maiuscole. */
+    nome_chiave: string;
     token_hash: string;
+    token_il: string;
     creato_il: string;
-    revocato_il: string | null;
+  };
+  progetti: {
+    id: Generated<number>;
+    committente_id: number;
+    nome: string;
+    slug: string;
+    creato_il: string;
+    /** Ultima copia dei change OpenSpec ricevuta dal plugin. */
+    openspec_il: string | null;
   };
   cantieri: {
     id: Generated<number>;
-    /** Cantiere padre; il percorso si ricostruisce salendo i padre_id. */
+    progetto_id: number;
+    /** Cantiere padre nello stesso progetto; non cambia mai. */
     padre_id: number | null;
     nome: string;
     slug: string;
-    /** Uguale a slug finché il cantiere è aperto, NULL dopo: rende lo slug unico solo tra gli aperti. */
-    slug_aperto: string | null;
+    /** Slug del percorso dal primo livello (`a/b`): unico nel progetto, regge l'unicità tra fratelli. */
+    percorso_slug: string;
+    change: string;
     descrizione: string | null;
-    origine: Origine;
-    stato: "aperto" | "chiuso";
-    esito: string | null;
-    nota: string | null;
-    repo: string | null;
-    branch: string | null;
+    stato: StatoCantiere;
+    origine: OrigineCantiere;
     creato_il: string;
     aggiornato_il: string;
-    chiuso_il: string | null;
+    stato_il: string;
+  };
+  esiti: {
+    id: Generated<number>;
+    cantiere_id: number;
+    stato: StatoCantiere;
+    ts: string;
+    da: string;
   };
   sessioni: {
     session_id: string;
-    cliente_id: number;
+    committente_id: number;
+    progetto_id: number;
+    cantiere_id: number | null;
+    origine_associazione: Origine | null;
+    stato: StatoSessione;
+    turni: number;
+    titolo: string | null;
+    /** Contesto per il primo prompt dopo che il cantiere ha smesso di essere aperto. */
+    avviso: string | null;
     host: string;
     cwd: string;
     repo: string | null;
     branch: string | null;
-    cantiere_id: number | null;
-    origine_associazione: Origine | null;
-    confermato: number;
-    stato: StatoSessione;
-    turni: number;
-    hint_inviati: number;
     avviata_il: string;
     ultimo_evento_il: string;
     chiusa_il: string | null;
@@ -57,8 +75,9 @@ export interface DB {
     evento_id: string;
     ts: string;
     ricevuto_il: string;
-    cliente_id: number;
+    committente_id: number;
     session_id: string;
+    progetto_id: number | null;
     cantiere_id: number | null;
     tipo: string;
     dati: string;
@@ -68,6 +87,7 @@ export interface DB {
   stati: {
     id: Generated<number>;
     session_id: string;
+    progetto_id: number;
     cantiere_id: number | null;
     ts: string;
     fatto: string;
@@ -82,6 +102,30 @@ export interface DB {
     stato: string;
     ordine: number;
     aggiornato_il: string;
+  };
+  change_copie: {
+    cantiere_id: number;
+    /** mtime più recente tra i file del change, dal plugin. */
+    modificato_il: string;
+    archiviato_il: string | null;
+    /** Ultima copia del progetto in cui il change compariva, attivo o archiviato. */
+    visto_il: string;
+    /** JSON {proposal, design, specs, tasks}: quali artefatti esistono. */
+    artefatti: string;
+    task_fatti: number | null;
+    task_totali: number | null;
+  };
+  change_file: {
+    cantiere_id: number;
+    percorso: string;
+    contenuto: string;
+  };
+  idee_file: {
+    cantiere_id: number;
+    nome: string;
+    contenuto: string;
+    byte: number;
+    creato_il: string;
   };
 }
 

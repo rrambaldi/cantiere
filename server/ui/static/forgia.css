@@ -1,0 +1,175 @@
+/* Token del design system forgia (.claude/skills/forgia-design/tokens), tema cianotipia: è quello della dashboard. */
+:root{
+  --prussia-900:#0E2041; --prussia-800:#142B52; --prussia-700:#1E3F73; --prussia-650:#24487F; --prussia-600:#2A5290;
+  --prussia-300:#9DB0CC; --prussia-200:#C9D4E5; --carta-50:#F2F4F7; --carta-0:#FFFFFF; --grafite:#4A5D7A;
+  --giallo-500:#F2C230; --giallo-600:#D9A916; --giallo-100:#FBEFC4; --errore-chiaro:#FF9A82;
+
+  --sfondo:var(--prussia-700); --sfondo-profondo:var(--prussia-800); --superficie:var(--prussia-650);
+  --superficie-alta:var(--prussia-600); --linea:rgba(242,244,247,.16); --linea-forte:rgba(242,244,247,.34);
+  --testo:var(--carta-50); --testo-2:var(--prussia-300); --testo-link:var(--carta-50);
+  --segnale:var(--giallo-500); --segnale-hover:var(--giallo-600); --testo-su-segnale:var(--prussia-800);
+  --segno:var(--carta-50); --errore:var(--errore-chiaro); --griglia:rgba(255,255,255,.09); --focus:var(--giallo-500);
+  --stato-in-corso:var(--giallo-500); --stato-completato:var(--carta-50); --stato-sospeso:var(--carta-50); --stato-abbandonato:var(--prussia-300);
+  --nastro:repeating-linear-gradient(-45deg,var(--giallo-500) 0 10px,var(--prussia-700) 10px 20px);
+  --nastro-fine:repeating-linear-gradient(-45deg,var(--giallo-500) 0 2px,transparent 2px 4px);
+
+  --font-sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  --t-h1:700 32px/1.15 var(--font-sans); --t-h2:600 22px/1.25 var(--font-sans); --t-h3:600 16px/1.35 var(--font-sans);
+  --t-corpo:400 15px/1.5 var(--font-sans); --t-piccolo:400 13px/1.45 var(--font-sans);
+  --t-codice:400 13px/1.65 var(--font-mono); --t-etichetta:500 11px/1.2 var(--font-mono); --t-etichetta-spaziatura:.06em;
+
+  --r-1:2px; --r-2:4px; --r-3:8px;
+  --ombra-dialogo:0 16px 40px rgba(14,32,65,.5);
+  --durata-1:120ms; --durata-2:200ms; --curva:cubic-bezier(.2,0,0,1);
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--sfondo);color:var(--testo);font:var(--t-corpo);-webkit-font-smoothing:antialiased}
+a{color:var(--testo-link);text-decoration:underline;text-decoration-color:var(--linea-forte);text-underline-offset:3px}
+a:hover{text-decoration-color:var(--segnale)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+code,kbd,pre{font-family:var(--font-mono)}
+code{font-size:.92em}
+button{font:inherit;color:inherit}
+::selection{background:var(--giallo-500);color:var(--prussia-800)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+.solo-lettori{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.etichetta{font:var(--t-etichetta);letter-spacing:var(--t-etichetta-spaziatura);text-transform:uppercase;color:var(--testo-2)}
+.secondario{color:var(--testo-2)}
+.vuoto{margin:0;padding:16px 0;font:var(--t-piccolo);color:var(--testo-2)}
+.nota{font:var(--t-piccolo);color:var(--testo-2)}
+.avviso{padding:10px 12px;border:1px solid var(--linea-forte);border-radius:var(--r-2);font:var(--t-piccolo)}
+.avviso code{color:var(--segnale)}
+.numero{font-variant-numeric:tabular-nums;text-align:right}
+
+/* layout a tre colonne: indice, lavori, scheda tecnica */
+.dashboard{display:grid;grid-template-columns:248px minmax(0,1fr) 300px;height:100vh}
+.dashboard > .indice,.dashboard > .lavori,.dashboard > .scheda{min-height:0;overflow-y:auto}
+@media (max-width:1100px){
+  .dashboard{grid-template-columns:240px minmax(0,1fr);height:auto;min-height:100vh}
+  .dashboard > .lavori,.dashboard > .scheda{overflow:visible}
+  .dashboard > .indice{grid-row:1 / span 2;position:sticky;top:0;height:100vh}
+  .scheda{grid-column:2;border-left:0;border-top:1px solid var(--linea)}
+}
+@media (max-width:720px){
+  .dashboard{grid-template-columns:minmax(0,1fr)}
+  .dashboard > .indice{grid-row:auto;position:static;height:auto;max-height:55vh;border-right:0;border-bottom:1px solid var(--linea)}
+  .scheda{grid-column:auto}
+}
+
+/* indice */
+.indice{display:flex;flex-direction:column;background:var(--sfondo-profondo);border-right:1px solid var(--linea)}
+.indice-testa{display:flex;align-items:center;gap:10px;min-height:56px;padding:0 16px}
+.committente-ristretto{margin-left:auto;font:600 12px/1 var(--font-mono);color:var(--testo-2)}
+.albero{flex:1;padding:8px 0;overflow-y:auto}
+.gruppo + .gruppo{margin-top:8px;padding-top:8px;border-top:1px solid var(--linea)}
+.voce{width:100%;display:flex;align-items:center;gap:8px;min-height:32px;padding:4px 16px;border:0;background:transparent;color:var(--testo);cursor:pointer;text-align:left}
+.voce:hover{background:var(--superficie)}
+.voce.attiva{background:var(--superficie-alta)}
+.voce > span{min-width:0}
+.nome-committente{font:600 12px/1.2 var(--font-mono);letter-spacing:.04em}
+.nome-progetto{font:600 13px/1.3 var(--font-sans)}
+.nome-cantiere{font:500 12.5px/1.3 var(--font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.voce.attiva .nome-cantiere{font-weight:600}
+.a-destra{margin-left:auto;flex:none;font:400 10.5px/1 var(--font-mono);color:var(--testo-2)}
+.indice-piede{display:flex;flex-direction:column;gap:10px;padding:12px 16px;border-top:1px solid var(--linea)}
+.connessione{display:flex;align-items:center;gap:6px;font:400 11px/1.4 var(--font-mono);color:var(--testo-2)}
+.connessione::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--segnale);flex:none}
+.connessione.errore{color:var(--errore)}
+.connessione.errore::before{background:transparent;border:2px dashed var(--errore)}
+
+/* lavori */
+.lavori{display:flex;flex-direction:column;min-width:0}
+.testata{display:flex;flex-direction:column;gap:6px;padding:18px 28px 16px;border-bottom:1px solid var(--linea)}
+.griglia{background-image:linear-gradient(var(--griglia) 1px,transparent 1px),linear-gradient(90deg,var(--griglia) 1px,transparent 1px);background-size:16px 16px}
+.titolo-lavoro{margin:0;font:600 26px/1.1 var(--font-mono);letter-spacing:-.03em;overflow-wrap:anywhere}
+.sotto{font:var(--t-piccolo);color:var(--testo-2)}
+.corpo-lavoro{display:flex;flex-direction:column;gap:14px;padding:16px 28px 32px;min-width:0}
+.lavori > .vuoto{padding:28px}
+.descrizione{margin:0;max-width:70ch;color:var(--testo)}
+.sezione{display:flex;flex-direction:column;gap:8px}
+.sezione + .sezione{margin-top:12px}
+.righe{border:1px solid var(--linea);border-radius:var(--r-3);overflow:hidden}
+.riga-cantiere,.riga-progetto{width:100%;display:grid;gap:12px;align-items:center;padding:10px 14px;border:0;border-bottom:1px solid var(--linea);background:var(--superficie);cursor:pointer;text-align:left}
+.riga-cantiere{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 120px 110px}
+.riga-progetto{grid-template-columns:minmax(0,1fr) auto auto}
+.riga-cantiere:last-child,.riga-progetto:last-child{border-bottom:0}
+.riga-cantiere:hover,.riga-progetto:hover{background:var(--superficie-alta)}
+.riga-cantiere .nome,.riga-progetto .nome{font:600 13.5px/1.3 var(--font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.riga-cantiere .secondario,.riga-progetto .secondario{font:var(--t-piccolo);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:720px){
+  .riga-cantiere{grid-template-columns:minmax(0,1fr) auto}
+  .riga-cantiere > :nth-child(2),.riga-cantiere > :nth-child(3){display:none}
+  .riga-progetto{grid-template-columns:minmax(0,1fr)}
+  .testata,.corpo-lavoro{padding-left:16px;padding-right:16px}
+}
+.avanzamento{display:flex;align-items:center;gap:8px;min-width:0}
+.conteggio{font:400 12px/1 var(--font-mono);font-variant-numeric:tabular-nums;min-width:34px}
+.barra{flex:1;min-width:24px;height:4px;background:var(--linea);position:relative}
+.barra > span{position:absolute;inset:0 auto 0 0}
+.tabella-scorre{overflow-x:auto;border:1px solid var(--linea);border-radius:var(--r-3)}
+.tabella{width:100%;border-collapse:collapse;font:var(--t-piccolo)}
+.tabella th{font:var(--t-etichetta);letter-spacing:var(--t-etichetta-spaziatura);text-transform:uppercase;color:var(--testo-2);text-align:left;font-weight:500}
+.tabella th,.tabella td{padding:8px 12px;border-bottom:1px solid var(--linea);white-space:nowrap}
+.tabella td:first-child{white-space:normal;min-width:180px}
+.tabella tr:last-child td{border-bottom:0}
+
+/* giornale dei turni */
+.turni{list-style:none;margin:0;padding:0}
+.turno{display:grid;grid-template-columns:76px 18px minmax(0,1fr);gap:12px}
+.turno-quando{display:flex;flex-direction:column;gap:4px;min-width:0;padding-top:16px;font:400 11px/1.2 var(--font-mono);color:var(--testo-2)}
+.turno-quando strong{color:var(--testo);font-weight:600}
+.turno-quando .host{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.turno-filo{display:flex;flex-direction:column;align-items:center}
+.filo{width:1px;background:var(--linea-forte)}
+.nodo{width:10px;height:10px;flex:none;background:var(--segnale)}
+.nodo.bloccato{background:var(--nastro-fine);box-shadow:inset 0 0 0 1px var(--segnale)}
+.turno-corpo{display:flex;flex-direction:column;gap:2px;padding:14px 0 12px;font:400 12.5px/1.65 var(--font-mono);min-width:0}
+.turno-corpo.con-linea{border-bottom:1px solid var(--linea)}
+.turno-corpo > .etichetta{padding-bottom:6px;text-transform:none;letter-spacing:.02em}
+.riga-resoconto{display:grid;grid-template-columns:60px minmax(0,1fr)}
+.riga-resoconto > :first-child{color:var(--segnale)}
+.riga-resoconto > .vuota{color:var(--testo-2)}
+@media (max-width:720px){.turno{grid-template-columns:58px 14px minmax(0,1fr);gap:8px}}
+
+/* documenti del change e file delle idee */
+.documenti{display:grid;grid-template-columns:200px minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:900px){.documenti{grid-template-columns:minmax(0,1fr)}}
+.elenco-file{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;position:sticky;top:0}
+.voce-file{width:100%;padding:6px 8px;border:0;border-radius:var(--r-1);background:transparent;cursor:pointer;text-align:left;font:400 12px/1.3 var(--font-mono);color:var(--testo-2);overflow-wrap:anywhere}
+.voce-file:hover{background:var(--superficie);color:var(--testo)}
+.voce-file.attiva{background:var(--superficie-alta);color:var(--testo)}
+.documento{min-width:0;background:var(--superficie);border:1px solid var(--linea);border-radius:var(--r-3);overflow:hidden}
+.documento-testa{display:flex;align-items:center;gap:12px;min-height:44px;padding:6px 14px;border-bottom:1px solid var(--linea);background:var(--sfondo-profondo)}
+.documento-testa code{font-size:12px;color:var(--testo-2);overflow-wrap:anywhere}
+.documento-testa > :last-child:not(code){margin-left:auto}
+.documento > .md,.documento > .testo-semplice{padding:16px 20px 20px}
+.zona-file{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:14px;border:1px dashed var(--linea-forte);border-radius:var(--r-2);font:var(--t-piccolo);color:var(--testo-2)}
+.zona-file.sopra{border-color:var(--segnale);background:var(--superficie)}
+
+/* scheda tecnica */
+.scheda{display:flex;flex-direction:column;gap:22px;padding:20px 18px;background:var(--superficie);border-left:1px solid var(--linea)}
+.blocco{display:flex;flex-direction:column;gap:10px;min-width:0}
+.blocco.azioni{margin-top:auto;gap:8px}
+.blocco.azioni > button{width:100%}
+.campi{display:grid;grid-template-columns:88px minmax(0,1fr);row-gap:6px;column-gap:8px;margin:0;font:400 12px/1.4 var(--font-mono)}
+.campi dt{color:var(--testo-2)}
+.campi dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.artefatti,.sessioni,.storico,.file-scelti{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font:400 12px/1.4 var(--font-mono)}
+.artefatti li{color:var(--testo-2)}
+.artefatti li.c-e{color:var(--testo)}
+.sessioni li{display:flex;flex-direction:column;gap:2px}
+.storico li{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.file-scelti li{display:flex;align-items:center;justify-content:space-between;gap:8px}
+
+/* dialoghi e notifiche */
+.errore-dialogo{margin:0;color:var(--errore);font:var(--t-piccolo)}
+.token{width:100%;height:36px;padding:0 10px;background:var(--sfondo-profondo);color:var(--carta-50);border:1px solid var(--linea-forte);border-radius:var(--r-2);font:var(--t-codice)}
+.campo-scelta{display:flex;flex-direction:column;gap:6px}
+.campo-scelta select{height:36px;padding:0 8px;background:var(--sfondo-profondo);color:var(--carta-50);border:1px solid var(--linea-forte);border-radius:var(--r-2);font:var(--t-corpo);font-size:14px}
+[role="dialog"] p{margin:0}
+.posto-toast{position:fixed;right:20px;bottom:20px;left:20px;display:flex;justify-content:flex-end;z-index:200;pointer-events:none}
+.posto-toast > *{pointer-events:auto}
