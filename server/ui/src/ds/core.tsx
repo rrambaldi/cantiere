@@ -1,5 +1,6 @@
 // Dal design system forgia (components/core): Button, Checkbox, Tabs, Input.
 import type { CSSProperties, ReactNode } from "react";
+import { T } from "../testi.ts";
 
 const BASE_PULSANTE: CSSProperties = {
   display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, border: "1px solid transparent",
@@ -30,7 +31,7 @@ export function Button({ variant = "primario", size = "md", disabled = false, ch
 export function Checkbox({ checked, label }: { checked: boolean; label: ReactNode }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "flex-start", gap: 8, font: "var(--t-piccolo)", color: "var(--testo)" }}>
-      <span role="img" aria-label={checked ? "fatto" : "da fare"} style={{
+      <span role="img" aria-label={checked ? T.fatto : T.daFare} style={{
         width: 16, height: 16, flex: "none", marginTop: 1, borderRadius: "var(--r-1)", display: "flex", alignItems: "center",
         justifyContent: "center", background: checked ? "var(--segnale)" : "transparent",
         border: "1px solid " + (checked ? "var(--segnale)" : "var(--linea-forte)"),

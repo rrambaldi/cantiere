@@ -4,6 +4,7 @@ import { Logo } from "./ds/brand.tsx";
 import { Button, Tabs } from "./ds/core.tsx";
 import { StatoBadge } from "./ds/feedback.tsx";
 import { ora, profondita, VISTA_DI, type Vista } from "./formato.ts";
+import { lingua, T, type Lingua } from "./testi.ts";
 import { Vuoto } from "./ui.tsx";
 
 export type Selezione = { tipo: "committente" | "progetto" | "cantiere"; id: number };
@@ -15,7 +16,7 @@ function perPercorso(a: Cantiere, b: Cantiere): number {
   const x = a.percorso.split("/");
   const y = b.percorso.split("/");
   for (let i = 0; i < Math.min(x.length, y.length); i++) {
-    const c = x[i].localeCompare(y[i], "it");
+    const c = x[i].localeCompare(y[i], lingua);
     if (c) return c;
   }
   return x.length - y.length;
@@ -31,27 +32,32 @@ function Voce({ attiva, rientro = 0, onClick, children, titolo }: {
   );
 }
 
-export function Indice({ committenti, selezione, onScegli, vista, onVista, ristretta, onNuovoCommittente, aggiornato, errore }: {
+export function Indice({ committenti, selezione, onScegli, vista, onVista, ristretta, onNuovoCommittente, aggiornato, errore, onLingua }: {
   committenti: Committente[]; selezione: Selezione | null; onScegli: (s: Selezione) => void; vista: Vista;
-  onVista: (v: Vista) => void; ristretta: boolean; onNuovoCommittente: () => void; aggiornato: string | null; errore: string | null;
+  onVista: (v: Vista) => void; ristretta: boolean; onNuovoCommittente: () => void; aggiornato: string | null; errore: string | null; onLingua: (l: Lingua) => void;
 }) {
   const tutti = committenti.flatMap((c) => c.progetti.flatMap((p) => p.cantieri));
   const conta = (v: Vista) => tutti.filter((c) => VISTA_DI[c.stato] === v).length;
   return (
-    <aside className="indice" aria-label="Indice">
+    <aside className="indice" aria-label={T.indice}>
       <div className="indice-testa">
         <Logo size={22} wordmark />
         {ristretta && committenti[0] && <span className="committente-ristretto">{committenti[0].nome}</span>}
+        <span role="group" aria-label={T.lingua} style={{ marginLeft: "auto", display: "inline-flex", gap: 2 }}>
+          {(["it", "en"] as const).map((l) => (
+            <Button key={l} variant={l === lingua ? "secondario" : "fantasma"} size="sm" onClick={() => onLingua(l)}>{l.toUpperCase()}</Button>
+          ))}
+        </span>
       </div>
       <div style={{ padding: "0 16px" }}>
         <Tabs value={vista} onChange={onVista} items={[
-          { id: "aperti", label: "Aperti", count: conta("aperti") },
-          { id: "idee", label: "Idee", count: conta("idee") },
-          { id: "chiusi", label: "Chiusi", count: conta("chiusi") },
+          { id: "aperti", label: T.aperti, count: conta("aperti") },
+          { id: "idee", label: T.idee, count: conta("idee") },
+          { id: "chiusi", label: T.chiusi, count: conta("chiusi") },
         ]} />
       </div>
       <nav className="albero">
-        {committenti.length === 0 && <Vuoto>Nessun committente. {ristretta ? "" : "Crea il primo con «Nuovo committente»."}</Vuoto>}
+        {committenti.length === 0 && <Vuoto>{T.nessunCommittente} {ristretta ? "" : T.creaPrimoCommittente}</Vuoto>}
         {committenti.map((cm) => (
           <div key={cm.id} className="gruppo">
             <Voce attiva={stessa(selezione, { tipo: "committente", id: cm.id })} onClick={() => onScegli({ tipo: "committente", id: cm.id })}>
@@ -64,7 +70,7 @@ export function Indice({ committenti, selezione, onScegli, vista, onVista, ristr
                 <div key={p.id}>
                   <Voce rientro={0.5} attiva={stessa(selezione, { tipo: "progetto", id: p.id })} onClick={() => onScegli({ tipo: "progetto", id: p.id })}>
                     <span className="nome-progetto">{p.nome}</span>
-                    {p.non_censite > 0 && <span className="a-destra" title="attività non censite">{p.non_censite} non censite</span>}
+                    {p.non_censite > 0 && <span className="a-destra" title={T.attivitaNonCensite}>{T.nonCensiteN(p.non_censite)}</span>}
                   </Voce>
                   {visibili.map((c) => {
                     // Un figlio il cui padre sta in un'altra scheda mostra il percorso intero.
@@ -74,7 +80,7 @@ export function Indice({ committenti, selezione, onScegli, vista, onVista, ristr
                         attiva={stessa(selezione, { tipo: "cantiere", id: c.id })} onClick={() => onScegli({ tipo: "cantiere", id: c.id })}>
                         <StatoBadge stato={c.stato} etichetta={false} />
                         <span className="nome-cantiere">{orfano ? c.percorso : c.nome}</span>
-                        {c.sessioni.length > 0 && <span className="a-destra" title="sessioni attive">{c.sessioni.length}</span>}
+                        {c.sessioni.length > 0 && <span className="a-destra" title={T.sessioniAttive}>{c.sessioni.length}</span>}
                       </Voce>
                     );
                   })}
@@ -85,8 +91,8 @@ export function Indice({ committenti, selezione, onScegli, vista, onVista, ristr
         ))}
       </nav>
       <div className="indice-piede">
-        {!ristretta && <Button variant="secondario" size="sm" onClick={onNuovoCommittente} style={{ width: "100%" }}>Nuovo committente</Button>}
-        <span className={"connessione" + (errore ? " errore" : "")}>{errore ?? (aggiornato ? `aggiornato ${ora(aggiornato)}` : "caricamento")}</span>
+        {!ristretta && <Button variant="secondario" size="sm" onClick={onNuovoCommittente} style={{ width: "100%" }}>{T.nuovoCommittente}</Button>}
+        <span className={"connessione" + (errore ? " errore" : "")}>{errore ?? (aggiornato ? T.aggiornatoAlle(ora(aggiornato)) : T.caricamentoMin)}</span>
       </div>
     </aside>
   );

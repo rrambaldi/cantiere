@@ -60,7 +60,7 @@ type Evento = {
 type InCoda = { cartella: string; evento: Evento };
 type VoceTodo = { testo: string; stato: string };
 type Sessione = {
-  primo_visto: string; cwd: string; avvio_reale_il?: string; ultimo_evento_il?: string;
+  titolo_impostato?: string; primo_visto: string; cwd: string; avvio_reale_il?: string; ultimo_evento_il?: string;
   cantiere?: Cantiere | null; config?: Risposta["config"]; contesto_pendente?: string;
   todo?: Record<string, VoceTodo>;
 };
@@ -515,8 +515,21 @@ export function decidiBlocco(p: {
     !p.conteggio.resoconto && !!p.avvio && !!p.registrato && p.avvio > p.registrato;
 }
 
-const contestoHook = (hookEventName: string, additionalContext: string) =>
-  console.log(JSON.stringify({ hookSpecificOutput: { hookEventName, additionalContext } }));
+// sessionTitle fa come /rename. Si manda solo quando "progetto · cantiere" cambia, così un /rename
+// fatto a mano dura fino al cambio di cantiere.
+function titoloCantiere(c: Contesto): string | undefined {
+  const cantiere = leggiSessione(c.sid)?.cantiere;
+  if (!cantiere) return;
+  const titolo = `${c.cfg.progetto} · ${cantiere.percorso}`.slice(0, MAX_TITOLO);
+  if (leggiSessione(c.sid)?.titolo_impostato === titolo) return;
+  aggiornaSessione(c.sid, (s) => (s.titolo_impostato = titolo));
+  return titolo;
+}
+
+const contestoHook = (hookEventName: string, additionalContext?: string | null, sessionTitle?: string) => {
+  if (!additionalContext && !sessionTitle) return;
+  console.log(JSON.stringify({ hookSpecificOutput: { hookEventName, additionalContext: additionalContext || undefined, sessionTitle } }));
+};
 
 function avvisaSenzaAree() {
   const oggi = adesso().slice(0, 10);
@@ -548,13 +561,12 @@ const HOOK: Record<string, (c: Contesto, input: Input) => Promise<void>> = {
       const contesto = typeof motivo === "string"
         ? `[${NOME}] Comando /cantiere gestito: ${motivo} Rispondi all'utente con una sola riga.`
         : r?.risposta?.contesto;
-      if (contesto) contestoHook("UserPromptSubmit", contesto);
+      contestoHook("UserPromptSubmit", contesto, titoloCantiere(c));
       return;
     }
     const pendente = leggiSessione(c.sid)?.contesto_pendente;
-    if (!pendente) return;
-    aggiornaSessione(c.sid, (s) => delete s.contesto_pendente);
-    contestoHook("UserPromptSubmit", pendente);
+    if (pendente) aggiornaSessione(c.sid, (s) => delete s.contesto_pendente);
+    contestoHook("UserPromptSubmit", pendente, titoloCantiere(c));
   },
 
   async prompt_invio(c, input) {

@@ -1,3 +1,5 @@
+import { T } from "./testi.ts";
+
 // API JSON della dashboard (design D16): URL relativi, così funzionano sotto qualunque prefisso del proxy.
 
 export type Stato = "idea" | "aperto" | "sospeso" | "completato" | "abbandonato";
@@ -115,12 +117,12 @@ async function richiesta<T>(percorso: string, corpo?: unknown): Promise<T> {
       credentials: "same-origin",
     });
   } catch {
-    throw new Error("Server non raggiungibile.");
+    throw new Error(T.serverNonRaggiungibile);
   }
   const dati = await risposta.json().catch(() => null);
   if (!risposta.ok) {
-    if (risposta.status === 403) throw new Error("Accesso negato: serve il certificato client.");
-    throw new Error(dati?.errore ?? `Errore ${risposta.status}.`);
+    if (risposta.status === 403) throw new Error(T.accessoNegato);
+    throw new Error(dati?.errore ?? T.erroreHttp(risposta.status));
   }
   return dati as T;
 }

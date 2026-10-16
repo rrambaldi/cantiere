@@ -6,6 +6,7 @@ import { VISTA_DI, type Vista } from "./formato.ts";
 import { Indice, type Selezione } from "./indice.tsx";
 import { LavoroCantiere, LavoroCommittente, LavoroProgetto } from "./lavori.tsx";
 import { SchedaCantiere, SchedaCommittente, SchedaProgetto } from "./scheda.tsx";
+import { impostaLingua, lingua as linguaCorrente, salvaLingua, T, type Lingua } from "./testi.ts";
 import { Vuoto } from "./ui.tsx";
 
 const CHIAVE_SELEZIONE = "forgia-selezione";
@@ -59,6 +60,8 @@ type Messaggio = { titolo: string; testo?: string; tono?: "info" | "errore" };
 
 function App() {
   const ristretta = committenteDellaPagina();
+  const [lingua, setLingua] = React.useState<Lingua>(linguaCorrente);
+  impostaLingua(lingua); // prima dei figli, che leggono i testi correnti
   const [albero, setAlbero] = React.useState<Committente[] | null>(null);
   const [errore, setErrore] = React.useState<string | null>(null);
   const [aggiornato, setAggiornato] = React.useState<string | null>(null);
@@ -87,7 +90,7 @@ function App() {
       if (s?.tipo === "cantiere") setDettaglio(await api.cantiere(s.id));
       if (s?.tipo === "progetto") setNonCensite((await api.nonCensite(s.id)).sessioni);
     } catch (e) {
-      setMessaggio({ titolo: "Dati non caricati", testo: (e as Error).message, tono: "errore" });
+      setMessaggio({ titolo: T.datiNonCaricati, testo: (e as Error).message, tono: "errore" });
     }
   }, []);
 
@@ -97,6 +100,11 @@ function App() {
   );
 
   React.useEffect(() => void caricaAlbero(), [caricaAlbero]);
+
+  React.useEffect(() => {
+    document.documentElement.lang = lingua;
+    document.title = T.titoloPagina;
+  }, [lingua]);
 
   // Il lavoro in sottofondo non si anima: si aggiorna e basta, solo con la pagina visibile.
   React.useEffect(() => {
@@ -136,7 +144,7 @@ function App() {
     let caricati = 0;
     for (const f of file) {
       if (!FILE_AMMESSO.test(f.name)) {
-        errori.push(`${f.name}: sono ammessi solo .md e .txt`);
+        errori.push(T.soloMdTxt(f.name));
         continue;
       }
       try {
@@ -146,10 +154,9 @@ function App() {
         errori.push(`${f.name}: ${(e as Error).message}`);
       }
     }
-    const conta = (n: number, uno: string, molti: string) => `${n} ${n === 1 ? uno : molti}`;
     if (errori.length) {
-      setMessaggio({ titolo: `${conta(caricati, "file caricato", "file caricati")}, ${conta(errori.length, "rifiutato", "rifiutati")}`, testo: errori.join(" · "), tono: "errore" });
-    } else if (caricati) setMessaggio({ titolo: conta(caricati, "file caricato", "file caricati") });
+      setMessaggio({ titolo: `${T.fileCaricati(caricati)}, ${T.fileRifiutati(errori.length)}`, testo: errori.join(" · "), tono: "errore" });
+    } else if (caricati) setMessaggio({ titolo: T.fileCaricati(caricati) });
   }
 
   const esecutori: Esecutori = {
@@ -168,11 +175,11 @@ function App() {
       const r = await api.creaProgetto(cm.id, nome);
       await caricaAlbero();
       setSelezione({ tipo: "progetto", id: r.progetto.id });
-      setMessaggio({ titolo: "Progetto creato", testo: `${cm.nome} · ${r.progetto.nome}` });
+      setMessaggio({ titolo: T.progettoCreato, testo: `${cm.nome} · ${r.progetto.nome}` });
     },
     async creaIdea(p, nome, descrizione, padre, file) {
       const r = await api.creaIdea(p.id, { nome, descrizione, padre_id: padre });
-      setMessaggio({ titolo: "Idea creata", testo: r.cantiere.percorso });
+      setMessaggio({ titolo: T.ideaCreata, testo: r.cantiere.percorso });
       await caricaFile(r.cantiere.id, file);
       await caricaAlbero();
       setVista("idee");
@@ -186,11 +193,11 @@ function App() {
       await api.esito(c.id, azione);
       await aggiorna();
       const testi: Record<Azione, Messaggio> = {
-        sospendi: { titolo: "Cantiere sospeso", testo: c.percorso },
-        riattiva: { titolo: "Cantiere riattivato", testo: c.percorso },
+        sospendi: { titolo: T.cantiereSospeso, testo: c.percorso },
+        riattiva: { titolo: T.cantiereRiattivato, testo: c.percorso },
         abbandona: {
-          titolo: "Cantiere abbandonato",
-          testo: c.stato === "idea" ? c.percorso : `${c.percorso} · alla prossima sessione in ${c.progetto} Claude proporrà di archiviarlo.`,
+          titolo: T.cantiereAbbandonato,
+          testo: c.stato === "idea" ? c.percorso : T.proporraArchiviare(c.percorso, c.progetto),
         },
       };
       setMessaggio(testi[azione]);
@@ -206,7 +213,7 @@ function App() {
   const chiudi = (r: Richiesta) => () => setRichiesta((attuale) => (attuale === r ? null : attuale));
   const dettaglioDi = (c: Cantiere) => (dettaglio?.cantiere.id === c.id ? dettaglio : null);
 
-  let centro: React.ReactNode = <main className="lavori"><Vuoto>{albero ? "Scegli un committente, un progetto o un cantiere." : errore ?? "Caricamento."}</Vuoto></main>;
+  let centro: React.ReactNode = <main className="lavori"><Vuoto>{albero ? T.scegliQualcosa : errore ?? T.caricamento}</Vuoto></main>;
   let destra: React.ReactNode = <aside className="scheda" />;
   if (trovato?.tipo === "cantiere") {
     const d = dettaglioDi(trovato.c);
@@ -230,7 +237,8 @@ function App() {
   return (
     <div className="dashboard">
       <Indice committenti={albero ?? []} selezione={selezione} onScegli={scegli} vista={vista} onVista={setVista}
-        ristretta={Boolean(ristretta)} onNuovoCommittente={() => setRichiesta({ tipo: "committente" })} aggiornato={aggiornato} errore={errore} />
+        ristretta={Boolean(ristretta)} onNuovoCommittente={() => setRichiesta({ tipo: "committente" })} aggiornato={aggiornato} errore={errore}
+        onLingua={(l) => { salvaLingua(l); setLingua(l); }} />
       {centro}
       {destra}
       {richiesta && <Dialoghi r={richiesta} esecutori={esecutori} onChiudi={chiudi(richiesta)} />}

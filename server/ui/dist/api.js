@@ -1,4 +1,4 @@
-// API JSON della dashboard (design D16): URL relativi, così funzionano sotto qualunque prefisso del proxy.
+import { T } from "./testi.js";
 const BASE = "ui/api/";
 /** Nome del committente della vista ristretta, scritto dal server nella pagina; vuoto per la vista di tutti. */
 export function committenteDellaPagina() {
@@ -26,13 +26,13 @@ async function richiesta(percorso, corpo) {
         });
     }
     catch {
-        throw new Error("Server non raggiungibile.");
+        throw new Error(T.serverNonRaggiungibile);
     }
     const dati = await risposta.json().catch(() => null);
     if (!risposta.ok) {
         if (risposta.status === 403)
-            throw new Error("Accesso negato: serve il certificato client.");
-        throw new Error(dati?.errore ?? `Errore ${risposta.status}.`);
+            throw new Error(T.accessoNegato);
+        throw new Error(dati?.errore ?? T.erroreHttp(risposta.status));
     }
     return dati;
 }

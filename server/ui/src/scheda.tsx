@@ -3,6 +3,7 @@ import type { Azione, Committente, Dettaglio, Progetto } from "./api.ts";
 import { Button, Checkbox } from "./ds/core.tsx";
 import { StatoBadge } from "./ds/feedback.tsx";
 import { eta, finale, giorno, quando } from "./formato.ts";
+import { T } from "./testi.ts";
 import { Avanzamento, Campi, Etichetta, Vuoto } from "./ui.tsx";
 
 const ARTEFATTI = ["proposal", "design", "specs", "tasks"] as const;
@@ -16,22 +17,22 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea }: {
 }) {
   const c = d.cantiere;
   return (
-    <aside className="scheda" aria-label="Scheda tecnica">
-      <Blocco titolo="scheda tecnica">
+    <aside className="scheda" aria-label={T.schedaTecnica}>
+      <Blocco titolo={T.schedaTecnicaEt}>
         <Campi righe={[
-          ["progetto", c.progetto],
-          ["change", <code>{c.change}</code>],
-          ["stato", <StatoBadge stato={c.stato} />],
-          ["origine", c.origine],
-          ["creato", quando(c.creato_il)],
-          ["aggiornato", quando(c.aggiornato_il)],
+          [T.progetto, c.progetto],
+          [T.change, <code>{c.change}</code>],
+          [T.stato_, <StatoBadge stato={c.stato} />],
+          [T.origine, c.origine],
+          [T.creato, quando(c.creato_il)],
+          [T.aggiornato, quando(c.aggiornato_il)],
         ]} />
       </Blocco>
       {c.stato !== "idea" && (
-        <Blocco titolo="avanzamento">
-          {c.task ? <Campi righe={[["task", <Avanzamento fatti={c.task.fatti} totali={c.task.totali} attivo={c.stato === "aperto"} />]]} />
-            : <Vuoto>Nessun tasks.md nella copia del change.</Vuoto>}
-          {c.fasi && <Campi righe={[["fasi", <Avanzamento fatti={c.fasi.completate} totali={c.fasi.totali} attivo={c.stato === "aperto"} />]]} />}
+        <Blocco titolo={T.avanzamento}>
+          {c.task ? <Campi righe={[[T.task, <Avanzamento fatti={c.task.fatti} totali={c.task.totali} attivo={c.stato === "aperto"} />]]} />
+            : <Vuoto>{T.nessunTasks}</Vuoto>}
+          {c.fasi && <Campi righe={[[T.fasi, <Avanzamento fatti={c.fasi.completate} totali={c.fasi.totali} attivo={c.stato === "aperto"} />]]} />}
           {c.artefatti && (
             <ul className="artefatti">
               {ARTEFATTI.map((a) => <li key={a} className={c.artefatti![a] ? "c-e" : ""}>{c.artefatti![a] ? "✓" : "—"} {a}</li>)}
@@ -40,7 +41,7 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea }: {
         </Blocco>
       )}
       {c.sessioni.length > 0 && (
-        <Blocco titolo="sessioni attive">
+        <Blocco titolo={T.sessioniAttive}>
           <ul className="sessioni">
             {c.sessioni.map((s) => (
               <li key={s.session_id}>
@@ -52,30 +53,30 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea }: {
         </Blocco>
       )}
       {d.todo.length > 0 && (
-        <Blocco titolo="todo delle sessioni">
+        <Blocco titolo={T.todoSessioni}>
           {d.todo.map((t, i) => (
             <Checkbox key={i} checked={t.stato === "completed"}
-              label={<span style={{ color: t.stato === "completed" ? "var(--testo-2)" : "var(--testo)" }}>{t.testo}{t.stato === "in_progress" ? " · in corso" : ""}</span>} />
+              label={<span style={{ color: t.stato === "completed" ? "var(--testo-2)" : "var(--testo)" }}>{t.testo}{t.stato === "in_progress" ? T.inCorsoTodo : ""}</span>} />
           ))}
         </Blocco>
       )}
       {d.esiti.length > 0 && (
-        <Blocco titolo="storico">
+        <Blocco titolo={T.storico}>
           <ul className="storico">{d.esiti.map((e, i) => <li key={i}><StatoBadge stato={e.stato} /> <span className="secondario">{giorno(e.ts)} · {e.da}</span></li>)}</ul>
         </Blocco>
       )}
       <div className="blocco azioni">
-        <Etichetta>esito</Etichetta>
+        <Etichetta>{T.esito}</Etichetta>
         {finale(c.stato) ? <StatoBadge stato={c.stato} /> : (
           <>
-            {c.stato === "idea" && <Button variant="secondario" size="sm" onClick={onModifica}>Modifica nome e descrizione</Button>}
-            {c.stato === "aperto" && <Button variant="secondario" size="sm" onClick={() => onEsito("sospendi")}>Sospendi</Button>}
-            {c.stato === "sospeso" && <Button size="sm" onClick={() => onEsito("riattiva")}>Riattiva</Button>}
-            <Button variant="fantasma" size="sm" onClick={() => onEsito("abbandona")}>Abbandona</Button>
-            <Button variant="fantasma" size="sm" onClick={onNuovaIdea}>Nuova idea qui sotto</Button>
+            {c.stato === "idea" && <Button variant="secondario" size="sm" onClick={onModifica}>{T.modificaNomeDescr}</Button>}
+            {c.stato === "aperto" && <Button variant="secondario" size="sm" onClick={() => onEsito("sospendi")}>{T.sospendi}</Button>}
+            {c.stato === "sospeso" && <Button size="sm" onClick={() => onEsito("riattiva")}>{T.riattiva}</Button>}
+            <Button variant="fantasma" size="sm" onClick={() => onEsito("abbandona")}>{T.abbandona}</Button>
+            <Button variant="fantasma" size="sm" onClick={onNuovaIdea}>{T.nuovaIdeaSotto}</Button>
             <span className="nota">{c.stato === "idea"
-              ? <>Si prende in lavorazione da Claude Code con <code>/cantiere prendi {c.percorso}</code>.</>
-              : "Completato arriva dal repo, con openspec archive."}</span>
+              ? <>{T.notaIdea[0]}<code>/cantiere prendi {c.percorso}</code>{T.notaIdea[1]}</>
+              : T.notaCompletato}</span>
           </>
         )}
       </div>
@@ -86,23 +87,23 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea }: {
 export function SchedaProgetto({ p, committente, onNuovaIdea }: { p: Progetto; committente: string; onNuovaIdea: () => void }) {
   const n = (s: string) => p.cantieri.filter((c) => c.stato === s).length;
   return (
-    <aside className="scheda" aria-label="Scheda del progetto">
-      <Blocco titolo="progetto">
+    <aside className="scheda" aria-label={T.schedaProgetto}>
+      <Blocco titolo={T.progetto}>
         <Campi righe={[
-          ["committente", committente],
-          ["slug", <code>{p.slug}</code>],
-          ["creato", quando(p.creato_il)],
-          ["in corso", n("aperto")],
-          ["idee", n("idea")],
-          ["sospesi", n("sospeso")],
-          ["completati", n("completato")],
-          ["non censite", p.non_censite],
+          [T.committente, committente],
+          [T.slug, <code>{p.slug}</code>],
+          [T.creato, quando(p.creato_il)],
+          [T.inCorso, n("aperto")],
+          [T.idee.toLowerCase(), n("idea")],
+          [T.sospesi, n("sospeso")],
+          [T.completati, n("completato")],
+          [T.nonCensite, p.non_censite],
         ]} />
       </Blocco>
       <div className="blocco azioni">
-        <Etichetta>azioni</Etichetta>
-        <Button size="sm" onClick={onNuovaIdea}>Nuova idea</Button>
-        <span className="nota">Un'idea diventa un change OpenSpec con /cantiere prendi da Claude Code.</span>
+        <Etichetta>{T.azioni}</Etichetta>
+        <Button size="sm" onClick={onNuovaIdea}>{T.nuovaIdea}</Button>
+        <span className="nota">{T.notaProgetto}</span>
       </div>
     </aside>
   );
@@ -110,15 +111,15 @@ export function SchedaProgetto({ p, committente, onNuovaIdea }: { p: Progetto; c
 
 export function SchedaCommittente({ cm, onNuovoProgetto, onRigenera }: { cm: Committente; onNuovoProgetto: () => void; onRigenera: () => void }) {
   return (
-    <aside className="scheda" aria-label="Scheda del committente">
-      <Blocco titolo="committente">
-        <Campi righe={[["nome", cm.nome], ["creato", quando(cm.creato_il)], ["token del", quando(cm.token_il)], ["progetti", cm.progetti.length]]} />
+    <aside className="scheda" aria-label={T.schedaCommittente}>
+      <Blocco titolo={T.committente}>
+        <Campi righe={[[T.nome, cm.nome], [T.creato, quando(cm.creato_il)], [T.tokenDel, quando(cm.token_il)], [T.progetti, cm.progetti.length]]} />
       </Blocco>
       <div className="blocco azioni">
-        <Etichetta>azioni</Etichetta>
-        <Button size="sm" onClick={onNuovoProgetto}>Nuovo progetto</Button>
-        <Button variant="secondario" size="sm" onClick={onRigenera}>Rigenera token</Button>
-        <span className="nota">Il token serve a /cantiere collega su ogni macchina che lavora per {cm.nome}.</span>
+        <Etichetta>{T.azioni}</Etichetta>
+        <Button size="sm" onClick={onNuovoProgetto}>{T.nuovoProgetto}</Button>
+        <Button variant="secondario" size="sm" onClick={onRigenera}>{T.rigeneraToken}</Button>
+        <span className="nota">{T.notaCommittente(cm.nome)}</span>
       </div>
     </aside>
   );

@@ -467,7 +467,23 @@ export function decidiBlocco(p) {
     return !p.attivo && !!p.conteggio && p.modalita === "forzato" && p.conteggio.strumenti >= p.soglia &&
         !p.conteggio.resoconto && !!p.avvio && !!p.registrato && p.avvio > p.registrato;
 }
-const contestoHook = (hookEventName, additionalContext) => console.log(JSON.stringify({ hookSpecificOutput: { hookEventName, additionalContext } }));
+// sessionTitle fa come /rename. Si manda solo quando "progetto · cantiere" cambia, così un /rename
+// fatto a mano dura fino al cambio di cantiere.
+function titoloCantiere(c) {
+    const cantiere = leggiSessione(c.sid)?.cantiere;
+    if (!cantiere)
+        return;
+    const titolo = `${c.cfg.progetto} · ${cantiere.percorso}`.slice(0, MAX_TITOLO);
+    if (leggiSessione(c.sid)?.titolo_impostato === titolo)
+        return;
+    aggiornaSessione(c.sid, (s) => (s.titolo_impostato = titolo));
+    return titolo;
+}
+const contestoHook = (hookEventName, additionalContext, sessionTitle) => {
+    if (!additionalContext && !sessionTitle)
+        return;
+    console.log(JSON.stringify({ hookSpecificOutput: { hookEventName, additionalContext: additionalContext || undefined, sessionTitle } }));
+};
 function avvisaSenzaAree() {
     const oggi = adesso().slice(0, 10);
     if (leggiJson(cache("avviso.json")) === oggi)
@@ -500,15 +516,13 @@ const HOOK = {
             const contesto = typeof motivo === "string"
                 ? `[${NOME}] Comando /cantiere gestito: ${motivo} Rispondi all'utente con una sola riga.`
                 : r?.risposta?.contesto;
-            if (contesto)
-                contestoHook("UserPromptSubmit", contesto);
+            contestoHook("UserPromptSubmit", contesto, titoloCantiere(c));
             return;
         }
         const pendente = leggiSessione(c.sid)?.contesto_pendente;
-        if (!pendente)
-            return;
-        aggiornaSessione(c.sid, (s) => delete s.contesto_pendente);
-        contestoHook("UserPromptSubmit", pendente);
+        if (pendente)
+            aggiornaSessione(c.sid, (s) => delete s.contesto_pendente);
+        contestoHook("UserPromptSubmit", pendente, titoloCantiere(c));
     },
     async prompt_invio(c, input) {
         if (typeof input.prompt === "string" && riconosci(input.prompt))

@@ -1,8 +1,9 @@
 import { Documento } from "./documento.js";
 import { Nastro } from "./ds/cantiere.js";
-import { Button, Tabs } from "./ds/core.js";
+import { Button, Input, Tabs } from "./ds/core.js";
 import { StatoBadge } from "./ds/feedback.js";
-import { ETICHETTA_STATO, giorno, ora, quando } from "./formato.js";
+import { giorno, ora, quando } from "./formato.js";
+import { T } from "./testi.js";
 import { Avanzamento, Avviso, Etichetta, Vuoto } from "./ui.js";
 const FILE_AMMESSI = ".md,.txt,text/markdown,text/plain";
 function Testata({ etichetta, titolo, sotto }) {
@@ -20,7 +21,7 @@ function RigaResoconto({ k, v }) {
 }
 function Turni({ turni }) {
     if (!turni.length)
-        return React.createElement(Vuoto, null, "Nessun resoconto ancora. Arriva quando Claude chiude un turno con aggiorna_stato.");
+        return React.createElement(Vuoto, null, T.nessunResoconto);
     return (React.createElement("ol", { className: "turni" }, turni.map((t, i) => (React.createElement("li", { key: t.ts + t.session_id, className: "turno" },
         React.createElement("div", { className: "turno-quando" },
             React.createElement("strong", null, giorno(t.ts)),
@@ -32,11 +33,11 @@ function Turni({ turni }) {
             i < turni.length - 1 && React.createElement("span", { className: "filo", style: { flex: 1 } })),
         React.createElement("div", { className: "turno-corpo" + (i < turni.length - 1 ? " con-linea" : "") },
             React.createElement("span", { className: "etichetta" },
-                t.titolo || "sessione " + t.session_id.slice(0, 8),
+                t.titolo || T.sessione + " " + t.session_id.slice(0, 8),
                 t.percentuale != null ? ` · ${t.percentuale}%` : ""),
-            React.createElement(RigaResoconto, { k: "fatto", v: t.fatto }),
-            React.createElement(RigaResoconto, { k: "dopo", v: t.prossimo }),
-            React.createElement(RigaResoconto, { k: "blocca", v: t.bloccato_da })))))));
+            React.createElement(RigaResoconto, { k: T.rFatto, v: t.fatto }),
+            React.createElement(RigaResoconto, { k: T.rDopo, v: t.prossimo }),
+            React.createElement(RigaResoconto, { k: T.rBlocca, v: t.bloccato_da })))))));
 }
 const ORDINE_FILE = ["proposal.md", "design.md", "tasks.md"];
 const rango = (p) => {
@@ -60,13 +61,28 @@ function Documenti({ file, vuoto, azioni }) {
             React.createElement(Documento, { percorso: corrente.percorso, contenuto: corrente.contenuto }))));
 }
 /** Zona dove trascinare o scegliere i file .md e .txt di un'idea. */
-export function ZonaFile({ onFile, testo = "Trascina qui file .md o .txt, oppure sceglili" }) {
+export function fileDaTesto(nome, testo) {
+    const base = nome.trim().replace(/\.(md|txt)$/i, "") || "appunti";
+    return new File([testo], `${base}.md`, { type: "text/markdown" });
+}
+export function CampoTesto({ scritto, setScritto, nome, setNome, azione }) {
+    return (React.createElement(React.Fragment, null,
+        React.createElement(Input, { label: T.scriviTesto, value: scritto, onChange: setScritto, multilinea: true }),
+        scritto.trim() && (React.createElement("div", { className: "zona-file" },
+            React.createElement(Input, { label: T.nomeAppunti, value: nome, onChange: setNome }),
+            azione))));
+}
+export function ZonaFile({ onFile, testo = T.trascinaFile, conTesto = true }) {
     const [sopra, setSopra] = React.useState(false);
+    const [scritto, setScritto] = React.useState("");
+    const [nome, setNome] = React.useState("appunti");
     const input = React.useRef(null);
-    return (React.createElement("div", { className: "zona-file" + (sopra ? " sopra" : ""), onDragOver: (e) => { e.preventDefault(); setSopra(true); }, onDragLeave: () => setSopra(false), onDrop: (e) => { e.preventDefault(); setSopra(false); onFile([...e.dataTransfer.files]); } },
-        React.createElement("span", null, testo),
-        React.createElement(Button, { variant: "secondario", size: "sm", onClick: () => input.current?.click() }, "Scegli file"),
-        React.createElement("input", { ref: input, type: "file", multiple: true, accept: FILE_AMMESSI, hidden: true, onChange: (e) => { onFile([...(e.target.files ?? [])]); e.target.value = ""; } })));
+    return (React.createElement(React.Fragment, null,
+        React.createElement("div", { className: "zona-file" + (sopra ? " sopra" : ""), onDragOver: (e) => { e.preventDefault(); setSopra(true); }, onDragLeave: () => setSopra(false), onDrop: (e) => { e.preventDefault(); setSopra(false); onFile([...e.dataTransfer.files]); } },
+            React.createElement("span", null, testo),
+            React.createElement(Button, { variant: "secondario", size: "sm", onClick: () => input.current?.click() }, T.scegliFile),
+            React.createElement("input", { ref: input, type: "file", multiple: true, accept: FILE_AMMESSI, hidden: true, onChange: (e) => { onFile([...(e.target.files ?? [])]); e.target.value = ""; } })),
+        conTesto && React.createElement(CampoTesto, { scritto: scritto, setScritto: setScritto, nome: nome, setNome: setNome, azione: React.createElement(Button, { variant: "secondario", size: "sm", onClick: () => { onFile([fileDaTesto(nome, scritto)]); setScritto(""); } }, T.aggiungiTesto) })));
 }
 export function LavoroCantiere({ d, onFile, onTogliFile }) {
     const c = d.cantiere;
@@ -76,45 +92,41 @@ export function LavoroCantiere({ d, onFile, onTogliFile }) {
     const macchine = new Set(d.turni.map((t) => t.host)).size;
     const sotto = [
         c.progetto,
-        `change ${c.change}`,
-        ETICHETTA_STATO[c.stato],
-        `creato ${giorno(c.creato_il)}`,
-        ...(idea ? [] : [d.turni.length ? `${d.turni.length} ${d.turni.length === 1 ? "turno" : "turni"} su ${macchine} ${macchine === 1 ? "macchina" : "macchine"}` : "nessun turno"]),
+        T.changeNome(c.change),
+        T.stato[c.stato],
+        T.creatoIl(giorno(c.creato_il)),
+        ...(idea ? [] : [d.turni.length ? T.turniSu(d.turni.length, macchine) : T.nessunTurno]),
     ].join(" · ");
     return (React.createElement("main", { className: "lavori" },
-        React.createElement(Testata, { etichetta: idea ? "idea" : "giornale dei lavori", titolo: c.percorso, sotto: sotto }),
+        React.createElement(Testata, { etichetta: idea ? T.stato.idea : T.giornaleLavori, titolo: c.percorso, sotto: sotto }),
         React.createElement("div", { className: "corpo-lavoro" },
             c.descrizione && React.createElement("p", { className: "descrizione" }, c.descrizione),
             c.change_mancante && c.stato === "aperto" && (React.createElement(Avviso, null,
-                "Il change ",
+                T.avvisoChangeMancante[0],
                 React.createElement("code", null, c.change),
-                " non c'\u00E8 ancora nel repo. Lo crea Claude con ",
+                T.avvisoChangeMancante[1],
                 React.createElement("code", null,
                     "openspec new change ",
                     c.change),
-                ".")),
+                T.avvisoChangeMancante[2])),
             c.da_archiviare && (React.createElement(Avviso, null,
-                "Abbandonato, ma il change \u00E8 ancora nel repo. Alla prossima sessione in ",
-                c.progetto,
-                " Claude proporr\u00E0 ",
+                T.avvisoDaArchiviare(c.progetto)[0],
                 React.createElement("code", null,
                     "openspec archive ",
                     c.change,
                     " --skip-specs"),
-                ".")),
+                T.avvisoDaArchiviare(c.progetto)[1])),
             idea ? (React.createElement(React.Fragment, null,
-                React.createElement(Etichetta, null,
-                    "file dell'idea \u00B7 ",
-                    d.file.length),
+                React.createElement(Etichetta, null, T.fileIdea(d.file.length)),
                 React.createElement(ZonaFile, { onFile: onFile }),
-                React.createElement(Documenti, { file: d.file, vuoto: "Nessun file. Aggiungi gli appunti da cui Claude partir\u00E0 per scrivere il change.", azioni: (f) => React.createElement(Button, { variant: "fantasma", size: "sm", onClick: () => onTogliFile(f.percorso.replace(/^idee\//, "")) }, "Togli") }))) : (React.createElement(React.Fragment, null,
+                React.createElement(Documenti, { file: d.file, vuoto: T.nessunFileIdea, azioni: (f) => React.createElement(Button, { variant: "fantasma", size: "sm", onClick: () => onTogliFile(f.percorso.replace(/^idee\//, "")) }, T.togli) }))) : (React.createElement(React.Fragment, null,
                 React.createElement(Tabs, { value: scheda, onChange: setScheda, items: [
-                        { id: "giornale", label: "Giornale", count: d.turni.length },
-                        { id: "change", label: "Change", count: d.file.length },
+                        { id: "giornale", label: T.giornale, count: d.turni.length },
+                        { id: "change", label: T.changeScheda, count: d.file.length },
                     ] }),
                 scheda === "giornale"
                     ? React.createElement(Turni, { turni: d.turni })
-                    : React.createElement(Documenti, { file: d.file, vuoto: "Nessuna copia del change. Arriva dal plugin alla fine del primo turno che tocca openspec/changes/." }))))));
+                    : React.createElement(Documenti, { file: d.file, vuoto: T.nessunaCopiaChange }))))));
 }
 function RigaCantiere({ c, onScegli }) {
     return (React.createElement("button", { className: "riga-cantiere", onClick: () => onScegli({ tipo: "cantiere", id: c.id }) },
@@ -126,32 +138,30 @@ function RigaCantiere({ c, onScegli }) {
 export function LavoroProgetto({ p, committente, nonCensite, onScegli }) {
     const attivi = p.cantieri.filter((c) => c.stato === "aperto" || c.stato === "sospeso" || c.stato === "idea");
     return (React.createElement("main", { className: "lavori" },
-        React.createElement(Testata, { etichetta: "progetto", titolo: p.nome, sotto: `${committente} · ${p.cantieri.length} cantieri · creato ${giorno(p.creato_il)}` }),
+        React.createElement(Testata, { etichetta: T.progetto, titolo: p.nome, sotto: T.progettoSotto(committente, p.cantieri.length, giorno(p.creato_il)) }),
         React.createElement("div", { className: "corpo-lavoro" },
             React.createElement("section", { className: "sezione" },
-                React.createElement(Etichetta, null, "cantieri aperti e idee"),
+                React.createElement(Etichetta, null, T.cantieriApertiIdee),
                 attivi.length ? React.createElement("div", { className: "righe" }, attivi.map((c) => React.createElement(RigaCantiere, { key: c.id, c: c, onScegli: onScegli })))
-                    : React.createElement(Vuoto, null, "Nessun cantiere aperto. Crea un'idea dalla scheda a destra, oppure aprilo da Claude Code.")),
+                    : React.createElement(Vuoto, null, T.nessunCantiereAperto)),
             React.createElement("section", { className: "sezione" },
-                React.createElement(Etichetta, null, "attivit\u00E0 non censite"),
-                nonCensite === null ? React.createElement(Vuoto, null, "Caricamento.") : nonCensite.length === 0
-                    ? React.createElement(Vuoto, null,
-                        "Nessuna. Qui finisce il lavoro fatto su ",
-                        p.nome,
-                        " senza un cantiere.")
+                React.createElement(Etichetta, null, T.attivitaNonCensite),
+                nonCensite === null ? React.createElement(Vuoto, null, T.caricamento) : nonCensite.length === 0
+                    ? React.createElement(Vuoto, null, T.nessunaNonCensita(p.nome))
                     : (React.createElement("div", { className: "tabella-scorre" },
                         React.createElement("table", { className: "tabella" },
                             React.createElement("thead", null,
                                 React.createElement("tr", null,
-                                    React.createElement("th", null, "titolo"),
-                                    React.createElement("th", null, "macchina"),
-                                    React.createElement("th", null, "avviata"),
-                                    React.createElement("th", null, "ultimo evento"),
-                                    React.createElement("th", { className: "numero" }, "turni"),
-                                    React.createElement("th", null, "stato"))),
+                                    React.createElement("th", null, T.colTitolo),
+                                    React.createElement("th", null, T.colMacchina),
+                                    React.createElement("th", null, T.colAvviata),
+                                    React.createElement("th", null, T.colUltimoEvento),
+                                    React.createElement("th", { className: "numero" }, T.colTurni),
+                                    React.createElement("th", null, T.colStato))),
                             React.createElement("tbody", null, nonCensite.map((s) => (React.createElement("tr", { key: s.session_id },
                                 React.createElement("td", null, s.titolo ?? React.createElement("span", { className: "secondario" },
-                                    "sessione ",
+                                    T.sessione,
+                                    " ",
                                     s.session_id.slice(0, 8))),
                                 React.createElement("td", null, s.host),
                                 React.createElement("td", null, quando(s.avviata_il)),
@@ -161,23 +171,15 @@ export function LavoroProgetto({ p, committente, nonCensite, onScegli }) {
 }
 export function LavoroCommittente({ cm, onScegli }) {
     return (React.createElement("main", { className: "lavori" },
-        React.createElement(Testata, { etichetta: "committente", titolo: cm.nome, sotto: `${cm.progetti.length} progetti · creato ${giorno(cm.creato_il)}` }),
+        React.createElement(Testata, { etichetta: T.committente, titolo: cm.nome, sotto: T.committenteSotto(cm.progetti.length, giorno(cm.creato_il)) }),
         React.createElement("div", { className: "corpo-lavoro" },
             React.createElement("section", { className: "sezione" },
-                React.createElement(Etichetta, null, "progetti"),
-                cm.progetti.length === 0 ? React.createElement(Vuoto, null, "Nessun progetto. Crealo dalla scheda a destra, oppure con /cantiere collega da Claude Code.") : (React.createElement("div", { className: "righe" }, cm.progetti.map((p) => {
+                React.createElement(Etichetta, null, T.progetti),
+                cm.progetti.length === 0 ? React.createElement(Vuoto, null, T.nessunProgetto) : (React.createElement("div", { className: "righe" }, cm.progetti.map((p) => {
                     const n = (s) => p.cantieri.filter((c) => c.stato === s).length;
                     return (React.createElement("button", { key: p.id, className: "riga-progetto", onClick: () => onScegli({ tipo: "progetto", id: p.id }) },
                         React.createElement("span", { className: "nome" }, p.nome),
-                        React.createElement("span", { className: "secondario" },
-                            n("aperto"),
-                            " in corso \u00B7 ",
-                            n("idea"),
-                            " idee \u00B7 ",
-                            n("completato"),
-                            " completati"),
-                        React.createElement("span", { className: "secondario" },
-                            p.non_censite,
-                            " non censite")));
+                        React.createElement("span", { className: "secondario" }, T.riepilogoProgetto(n("aperto"), n("idea"), n("completato"))),
+                        React.createElement("span", { className: "secondario" }, T.nonCensiteN(p.non_censite))));
                 })))))));
 }

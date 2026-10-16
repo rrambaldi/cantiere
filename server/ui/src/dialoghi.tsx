@@ -4,7 +4,8 @@ import type { Azione, Cantiere, Committente, Progetto } from "./api.ts";
 import { Button, Input } from "./ds/core.tsx";
 import { Dialog } from "./ds/feedback.tsx";
 import { finale } from "./formato.ts";
-import { ZonaFile } from "./lavori.tsx";
+import { CampoTesto, fileDaTesto, ZonaFile } from "./lavori.tsx";
+import { T } from "./testi.ts";
 
 export type Richiesta =
   | { tipo: "committente" }
@@ -49,8 +50,8 @@ function Azioni({ conferma, occupato, onChiudi, onConferma, disabilitato = false
 }) {
   return (
     <>
-      <Button variant="fantasma" size="sm" onClick={onChiudi}>Annulla</Button>
-      <Button size="sm" disabled={occupato || disabilitato} onClick={onConferma}>{occupato ? "Un momento" : conferma}</Button>
+      <Button variant="fantasma" size="sm" onClick={onChiudi}>{T.annulla}</Button>
+      <Button size="sm" disabled={occupato || disabilitato} onClick={onConferma}>{occupato ? T.unMomento : conferma}</Button>
     </>
   );
 }
@@ -67,7 +68,7 @@ function Nome({ titolo, conferma, iniziale = "", suggerimento, esegui, onChiudi,
     <Dialog titolo={titolo} onChiudi={onChiudi}
       azioni={<Azioni conferma={conferma} occupato={occupato} disabilitato={!nome.trim()} onChiudi={onChiudi} onConferma={() => invia(() => esegui(nome.trim()))} />}>
       {children}
-      <Input label="nome" value={nome} onChange={setNome} hint={suggerimento} error={errore} autoFocus />
+      <Input label={T.nome} value={nome} onChange={setNome} hint={suggerimento} error={errore} autoFocus />
     </Dialog>
   );
 }
@@ -78,11 +79,11 @@ function Token({ committente, token, onChiudi }: { committente: string; token: s
   const copia = () =>
     navigator.clipboard.writeText(token).then(() => setCopiato(true), () => campo.current?.select());
   return (
-    <Dialog titolo={`Token di ${committente}`} onChiudi={onChiudi}
-      azioni={<><Button variant="secondario" size="sm" onClick={copia}>{copiato ? "Copiato" : "Copia"}</Button><Button size="sm" onClick={onChiudi}>Ho copiato il token</Button></>}>
-      <p>Copia il token adesso: non verrà mostrato di nuovo.</p>
+    <Dialog titolo={T.tokenDi(committente)} onChiudi={onChiudi}
+      azioni={<><Button variant="secondario" size="sm" onClick={copia}>{copiato ? T.copiato : T.copia}</Button><Button size="sm" onClick={onChiudi}>{T.hoCopiato}</Button></>}>
+      <p>{T.copiaOra}</p>
       <input ref={campo} className="token" readOnly value={token} onFocus={(e) => e.target.select()} aria-label="token" />
-      <p>Su ogni macchina che lavora per {committente}: imposta <code>FORGIA_TOKEN</code> con questo valore e lancia <code>/cantiere collega &lt;progetto&gt; &lt;url&gt;</code> nella cartella dei sorgenti.</p>
+      <p>{T.tokenIstruzioni(committente)[0]}<code>FORGIA_TOKEN</code>{T.tokenIstruzioni(committente)[1]}<code>/cantiere collega &lt;{T.progetto}&gt; &lt;url&gt;</code>{T.tokenIstruzioni(committente)[2]}</p>
     </Dialog>
   );
 }
@@ -94,27 +95,31 @@ function Idea({ progetto, padre, esegui, onChiudi }: {
   const [descrizione, setDescrizione] = React.useState("");
   const [padreId, setPadreId] = React.useState<number | null>(padre?.id ?? null);
   const [file, setFile] = React.useState<File[]>([]);
+  const [scritto, setScritto] = React.useState("");
+  const [nomeTesto, setNomeTesto] = React.useState("appunti");
   const { occupato, errore, invia } = useInvio(onChiudi);
   const padri = progetto.cantieri.filter((c) => !finale(c.stato));
   const aggiungi = (nuovi: File[]) => setFile((f) => [...f, ...nuovi.filter((n) => !f.some((v) => v.name === n.name))]);
   return (
-    <Dialog titolo={`Nuova idea in ${progetto.nome}`} onChiudi={onChiudi}
-      azioni={<Azioni conferma="Crea l'idea" occupato={occupato} disabilitato={!nome.trim()} onChiudi={onChiudi}
-        onConferma={() => invia(() => esegui(progetto, nome.trim(), descrizione.trim() || null, padreId, file))} />}>
-      <Input label="nome" value={nome} onChange={setNome} hint="Breve e specifico: diventa il nome del change." error={errore} autoFocus />
-      <Input label="descrizione" value={descrizione} onChange={setDescrizione} multilinea />
+    <Dialog titolo={T.nuovaIdeaIn(progetto.nome)} onChiudi={onChiudi} soloPulsanti
+      azioni={<Azioni conferma={T.creaIdea} occupato={occupato} disabilitato={!nome.trim()} onChiudi={onChiudi}
+        onConferma={() => invia(() => esegui(progetto, nome.trim(), descrizione.trim() || null, padreId,
+          scritto.trim() ? [...file.filter((f) => f.name !== fileDaTesto(nomeTesto, "").name), fileDaTesto(nomeTesto, scritto)] : file))} />}>
+      <Input label={T.nome} value={nome} onChange={setNome} hint={T.suggIdea} error={errore} autoFocus />
+      <Input label={T.descrizione} value={descrizione} onChange={setDescrizione} multilinea />
       <label className="campo-scelta">
-        <span className="etichetta">sotto</span>
+        <span className="etichetta">{T.sotto}</span>
         <select value={padreId ?? ""} onChange={(e) => setPadreId(e.target.value ? Number(e.target.value) : null)}>
-          <option value="">primo livello di {progetto.nome}</option>
+          <option value="">{T.primoLivelloDi(progetto.nome)}</option>
           {padri.map((c) => <option key={c.id} value={c.id}>{c.percorso}</option>)}
         </select>
       </label>
-      <ZonaFile onFile={aggiungi} />
+      <ZonaFile onFile={aggiungi} conTesto={false} />
+      <CampoTesto scritto={scritto} setScritto={setScritto} nome={nomeTesto} setNome={setNomeTesto} />
       {file.length > 0 && (
         <ul className="file-scelti">
           {file.map((f) => (
-            <li key={f.name}><code>{f.name}</code><Button variant="fantasma" size="sm" onClick={() => setFile(file.filter((v) => v !== f))}>Togli</Button></li>
+            <li key={f.name}><code>{f.name}</code><Button variant="fantasma" size="sm" onClick={() => setFile(file.filter((v) => v !== f))}>{T.togli}</Button></li>
           ))}
         </ul>
       )}
@@ -127,35 +132,29 @@ function Modifica({ cantiere, esegui, onChiudi }: { cantiere: Cantiere; esegui: 
   const [descrizione, setDescrizione] = React.useState(cantiere.descrizione ?? "");
   const { occupato, errore, invia } = useInvio(onChiudi);
   return (
-    <Dialog titolo="Modifica l'idea" onChiudi={onChiudi}
-      azioni={<Azioni conferma="Salva" occupato={occupato} disabilitato={!nome.trim()} onChiudi={onChiudi}
+    <Dialog titolo={T.modificaIdea} onChiudi={onChiudi}
+      azioni={<Azioni conferma={T.salva} occupato={occupato} disabilitato={!nome.trim()} onChiudi={onChiudi}
         onConferma={() => invia(() => esegui(cantiere, nome.trim(), descrizione.trim() || null))} />}>
-      <Input label="nome" value={nome} onChange={setNome} hint="Cambia anche il nome del change." error={errore} autoFocus />
-      <Input label="descrizione" value={descrizione} onChange={setDescrizione} multilinea />
+      <Input label={T.nome} value={nome} onChange={setNome} hint={T.suggModifica} error={errore} autoFocus />
+      <Input label={T.descrizione} value={descrizione} onChange={setDescrizione} multilinea />
     </Dialog>
   );
 }
-
-const FRASI: Record<Azione, [string, string, string]> = {
-  sospendi: ["Sospendere il cantiere?", "resta tra gli aperti, fermo. Le sessioni che ci lavorano tornano al lavoro diretto sul progetto e Claude non lo propone all'avvio finché è sospeso.", "Sospendi"],
-  riattiva: ["Riattivare il cantiere?", "torna in corso e Claude lo propone di nuovo all'avvio delle sessioni.", "Riattiva"],
-  abbandona: ["Abbandonare il cantiere?", "passa tra i chiusi con esito abbandonato. Il giornale resta consultabile.", "Abbandona"],
-};
 
 function Esito({ cantiere, azione, discendenti, esegui, onChiudi }: {
   cantiere: Cantiere; azione: Azione; discendenti: string[]; esegui: Esecutori["esito"]; onChiudi: () => void;
 }) {
   const { occupato, errore, invia } = useInvio(onChiudi);
-  const [titolo, testo, conferma] = FRASI[azione];
+  const [titolo, testo, conferma] = T.esitoTesto[azione];
   return (
     <Dialog titolo={titolo} onChiudi={onChiudi}
       azioni={<Azioni conferma={conferma} occupato={occupato} onChiudi={onChiudi} onConferma={() => invia(() => esegui(cantiere, azione))} />}>
       <p><code>{cantiere.percorso}</code> {testo}</p>
       {azione === "abbandona" && discendenti.length > 0 && (
-        <p>Vengono abbandonati anche: {discendenti.map((d, i) => <React.Fragment key={d}>{i ? ", " : ""}<code>{d}</code></React.Fragment>)}.</p>
+        <p>{T.abbandonatiAnche}{discendenti.map((d, i) => <React.Fragment key={d}>{i ? ", " : ""}<code>{d}</code></React.Fragment>)}.</p>
       )}
       {azione === "abbandona" && cantiere.stato !== "idea" && (
-        <p>Alla prossima sessione in {cantiere.progetto} Claude proporrà di archiviare il change con <code>openspec archive {cantiere.change} --skip-specs</code>.</p>
+        <p>{T.archiviaProposta(cantiere.progetto)[0]}<code>openspec archive {cantiere.change} --skip-specs</code>{T.archiviaProposta(cantiere.progetto)[1]}</p>
       )}
       <Errore testo={errore} />
     </Dialog>
@@ -165,9 +164,9 @@ function Esito({ cantiere, azione, discendenti, esegui, onChiudi }: {
 function Togli({ cantiere, nome, esegui, onChiudi }: { cantiere: Cantiere; nome: string; esegui: Esecutori["togli"]; onChiudi: () => void }) {
   const { occupato, errore, invia } = useInvio(onChiudi);
   return (
-    <Dialog titolo="Togliere il file?" onChiudi={onChiudi}
-      azioni={<Azioni conferma="Togli" occupato={occupato} onChiudi={onChiudi} onConferma={() => invia(() => esegui(cantiere, nome))} />}>
-      <p><code>{nome}</code> esce dall'idea <code>{cantiere.percorso}</code>.</p>
+    <Dialog titolo={T.togliFileTit} onChiudi={onChiudi}
+      azioni={<Azioni conferma={T.togli} occupato={occupato} onChiudi={onChiudi} onConferma={() => invia(() => esegui(cantiere, nome))} />}>
+      <p><code>{nome}</code>{T.togliTesto[0]}<code>{cantiere.percorso}</code>{T.togliTesto[1]}</p>
       <Errore testo={errore} />
     </Dialog>
   );
@@ -176,15 +175,15 @@ function Togli({ cantiere, nome, esegui, onChiudi }: { cantiere: Cantiere; nome:
 export function Dialoghi({ r, esecutori, onChiudi }: { r: Richiesta; esecutori: Esecutori; onChiudi: () => void }) {
   switch (r.tipo) {
     case "committente":
-      return <Nome titolo="Nuovo committente" conferma="Crea" esegui={esecutori.creaCommittente} onChiudi={onChiudi}
-        suggerimento="Lettere, cifre, - e _. Per esempio PRIV o CVSTUDIO." />;
+      return <Nome titolo={T.nuovoCommittenteTit} conferma={T.crea} esegui={esecutori.creaCommittente} onChiudi={onChiudi}
+        suggerimento={T.suggCommittente} />;
     case "token":
       return <Token committente={r.committente} token={r.token} onChiudi={onChiudi} />;
     case "rigenera":
       return <RigeneraConferma committente={r.committente} esegui={esecutori.rigenera} onChiudi={onChiudi} />;
     case "progetto":
-      return <Nome titolo={`Nuovo progetto in ${r.committente.nome}`} conferma="Crea" onChiudi={onChiudi}
-        esegui={(nome) => esecutori.creaProgetto(r.committente, nome)} suggerimento="Il prodotto, per esempio poker o mercurius." />;
+      return <Nome titolo={T.nuovoProgettoIn(r.committente.nome)} conferma={T.crea} onChiudi={onChiudi}
+        esegui={(nome) => esecutori.creaProgetto(r.committente, nome)} suggerimento={T.suggProgetto} />;
     case "idea":
       return <Idea progetto={r.progetto} padre={r.padre} esegui={esecutori.creaIdea} onChiudi={onChiudi} />;
     case "modifica":
@@ -199,9 +198,9 @@ export function Dialoghi({ r, esecutori, onChiudi }: { r: Richiesta; esecutori: 
 function RigeneraConferma({ committente, esegui, onChiudi }: { committente: Committente; esegui: Esecutori["rigenera"]; onChiudi: () => void }) {
   const { occupato, errore, invia } = useInvio(onChiudi);
   return (
-    <Dialog titolo="Rigenerare il token?" onChiudi={onChiudi}
-      azioni={<Azioni conferma="Rigenera" occupato={occupato} onChiudi={onChiudi} onConferma={() => invia(() => esegui(committente))} />}>
-      <p>Il token attuale di <strong>{committente.nome}</strong> smette di funzionare subito, su tutte le macchine. Andrà ricollegata ogni cartella con il token nuovo.</p>
+    <Dialog titolo={T.rigeneraTit} onChiudi={onChiudi}
+      azioni={<Azioni conferma={T.rigenera} occupato={occupato} onChiudi={onChiudi} onConferma={() => invia(() => esegui(committente))} />}>
+      <p>{T.rigeneraTesto[0]}<strong>{committente.nome}</strong>{T.rigeneraTesto[1]}</p>
       <Errore testo={errore} />
     </Dialog>
   );

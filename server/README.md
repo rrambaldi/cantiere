@@ -43,7 +43,7 @@ npx tsc -p ui       # ricompila la dashboard in ui/dist/ dopo aver toccato ui/sr
 
 ## Amministrazione
 
-Committenti e progetti si creano anche dalla dashboard.
+Committenti e progetti si creano anche dalla dashboard. La dashboard è in italiano (predefinito) e in inglese: il selettore IT/EN è in cima all'indice; la scelta resta nel browser e, senza scelta, vale la lingua del browser.
 
 ```sh
 npx forgia-admin committente crea <nome>      # stampa il token una volta sola

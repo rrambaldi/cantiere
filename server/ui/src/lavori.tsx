@@ -3,10 +3,11 @@ import type { ReactNode } from "react";
 import type { Cantiere, Committente, Dettaglio, FileCopia, NonCensita, Progetto, Turno } from "./api.ts";
 import { Documento } from "./documento.tsx";
 import { Nastro } from "./ds/cantiere.tsx";
-import { Button, Tabs } from "./ds/core.tsx";
+import { Button, Input, Tabs } from "./ds/core.tsx";
 import { StatoBadge } from "./ds/feedback.tsx";
-import { ETICHETTA_STATO, giorno, ora, quando } from "./formato.ts";
+import { giorno, ora, quando } from "./formato.ts";
 import type { Selezione } from "./indice.tsx";
+import { T } from "./testi.ts";
 import { Avanzamento, Avviso, Etichetta, Vuoto } from "./ui.tsx";
 
 const FILE_AMMESSI = ".md,.txt,text/markdown,text/plain";
@@ -34,7 +35,7 @@ function RigaResoconto({ k, v }: { k: string; v: string | null }) {
 }
 
 function Turni({ turni }: { turni: Turno[] }) {
-  if (!turni.length) return <Vuoto>Nessun resoconto ancora. Arriva quando Claude chiude un turno con aggiorna_stato.</Vuoto>;
+  if (!turni.length) return <Vuoto>{T.nessunResoconto}</Vuoto>;
   return (
     <ol className="turni">
       {turni.map((t, i) => (
@@ -46,10 +47,10 @@ function Turni({ turni }: { turni: Turno[] }) {
             {i < turni.length - 1 && <span className="filo" style={{ flex: 1 }} />}
           </div>
           <div className={"turno-corpo" + (i < turni.length - 1 ? " con-linea" : "")}>
-            <span className="etichetta">{t.titolo || "sessione " + t.session_id.slice(0, 8)}{t.percentuale != null ? ` · ${t.percentuale}%` : ""}</span>
-            <RigaResoconto k="fatto" v={t.fatto} />
-            <RigaResoconto k="dopo" v={t.prossimo} />
-            <RigaResoconto k="blocca" v={t.bloccato_da} />
+            <span className="etichetta">{t.titolo || T.sessione + " " + t.session_id.slice(0, 8)}{t.percentuale != null ? ` · ${t.percentuale}%` : ""}</span>
+            <RigaResoconto k={T.rFatto} v={t.fatto} />
+            <RigaResoconto k={T.rDopo} v={t.prossimo} />
+            <RigaResoconto k={T.rBlocca} v={t.bloccato_da} />
           </div>
         </li>
       ))}
@@ -92,18 +93,47 @@ function Documenti({ file, vuoto, azioni }: {
 }
 
 /** Zona dove trascinare o scegliere i file .md e .txt di un'idea. */
-export function ZonaFile({ onFile, testo = "Trascina qui file .md o .txt, oppure sceglili" }: { onFile: (f: File[]) => void; testo?: string }) {
+export function fileDaTesto(nome: string, testo: string): File {
+  const base = nome.trim().replace(/\.(md|txt)$/i, "") || "appunti";
+  return new File([testo], `${base}.md`, { type: "text/markdown" });
+}
+
+export function CampoTesto({ scritto, setScritto, nome, setNome, azione }: {
+  scritto: string; setScritto: (v: string) => void; nome: string; setNome: (v: string) => void; azione?: ReactNode;
+}) {
+  return (
+    <>
+      <Input label={T.scriviTesto} value={scritto} onChange={setScritto} multilinea />
+      {scritto.trim() && (
+        <div className="zona-file">
+          <Input label={T.nomeAppunti} value={nome} onChange={setNome} />
+          {azione}
+        </div>
+      )}
+    </>
+  );
+}
+
+export function ZonaFile({ onFile, testo = T.trascinaFile, conTesto = true }: {
+  onFile: (f: File[]) => void; testo?: string; conTesto?: boolean;
+}) {
   const [sopra, setSopra] = React.useState(false);
+  const [scritto, setScritto] = React.useState("");
+  const [nome, setNome] = React.useState("appunti");
   const input = React.useRef<HTMLInputElement>(null);
   return (
-    <div className={"zona-file" + (sopra ? " sopra" : "")}
-      onDragOver={(e) => { e.preventDefault(); setSopra(true); }} onDragLeave={() => setSopra(false)}
-      onDrop={(e) => { e.preventDefault(); setSopra(false); onFile([...e.dataTransfer.files]); }}>
-      <span>{testo}</span>
-      <Button variant="secondario" size="sm" onClick={() => input.current?.click()}>Scegli file</Button>
-      <input ref={input} type="file" multiple accept={FILE_AMMESSI} hidden
-        onChange={(e) => { onFile([...(e.target.files ?? [])]); e.target.value = ""; }} />
-    </div>
+    <>
+      <div className={"zona-file" + (sopra ? " sopra" : "")}
+        onDragOver={(e) => { e.preventDefault(); setSopra(true); }} onDragLeave={() => setSopra(false)}
+        onDrop={(e) => { e.preventDefault(); setSopra(false); onFile([...e.dataTransfer.files]); }}>
+        <span>{testo}</span>
+        <Button variant="secondario" size="sm" onClick={() => input.current?.click()}>{T.scegliFile}</Button>
+        <input ref={input} type="file" multiple accept={FILE_AMMESSI} hidden
+          onChange={(e) => { onFile([...(e.target.files ?? [])]); e.target.value = ""; }} />
+      </div>
+      {conTesto && <CampoTesto scritto={scritto} setScritto={setScritto} nome={nome} setNome={setNome}
+        azione={<Button variant="secondario" size="sm" onClick={() => { onFile([fileDaTesto(nome, scritto)]); setScritto(""); }}>{T.aggiungiTesto}</Button>} />}
+    </>
   );
 }
 
@@ -119,38 +149,38 @@ export function LavoroCantiere({ d, onFile, onTogliFile }: {
   const macchine = new Set(d.turni.map((t) => t.host)).size;
   const sotto = [
     c.progetto,
-    `change ${c.change}`,
-    ETICHETTA_STATO[c.stato],
-    `creato ${giorno(c.creato_il)}`,
-    ...(idea ? [] : [d.turni.length ? `${d.turni.length} ${d.turni.length === 1 ? "turno" : "turni"} su ${macchine} ${macchine === 1 ? "macchina" : "macchine"}` : "nessun turno"]),
+    T.changeNome(c.change),
+    T.stato[c.stato],
+    T.creatoIl(giorno(c.creato_il)),
+    ...(idea ? [] : [d.turni.length ? T.turniSu(d.turni.length, macchine) : T.nessunTurno]),
   ].join(" · ");
   return (
     <main className="lavori">
-      <Testata etichetta={idea ? "idea" : "giornale dei lavori"} titolo={c.percorso} sotto={sotto} />
+      <Testata etichetta={idea ? T.stato.idea : T.giornaleLavori} titolo={c.percorso} sotto={sotto} />
       <div className="corpo-lavoro">
         {c.descrizione && <p className="descrizione">{c.descrizione}</p>}
         {c.change_mancante && c.stato === "aperto" && (
-          <Avviso>Il change <code>{c.change}</code> non c'è ancora nel repo. Lo crea Claude con <code>openspec new change {c.change}</code>.</Avviso>
+          <Avviso>{T.avvisoChangeMancante[0]}<code>{c.change}</code>{T.avvisoChangeMancante[1]}<code>openspec new change {c.change}</code>{T.avvisoChangeMancante[2]}</Avviso>
         )}
         {c.da_archiviare && (
-          <Avviso>Abbandonato, ma il change è ancora nel repo. Alla prossima sessione in {c.progetto} Claude proporrà <code>openspec archive {c.change} --skip-specs</code>.</Avviso>
+          <Avviso>{T.avvisoDaArchiviare(c.progetto)[0]}<code>openspec archive {c.change} --skip-specs</code>{T.avvisoDaArchiviare(c.progetto)[1]}</Avviso>
         )}
         {idea ? (
           <>
-            <Etichetta>file dell'idea · {d.file.length}</Etichetta>
+            <Etichetta>{T.fileIdea(d.file.length)}</Etichetta>
             <ZonaFile onFile={onFile} />
-            <Documenti file={d.file} vuoto="Nessun file. Aggiungi gli appunti da cui Claude partirà per scrivere il change."
-              azioni={(f) => <Button variant="fantasma" size="sm" onClick={() => onTogliFile(f.percorso.replace(/^idee\//, ""))}>Togli</Button>} />
+            <Documenti file={d.file} vuoto={T.nessunFileIdea}
+              azioni={(f) => <Button variant="fantasma" size="sm" onClick={() => onTogliFile(f.percorso.replace(/^idee\//, ""))}>{T.togli}</Button>} />
           </>
         ) : (
           <>
             <Tabs value={scheda} onChange={setScheda} items={[
-              { id: "giornale", label: "Giornale", count: d.turni.length },
-              { id: "change", label: "Change", count: d.file.length },
+              { id: "giornale", label: T.giornale, count: d.turni.length },
+              { id: "change", label: T.changeScheda, count: d.file.length },
             ]} />
             {scheda === "giornale"
               ? <Turni turni={d.turni} />
-              : <Documenti file={d.file} vuoto="Nessuna copia del change. Arriva dal plugin alla fine del primo turno che tocca openspec/changes/." />}
+              : <Documenti file={d.file} vuoto={T.nessunaCopiaChange} />}
           </>
         )}
       </div>
@@ -175,25 +205,25 @@ export function LavoroProgetto({ p, committente, nonCensite, onScegli }: {
   const attivi = p.cantieri.filter((c) => c.stato === "aperto" || c.stato === "sospeso" || c.stato === "idea");
   return (
     <main className="lavori">
-      <Testata etichetta="progetto" titolo={p.nome} sotto={`${committente} · ${p.cantieri.length} cantieri · creato ${giorno(p.creato_il)}`} />
+      <Testata etichetta={T.progetto} titolo={p.nome} sotto={T.progettoSotto(committente, p.cantieri.length, giorno(p.creato_il))} />
       <div className="corpo-lavoro">
         <section className="sezione">
-          <Etichetta>cantieri aperti e idee</Etichetta>
+          <Etichetta>{T.cantieriApertiIdee}</Etichetta>
           {attivi.length ? <div className="righe">{attivi.map((c) => <RigaCantiere key={c.id} c={c} onScegli={onScegli} />)}</div>
-            : <Vuoto>Nessun cantiere aperto. Crea un'idea dalla scheda a destra, oppure aprilo da Claude Code.</Vuoto>}
+            : <Vuoto>{T.nessunCantiereAperto}</Vuoto>}
         </section>
         <section className="sezione">
-          <Etichetta>attività non censite</Etichetta>
-          {nonCensite === null ? <Vuoto>Caricamento.</Vuoto> : nonCensite.length === 0
-            ? <Vuoto>Nessuna. Qui finisce il lavoro fatto su {p.nome} senza un cantiere.</Vuoto>
+          <Etichetta>{T.attivitaNonCensite}</Etichetta>
+          {nonCensite === null ? <Vuoto>{T.caricamento}</Vuoto> : nonCensite.length === 0
+            ? <Vuoto>{T.nessunaNonCensita(p.nome)}</Vuoto>
             : (
               <div className="tabella-scorre">
                 <table className="tabella">
-                  <thead><tr><th>titolo</th><th>macchina</th><th>avviata</th><th>ultimo evento</th><th className="numero">turni</th><th>stato</th></tr></thead>
+                  <thead><tr><th>{T.colTitolo}</th><th>{T.colMacchina}</th><th>{T.colAvviata}</th><th>{T.colUltimoEvento}</th><th className="numero">{T.colTurni}</th><th>{T.colStato}</th></tr></thead>
                   <tbody>
                     {nonCensite.map((s) => (
                       <tr key={s.session_id}>
-                        <td>{s.titolo ?? <span className="secondario">sessione {s.session_id.slice(0, 8)}</span>}</td>
+                        <td>{s.titolo ?? <span className="secondario">{T.sessione} {s.session_id.slice(0, 8)}</span>}</td>
                         <td>{s.host}</td><td>{quando(s.avviata_il)}</td><td>{quando(s.ultimo_evento_il)}</td>
                         <td className="numero">{s.turni}</td><td>{s.stato}</td>
                       </tr>
@@ -211,19 +241,19 @@ export function LavoroProgetto({ p, committente, nonCensite, onScegli }: {
 export function LavoroCommittente({ cm, onScegli }: { cm: Committente; onScegli: (s: Selezione) => void }) {
   return (
     <main className="lavori">
-      <Testata etichetta="committente" titolo={cm.nome} sotto={`${cm.progetti.length} progetti · creato ${giorno(cm.creato_il)}`} />
+      <Testata etichetta={T.committente} titolo={cm.nome} sotto={T.committenteSotto(cm.progetti.length, giorno(cm.creato_il))} />
       <div className="corpo-lavoro">
         <section className="sezione">
-          <Etichetta>progetti</Etichetta>
-          {cm.progetti.length === 0 ? <Vuoto>Nessun progetto. Crealo dalla scheda a destra, oppure con /cantiere collega da Claude Code.</Vuoto> : (
+          <Etichetta>{T.progetti}</Etichetta>
+          {cm.progetti.length === 0 ? <Vuoto>{T.nessunProgetto}</Vuoto> : (
             <div className="righe">
               {cm.progetti.map((p) => {
                 const n = (s: Cantiere["stato"]) => p.cantieri.filter((c) => c.stato === s).length;
                 return (
                   <button key={p.id} className="riga-progetto" onClick={() => onScegli({ tipo: "progetto", id: p.id })}>
                     <span className="nome">{p.nome}</span>
-                    <span className="secondario">{n("aperto")} in corso · {n("idea")} idee · {n("completato")} completati</span>
-                    <span className="secondario">{p.non_censite} non censite</span>
+                    <span className="secondario">{T.riepilogoProgetto(n("aperto"), n("idea"), n("completato"))}</span>
+                    <span className="secondario">{T.nonCensiteN(p.non_censite)}</span>
                   </button>
                 );
               })}

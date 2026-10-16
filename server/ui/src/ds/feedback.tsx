@@ -1,7 +1,7 @@
 // Dal design system forgia (components/feedback): StatoBadge, Toast, Dialog.
 import type { CSSProperties, ReactNode } from "react";
 import type { Stato } from "../api.ts";
-import { ETICHETTA_STATO } from "../formato.ts";
+import { T } from "../testi.ts";
 
 // Gli stati si distinguono per forma, non per colore. L'idea, che il design system non ha, è un rombo vuoto.
 const FORMA: Record<Stato, CSSProperties> = {
@@ -16,7 +16,7 @@ export function StatoBadge({ stato, etichetta = true }: { stato: Stato; etichett
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, font: "var(--t-piccolo)", color: "var(--testo)", whiteSpace: "nowrap" }}>
       <span aria-hidden="true" style={{ width: 10, height: 10, flex: "none", boxSizing: "border-box", ...FORMA[stato] }} />
-      {etichetta ? ETICHETTA_STATO[stato] : <span className="solo-lettori">{ETICHETTA_STATO[stato]}</span>}
+      {etichetta ? T.stato[stato] : <span className="solo-lettori">{T.stato[stato]}</span>}
     </span>
   );
 }
@@ -31,22 +31,23 @@ export function Toast({ tono = "info", titolo, children, onChiudi }: {
           <span style={{ font: "var(--t-h3)", fontSize: 14 }}>{titolo}</span>
           {children && <span style={{ font: "var(--t-piccolo)", color: "var(--prussia-300)" }}>{children}</span>}
         </div>
-        <button onClick={onChiudi} aria-label="Chiudi" style={{ background: "none", border: 0, color: "var(--prussia-300)", font: "400 16px/1 var(--font-mono)", cursor: "pointer", padding: 2 }}>×</button>
+        <button onClick={onChiudi} aria-label={T.chiudi} style={{ background: "none", border: 0, color: "var(--prussia-300)", font: "400 16px/1 var(--font-mono)", cursor: "pointer", padding: 2 }}>×</button>
       </div>
     </div>
   );
 }
 
-export function Dialog({ titolo, children, azioni, onChiudi }: {
-  titolo: string; children: ReactNode; azioni: ReactNode; onChiudi: () => void;
+export function Dialog({ titolo, children, azioni, onChiudi, soloPulsanti = false }: {
+  titolo: string; children: ReactNode; azioni: ReactNode; onChiudi: () => void; soloPulsanti?: boolean;
 }) {
   React.useEffect(() => {
+    if (soloPulsanti) return;
     const esc = (e: KeyboardEvent) => e.key === "Escape" && onChiudi();
     document.addEventListener("keydown", esc);
     return () => document.removeEventListener("keydown", esc);
-  }, [onChiudi]);
+  }, [onChiudi, soloPulsanti]);
   return (
-    <div onClick={(e) => e.target === e.currentTarget && onChiudi()} style={{ position: "fixed", inset: 0, background: "rgba(14,32,65,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 100 }}>
+    <div onClick={(e) => !soloPulsanti && e.target === e.currentTarget && onChiudi()} style={{ position: "fixed", inset: 0, background: "rgba(14,32,65,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 100 }}>
       <div role="dialog" aria-modal="true" aria-label={titolo} style={{ width: 480, maxWidth: "100%", maxHeight: "100%", overflowY: "auto", background: "var(--superficie)", color: "var(--testo)", border: "1px solid var(--linea-forte)", borderRadius: "var(--r-3)", boxShadow: "var(--ombra-dialogo)", display: "flex", flexDirection: "column" }}>
         <div style={{ padding: "18px 20px 0", font: "var(--t-h2)", fontSize: 18 }}>{titolo}</div>
         <div style={{ padding: "10px 20px 18px", font: "var(--t-corpo)", fontSize: 14, color: "var(--testo-2)", display: "flex", flexDirection: "column", gap: 12 }}>{children}</div>
