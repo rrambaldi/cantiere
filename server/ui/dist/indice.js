@@ -3,7 +3,7 @@ import { Button, Tabs } from "./ds/core.js";
 import { StatoBadge } from "./ds/feedback.js";
 import { ora, profondita, VISTA_DI } from "./formato.js";
 import { lingua, T } from "./testi.js";
-import { Vuoto } from "./ui.js";
+import { Pallino, Vuoto } from "./ui.js";
 const stessa = (a, b) => a?.tipo === b.tipo && a.id === b.id;
 /** Ordine per segmenti, così i figli seguono subito il padre (`a/b` dopo `a`, prima di `a-x`). */
 function perPercorso(a, b) {
@@ -47,6 +47,7 @@ export function Indice({ committenti, selezione, onScegli, vista, onVista, ristr
                     return (React.createElement("div", { key: p.id },
                         React.createElement(Voce, { rientro: 0.5, attiva: stessa(selezione, { tipo: "progetto", id: p.id }), onClick: () => onScegli({ tipo: "progetto", id: p.id }) },
                             React.createElement("span", { className: "nome-progetto" }, p.nome),
+                            React.createElement(Pallino, { n: p.domande_in_attesa }),
                             p.non_censite > 0 && React.createElement("span", { className: "a-destra", title: T.attivitaNonCensite }, T.nonCensiteN(p.non_censite))),
                         visibili.map((c) => {
                             // Un figlio il cui padre sta in un'altra scheda mostra il percorso intero.
@@ -54,6 +55,7 @@ export function Indice({ committenti, selezione, onScegli, vista, onVista, ristr
                             return (React.createElement(Voce, { key: c.id, rientro: 1.5 + (orfano ? 0 : profondita(c)), titolo: c.percorso, attiva: stessa(selezione, { tipo: "cantiere", id: c.id }), onClick: () => onScegli({ tipo: "cantiere", id: c.id }) },
                                 React.createElement(StatoBadge, { stato: c.stato, etichetta: false }),
                                 React.createElement("span", { className: "nome-cantiere" }, orfano ? c.percorso : c.nome),
+                                React.createElement(Pallino, { n: c.domande_in_attesa }),
                                 c.sessioni.length > 0 && React.createElement("span", { className: "a-destra", title: T.sessioniAttive }, c.sessioni.length)));
                         })));
                 }))))),

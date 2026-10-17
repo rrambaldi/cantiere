@@ -1,14 +1,14 @@
 // Colonna centrale: giornale e change di un cantiere, oppure il quadro di un progetto o di un committente.
 import type { ReactNode } from "react";
-import type { Cantiere, Committente, Dettaglio, FileCopia, NonCensita, Progetto, Turno } from "./api.ts";
+import type { Cantiere, Committente, Dettaglio, Domanda, FileCopia, NonCensita, Progetto, Turno } from "./api.ts";
 import { Documento } from "./documento.tsx";
 import { Nastro } from "./ds/cantiere.tsx";
 import { Button, Input, Tabs } from "./ds/core.tsx";
 import { StatoBadge } from "./ds/feedback.tsx";
-import { giorno, ora, quando } from "./formato.ts";
+import { eta, giorno, ora, quando } from "./formato.ts";
 import type { Selezione } from "./indice.tsx";
 import { T } from "./testi.ts";
-import { Avanzamento, Avviso, Etichetta, Vuoto } from "./ui.tsx";
+import { Avanzamento, Avviso, Etichetta, Pallino, Vuoto } from "./ui.tsx";
 
 const FILE_AMMESSI = ".md,.txt,text/markdown,text/plain";
 
@@ -159,6 +159,7 @@ export function LavoroCantiere({ d, onFile, onTogliFile }: {
       <Testata etichetta={idea ? T.stato.idea : T.giornaleLavori} titolo={c.percorso} sotto={sotto} />
       <div className="corpo-lavoro">
         {c.descrizione && <p className="descrizione">{c.descrizione}</p>}
+        <DomandeInAttesa domande={c.domande} />
         {c.change_mancante && c.stato === "aperto" && (
           <Avviso>{T.avvisoChangeMancante[0]}<code>{c.change}</code>{T.avvisoChangeMancante[1]}<code>openspec new change {c.change}</code>{T.avvisoChangeMancante[2]}</Avviso>
         )}
@@ -188,10 +189,28 @@ export function LavoroCantiere({ d, onFile, onTogliFile }: {
   );
 }
 
+/** Le domande che le sessioni del cantiere hanno fatto e che aspettano risposta (solo lettura). */
+function DomandeInAttesa({ domande }: { domande: Domanda[] }) {
+  if (!domande.length) return null;
+  return (
+    <section className="domande-attesa" aria-label={T.inAttesaTitolo}>
+      <Etichetta><Pallino n={1} /> {T.inAttesaTitolo}</Etichetta>
+      {domande.map((d) => (
+        <article key={d.session_id + d.id} className="domanda">
+          <p className="testo-domanda">{d.tipo === "attesa" && !d.testo ? T.domandaAttesa : d.testo}</p>
+          {d.opzioni.length > 0 && <ul className="opzioni-domanda">{d.opzioni.map((o, i) => <li key={i}>{o}</li>)}</ul>}
+          <span className="secondario">{d.host} · <code>{d.session_id.slice(0, 8)}</code> · {T.inAttesaDa(eta(d.eta_secondi))}</span>
+        </article>
+      ))}
+      <span className="secondario">{T.inAttesaNota}</span>
+    </section>
+  );
+}
+
 function RigaCantiere({ c, onScegli }: { c: Cantiere; onScegli: (s: Selezione) => void }) {
   return (
     <button className="riga-cantiere" onClick={() => onScegli({ tipo: "cantiere", id: c.id })}>
-      <span className="nome">{c.percorso}</span>
+      <span className="nome">{c.percorso} <Pallino n={c.domande_in_attesa} /></span>
       <span className="secondario">{c.sessioni.map((s) => s.host).join(" · ") || "—"}</span>
       {c.task ? <Avanzamento fatti={c.task.fatti} totali={c.task.totali} attivo={c.stato === "aperto"} /> : <span className="secondario">—</span>}
       <StatoBadge stato={c.stato} />

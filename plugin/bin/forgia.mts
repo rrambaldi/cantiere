@@ -60,7 +60,7 @@ type Evento = {
 type InCoda = { cartella: string; evento: Evento };
 type VoceTodo = { testo: string; stato: string };
 type Sessione = {
-  titolo_impostato?: string; primo_visto: string; cwd: string; avvio_reale_il?: string; ultimo_evento_il?: string;
+  titolo_impostato?: string; domanda_aperta?: string; primo_visto: string; cwd: string; avvio_reale_il?: string; ultimo_evento_il?: string;
   cantiere?: Cantiere | null; config?: Risposta["config"]; contesto_pendente?: string;
   todo?: Record<string, VoceTodo>;
 };
@@ -526,6 +526,32 @@ function titoloCantiere(c: Contesto): string | undefined {
   return titolo;
 }
 
+// ---- domande in attesa
+
+const NOTIFICHE_ATTESA = ["permission_prompt", "idle_prompt"];
+const MAX_TESTO_DOMANDA = 4000;
+const MAX_OPZIONI = 10;
+const MAX_OPZIONE = 200;
+
+// Testo e opzioni dalla chiamata di AskUserQuestion. Con più domande il testo le riporta tutte, ciascuna
+// con le sue opzioni; con una sola le opzioni vanno a parte. null se la chiamata non ha domande leggibili.
+export function datiDomanda(toolInput: unknown): { testo: string; opzioni: string[] } | null {
+  const lista = (toolInput as { questions?: unknown } | null)?.questions;
+  if (!Array.isArray(lista)) return null;
+  const domande = lista.flatMap((q) => {
+    if (typeof q?.question !== "string" || !q.question) return [];
+    const opzioni = (Array.isArray(q.options) ? q.options : [])
+      .map((o: any) => (typeof o === "string" ? o : o?.label))
+      .filter((o: unknown): o is string => typeof o === "string" && o !== "");
+    return [{ testo: q.question as string, opzioni: opzioni as string[] }];
+  });
+  if (!domande.length) return null;
+  const taglia = (o: string) => o.slice(0, MAX_OPZIONE);
+  if (domande.length === 1) return { testo: domande[0].testo.slice(0, MAX_TESTO_DOMANDA), opzioni: domande[0].opzioni.slice(0, MAX_OPZIONI).map(taglia) };
+  const testo = domande.map((d, i) => `${i + 1}. ${d.testo}${d.opzioni.length ? ` (${d.opzioni.join(" / ")})` : ""}`).join("\n");
+  return { testo: testo.slice(0, MAX_TESTO_DOMANDA), opzioni: [] };
+}
+
 const contestoHook = (hookEventName: string, additionalContext?: string | null, sessionTitle?: string) => {
   if (!additionalContext && !sessionTitle) return;
   console.log(JSON.stringify({ hookSpecificOutput: { hookEventName, additionalContext: additionalContext || undefined, sessionTitle } }));
@@ -572,7 +598,36 @@ const HOOK: Record<string, (c: Contesto, input: Input) => Promise<void>> = {
   async prompt_invio(c, input) {
     if (typeof input.prompt === "string" && riconosci(input.prompt)) return;
     await preliminari(c);
+    aggiornaSessione(c.sid, (s) => delete s.domanda_aperta);
     await invia(c, evento(c, "prompt", {}));
+  },
+
+  // Asincrono, prima di AskUserQuestion: la domanda va al server senza cambiare né bloccare il tool.
+  async domanda(c, input) {
+    const d = datiDomanda(input.tool_input);
+    if (!d) return;
+    await preliminari(c);
+    const id = typeof input.tool_use_id === "string" && input.tool_use_id ? input.tool_use_id : randomUUID();
+    aggiornaSessione(c.sid, (s) => (s.domanda_aperta = id));
+    await invia(c, evento(c, "domanda", { id, tipo: "scelta", ...d }));
+  },
+
+  // Asincrono, dopo AskUserQuestion: la risposta chiude la domanda con lo stesso id.
+  async risposta(c, input) {
+    if (typeof input.tool_use_id !== "string" || !input.tool_use_id) return;
+    await preliminari(c);
+    aggiornaSessione(c.sid, (s) => s.domanda_aperta === input.tool_use_id && delete s.domanda_aperta);
+    await invia(c, evento(c, "risposta", { id: input.tool_use_id }));
+  },
+
+  // Asincrono: permesso richiesto o sessione ferma. Non ripete se la sessione ha già una domanda aperta
+  // (anche AskUserQuestion può far scattare la notifica).
+  async notifica(c, input) {
+    if (!NOTIFICHE_ATTESA.includes(input.notification_type) || leggiSessione(c.sid)?.domanda_aperta) return;
+    await preliminari(c);
+    const id = randomUUID();
+    aggiornaSessione(c.sid, (s) => (s.domanda_aperta = id));
+    await invia(c, evento(c, "domanda", { id, tipo: "attesa", testo: String(input.message ?? "").slice(0, MAX_TESTO_DOMANDA), opzioni: [] }));
   },
 
   async todo(c, input) {
@@ -585,6 +640,7 @@ const HOOK: Record<string, (c: Contesto, input: Input) => Promise<void>> = {
 
   async stop(c, input) {
     await preliminari(c);
+    aggiornaSessione(c.sid, (x) => delete x.domanda_aperta);
     const s = leggiSessione(c.sid);
     const conteggio = typeof input.transcript_path === "string" ? contaTurno(input.transcript_path, c.cfg.nome_server_mcp) : null;
     const bloccato = decidiBlocco({
@@ -609,6 +665,7 @@ const HOOK: Record<string, (c: Contesto, input: Input) => Promise<void>> = {
 
   async session_end(c, input) {
     await preliminari(c);
+    aggiornaSessione(c.sid, (s) => delete s.domanda_aperta);
     await invia(c, evento(c, "session_end", { reason: String(input.reason ?? "other"), titolo: titoloSessione(input.transcript_path) }));
   },
 

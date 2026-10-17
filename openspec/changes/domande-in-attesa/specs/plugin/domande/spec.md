@@ -18,7 +18,7 @@ Prima che Claude Code esegua il tool `AskUserQuestion` il plugin MUST mandare un
 - **THEN** il testo riporta le tre domande, ciascuna con le sue opzioni, in una sola `domanda`
 
 ### Requirement: Sessione in attesa
-Alla notifica `Notification` di tipo permesso richiesto o sessione inattiva il plugin MUST mandare una `domanda` di tipo `attesa` con il testo della notifica. MUST NOT mandarne una nuova se ce n'è già una `attesa` aperta nella sessione.
+Alla notifica `Notification` di tipo permesso richiesto o sessione inattiva il plugin MUST mandare una `domanda` di tipo `attesa` con il testo della notifica. MUST NOT mandarne una nuova se la sessione ha già una domanda aperta, di qualunque tipo: `AskUserQuestion` può far scattare la stessa notifica.
 
 #### Scenario: Richiesta di permesso
 - **WHEN** Claude chiede il permesso di eseguire un comando
@@ -27,6 +27,10 @@ Alla notifica `Notification` di tipo permesso richiesto o sessione inattiva il p
 #### Scenario: Notifica ripetuta
 - **WHEN** arriva una seconda notifica mentre la prima attesa è aperta
 - **THEN** il plugin non manda niente
+
+#### Scenario: Notifica durante una domanda a scelta
+- **WHEN** arriva una notifica mentre `AskUserQuestion` è in attesa di risposta
+- **THEN** il plugin non manda niente e, dopo la risposta, una nuova notifica parte di nuovo
 
 ### Requirement: Fine dell'attesa
 Dopo il tool `AskUserQuestion` (`PostToolUse`) il plugin MUST mandare la `risposta` con lo stesso `id`. Le domande di tipo `attesa` si chiudono con il prompt successivo, con lo stop o con la fine della sessione, che il server già riceve.

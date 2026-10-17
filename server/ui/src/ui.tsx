@@ -1,5 +1,6 @@
 // Pezzi piccoli usati da più viste.
 import type { ReactNode } from "react";
+import { T } from "./testi.ts";
 
 export function Etichetta({ children }: { children: ReactNode }) {
   return <span className="etichetta">{children}</span>;
@@ -14,6 +15,13 @@ export function Campi({ righe }: { righe: [string, ReactNode][] }) {
       ))}
     </dl>
   );
+}
+
+/** Pallino rosso delle domande in attesa; il numero compare solo se sono più di una. */
+export function Pallino({ n }: { n: number }) {
+  if (n <= 0) return null;
+  const testo = T.domandeInAttesaN(n);
+  return <span className="pallino" role="img" aria-label={testo} title={testo}>{n > 1 ? n : null}</span>;
 }
 
 export function Avviso({ children }: { children: ReactNode }) {

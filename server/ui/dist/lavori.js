@@ -2,9 +2,9 @@ import { Documento } from "./documento.js";
 import { Nastro } from "./ds/cantiere.js";
 import { Button, Input, Tabs } from "./ds/core.js";
 import { StatoBadge } from "./ds/feedback.js";
-import { giorno, ora, quando } from "./formato.js";
+import { eta, giorno, ora, quando } from "./formato.js";
 import { T } from "./testi.js";
-import { Avanzamento, Avviso, Etichetta, Vuoto } from "./ui.js";
+import { Avanzamento, Avviso, Etichetta, Pallino, Vuoto } from "./ui.js";
 const FILE_AMMESSI = ".md,.txt,text/markdown,text/plain";
 function Testata({ etichetta, titolo, sotto }) {
     return (React.createElement(React.Fragment, null,
@@ -101,6 +101,7 @@ export function LavoroCantiere({ d, onFile, onTogliFile }) {
         React.createElement(Testata, { etichetta: idea ? T.stato.idea : T.giornaleLavori, titolo: c.percorso, sotto: sotto }),
         React.createElement("div", { className: "corpo-lavoro" },
             c.descrizione && React.createElement("p", { className: "descrizione" }, c.descrizione),
+            React.createElement(DomandeInAttesa, { domande: c.domande }),
             c.change_mancante && c.stato === "aperto" && (React.createElement(Avviso, null,
                 T.avvisoChangeMancante[0],
                 React.createElement("code", null, c.change),
@@ -128,9 +129,32 @@ export function LavoroCantiere({ d, onFile, onTogliFile }) {
                     ? React.createElement(Turni, { turni: d.turni })
                     : React.createElement(Documenti, { file: d.file, vuoto: T.nessunaCopiaChange }))))));
 }
+/** Le domande che le sessioni del cantiere hanno fatto e che aspettano risposta (solo lettura). */
+function DomandeInAttesa({ domande }) {
+    if (!domande.length)
+        return null;
+    return (React.createElement("section", { className: "domande-attesa", "aria-label": T.inAttesaTitolo },
+        React.createElement(Etichetta, null,
+            React.createElement(Pallino, { n: 1 }),
+            " ",
+            T.inAttesaTitolo),
+        domande.map((d) => (React.createElement("article", { key: d.session_id + d.id, className: "domanda" },
+            React.createElement("p", { className: "testo-domanda" }, d.tipo === "attesa" && !d.testo ? T.domandaAttesa : d.testo),
+            d.opzioni.length > 0 && React.createElement("ul", { className: "opzioni-domanda" }, d.opzioni.map((o, i) => React.createElement("li", { key: i }, o))),
+            React.createElement("span", { className: "secondario" },
+                d.host,
+                " \u00B7 ",
+                React.createElement("code", null, d.session_id.slice(0, 8)),
+                " \u00B7 ",
+                T.inAttesaDa(eta(d.eta_secondi)))))),
+        React.createElement("span", { className: "secondario" }, T.inAttesaNota)));
+}
 function RigaCantiere({ c, onScegli }) {
     return (React.createElement("button", { className: "riga-cantiere", onClick: () => onScegli({ tipo: "cantiere", id: c.id }) },
-        React.createElement("span", { className: "nome" }, c.percorso),
+        React.createElement("span", { className: "nome" },
+            c.percorso,
+            " ",
+            React.createElement(Pallino, { n: c.domande_in_attesa })),
         React.createElement("span", { className: "secondario" }, c.sessioni.map((s) => s.host).join(" · ") || "—"),
         c.task ? React.createElement(Avanzamento, { fatti: c.task.fatti, totali: c.task.totali, attivo: c.stato === "aperto" }) : React.createElement("span", { className: "secondario" }, "\u2014"),
         React.createElement(StatoBadge, { stato: c.stato })));

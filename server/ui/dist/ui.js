@@ -1,3 +1,4 @@
+import { T } from "./testi.js";
 export function Etichetta({ children }) {
     return React.createElement("span", { className: "etichetta" }, children);
 }
@@ -6,6 +7,13 @@ export function Campi({ righe }) {
     return (React.createElement("dl", { className: "campi" }, righe.map(([k, v]) => (React.createElement(React.Fragment, { key: k },
         React.createElement("dt", null, k),
         React.createElement("dd", null, v ?? "—"))))));
+}
+/** Pallino rosso delle domande in attesa; il numero compare solo se sono più di una. */
+export function Pallino({ n }) {
+    if (n <= 0)
+        return null;
+    const testo = T.domandeInAttesaN(n);
+    return React.createElement("span", { className: "pallino", role: "img", "aria-label": testo, title: testo }, n > 1 ? n : null);
 }
 export function Avviso({ children }) {
     return React.createElement("div", { className: "avviso" }, children);

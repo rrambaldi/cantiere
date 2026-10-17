@@ -55,6 +55,11 @@ const it = {
   nonCensiteN: (n: number) => `${n} non censite`,
   attivitaNonCensite: "attività non censite",
   sessioniAttive: "sessioni attive",
+  domandeInAttesaN: (n: number) => `${n} ${n === 1 ? "domanda in attesa di risposta" : "domande in attesa di risposta"}`,
+  inAttesaTitolo: "In attesa di risposta",
+  inAttesaNota: "Rispondi dal terminale della sessione.",
+  domandaAttesa: "La sessione è ferma e aspetta l'utente",
+  inAttesaDa: (quanto: string) => `chiesta ${quanto}`,
   nuovoCommittente: "Nuovo committente",
 
   // schede
@@ -220,6 +225,11 @@ const en: Testi = {
   nonCensiteN: (n) => `${n} unlisted`,
   attivitaNonCensite: "unlisted activity",
   sessioniAttive: "active sessions",
+  domandeInAttesaN: (n) => `${n} ${n === 1 ? "question waiting for an answer" : "questions waiting for an answer"}`,
+  inAttesaTitolo: "Waiting for an answer",
+  inAttesaNota: "Answer from the session's terminal.",
+  domandaAttesa: "The session is stopped and waiting for the user",
+  inAttesaDa: (quanto) => `asked ${quanto}`,
   nuovoCommittente: "New client",
 
   schedaTecnica: "Data sheet",

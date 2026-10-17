@@ -5,7 +5,7 @@ import { Button, Tabs } from "./ds/core.tsx";
 import { StatoBadge } from "./ds/feedback.tsx";
 import { ora, profondita, VISTA_DI, type Vista } from "./formato.ts";
 import { lingua, T, type Lingua } from "./testi.ts";
-import { Vuoto } from "./ui.tsx";
+import { Pallino, Vuoto } from "./ui.tsx";
 
 export type Selezione = { tipo: "committente" | "progetto" | "cantiere"; id: number };
 
@@ -70,6 +70,7 @@ export function Indice({ committenti, selezione, onScegli, vista, onVista, ristr
                 <div key={p.id}>
                   <Voce rientro={0.5} attiva={stessa(selezione, { tipo: "progetto", id: p.id })} onClick={() => onScegli({ tipo: "progetto", id: p.id })}>
                     <span className="nome-progetto">{p.nome}</span>
+                    <Pallino n={p.domande_in_attesa} />
                     {p.non_censite > 0 && <span className="a-destra" title={T.attivitaNonCensite}>{T.nonCensiteN(p.non_censite)}</span>}
                   </Voce>
                   {visibili.map((c) => {
@@ -80,6 +81,7 @@ export function Indice({ committenti, selezione, onScegli, vista, onVista, ristr
                         attiva={stessa(selezione, { tipo: "cantiere", id: c.id })} onClick={() => onScegli({ tipo: "cantiere", id: c.id })}>
                         <StatoBadge stato={c.stato} etichetta={false} />
                         <span className="nome-cantiere">{orfano ? c.percorso : c.nome}</span>
+                        <Pallino n={c.domande_in_attesa} />
                         {c.sessioni.length > 0 && <span className="a-destra" title={T.sessioniAttive}>{c.sessioni.length}</span>}
                       </Voce>
                     );

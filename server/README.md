@@ -52,12 +52,15 @@ npx forgia-admin committente rigenera <nome>  # token nuovo, il vecchio smette s
 npx forgia-admin progetti                      # tabella dei progetti
 npx forgia-admin sessioni                      # tabella delle sessioni
 npx forgia-admin cantieri                      # tabella dei cantieri
-npx forgia-admin pulizia                       # elimina eventi e stati oltre FORGIA_RETENTION_GIORNI
+npx forgia-admin pulizia                       # elimina eventi, stati e domande oltre FORGIA_RETENTION_GIORNI
 ```
 
 Letture JSON con il token di un committente, che vede solo i suoi dati:
 `GET /api/v1/progetti`, `GET /api/v1/cantieri?aperti=1&progetto=<nome>`,
-`GET /api/v1/sessioni?attive=1&progetto=<nome>`.
+`GET /api/v1/sessioni?attive=1&progetto=<nome>`. Le letture di progetti e cantieri riportano anche le
+domande in attesa di risposta delle sessioni (`domande_in_attesa`, e `domande` per cantiere): la
+dashboard le mostra con un pallino rosso, e si chiudono con la risposta, un nuovo prompt, la fine
+della sessione o dopo 24 ore.
 
 ## Produzione
 

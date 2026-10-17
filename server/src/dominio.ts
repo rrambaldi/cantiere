@@ -5,6 +5,7 @@ import type { Config } from "./config.ts";
 import * as testi from "./contesto.ts";
 import type { CantiereRisposta } from "./contesto.ts";
 import { violaUnicita, type DB } from "./db.ts";
+import { chiudiDomande, domandeInAttesa, puliziaDomande, registraDomanda, rispondiDomanda } from "./domande.ts";
 import {
   campi,
   errore422,
@@ -81,16 +82,18 @@ export async function creaProgetto(db: Kysely<DB>, committenteId: number, nome: 
 export async function elencaProgetti(db: Kysely<DB>, ambito: Ambito) {
   const progetti = await progettiDi(db, ambito).selectAll("progetti").orderBy("progetti.slug").execute();
   const cantieri = await cantieriDi(db, ambito).select(["cantieri.progetto_id", "cantieri.stato"]).execute();
+  const domande = await domandeInAttesa(db, ambito);
   return progetti.map(({ openspec_il, committente_id, ...p }) => {
     const conteggi = { idea: 0, aperto: 0, sospeso: 0, completato: 0, abbandonato: 0 };
     for (const c of cantieri) if (c.progetto_id === p.id) conteggi[c.stato]++;
-    return { ...p, cantieri: conteggi };
+    return { ...p, cantieri: conteggi, domande_in_attesa: domande.filter((d) => d.progetto_id === p.id).length };
   });
 }
 
 export const formaProgetto = ({ openspec_il, committente_id, ...p }: Progetto) => ({
   ...p,
   cantieri: { idea: 0, aperto: 0, sospeso: 0, completato: 0, abbandonato: 0 },
+  domande_in_attesa: 0,
 });
 
 // --- Eventi -------------------------------------------------------------------------------------
@@ -178,7 +181,14 @@ async function applica(
         .where("session_id", "=", s.session_id)
         .execute();
       await transizione(trx, s, "lavorando", ev.ts);
+      await chiudiDomande(trx, s.session_id, ev.ts);
       contesto = s.avviso;
+      break;
+    case "domanda":
+      await registraDomanda(trx, s.session_id, ev.dati, luogo?.host ?? s.host, ev.ts);
+      break;
+    case "risposta":
+      await rispondiDomanda(trx, s.session_id, ev.dati.id, ev.ts);
       break;
     case "todo":
       await applicaTodo(trx, s, ev.ts, ev.dati.completo, ev.dati.todos);
@@ -187,6 +197,7 @@ async function applica(
     case "session_end":
       if (ev.dati.titolo) await trx.updateTable("sessioni").set({ titolo: ev.dati.titolo }).where("session_id", "=", s.session_id).execute();
       await transizione(trx, s, ev.tipo === "stop" ? "in_attesa" : "chiusa", ev.ts);
+      await chiudiDomande(trx, s.session_id, ev.ts, ev.tipo === "stop" ? "attesa" : undefined);
       break;
   }
 
@@ -675,6 +686,13 @@ export async function leggiCantieri(db: Db, config: Config, ambito: Ambito, filt
   );
   const scelti = righe.filter((r) => (!filtro.stati || filtro.stati.includes(r.stato)) && (!filtro.ids || filtro.ids.includes(r.id)));
   const sessioni = filtro.sessioni === false ? [] : await sessioniAttive(db, config, ambito, scelti.map((r) => r.id));
+  // Le domande contano per il cantiere e per ogni suo antenato; l'elenco è solo quello proprio.
+  const padri = new Map(righe.map((r) => [r.id, r.padre_id]));
+  const domande = await domandeInAttesa(db, ambito);
+  const sotto = new Map<number, number>();
+  for (const d of domande) {
+    for (let id = d.cantiere_id; id !== null && padri.has(id); id = padri.get(id) ?? null) sotto.set(id, (sotto.get(id) ?? 0) + 1);
+  }
   return scelti.map(({ slug, percorso_slug, openspec_il, ...c }) => {
     const copia = copie.get(c.id);
     const figli = righe.filter((f) => f.padre_id === c.id);
@@ -689,6 +707,8 @@ export async function leggiCantieri(db: Db, config: Config, ambito: Ambito, filt
       change_mancante: c.stato === "aperto" && openspec_il !== null && !visto,
       da_archiviare: c.stato === "abbandonato" && visto && copia!.archiviato_il === null,
       file_idea: fileIdea.get(c.id) ?? 0,
+      domande_in_attesa: sotto.get(c.id) ?? 0,
+      domande: domande.filter((d) => d.cantiere_id === c.id).map((d) => d.domanda),
       ...(filtro.sessioni === false ? {} : { sessioni: sessioni.filter((s) => s.cantiere_id === c.id).map(({ cantiere_id, ...s }) => s) }),
     };
   });
@@ -719,9 +739,9 @@ async function sessioniAttive(db: Db, config: Config, ambito: Ambito, cantieri: 
   }));
 }
 
-export async function pulizia(amb: Ambiente): Promise<{ eventi: number; stati: number }> {
+export async function pulizia(amb: Ambiente): Promise<{ eventi: number; stati: number; domande: number }> {
   const limite = new Date(Date.now() - amb.config.retention_giorni * 86_400_000).toISOString();
   const eventi = await amb.db.deleteFrom("eventi").where("ricevuto_il", "<", limite).executeTakeFirst();
   const stati = await amb.db.deleteFrom("stati").where("ts", "<", limite).executeTakeFirst();
-  return { eventi: Number(eventi.numDeletedRows), stati: Number(stati.numDeletedRows) };
+  return { eventi: Number(eventi.numDeletedRows), stati: Number(stati.numDeletedRows), domande: await puliziaDomande(amb.db, limite) };
 }

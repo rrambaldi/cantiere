@@ -41,7 +41,7 @@ Corpo (massimo `max_body`, default 64 KB):
 {
   "evento_id": "<uuid4 generato dal client>",
   "ts": "<ISO 8601 UTC del momento in cui è avvenuto l'evento>",
-  "tipo": "session_start | prompt | todo | stop | session_end | apri_cantiere",
+  "tipo": "session_start | prompt | todo | stop | session_end | apri_cantiere | domanda | risposta",
   "session_id": "<session_id di Claude Code>",
   "host": "<hostname>",
   "cwd": "<directory di lavoro>",
@@ -62,6 +62,15 @@ Corpo (massimo `max_body`, default 64 KB):
 | `stop` | `{"strumenti_nel_turno": <int>, "resoconto_inviato": <bool>, "bloccato": <bool>, "titolo": "... \| null"}` |
 | `session_end` | `{"reason": "<motivo fornito da Claude Code>", "titolo": "... \| null"}` |
 | `apri_cantiere` | `{"nome": "...", "descrizione": "... \| null", "origine": "utente" \| "claude", "padre": "... \| null"}` — `nome` e `padre` possono essere percorsi `a/b`; `padre` può mancare |
+| `domanda` | `{"id": "<id della domanda>", "tipo": "scelta" \| "attesa", "testo": "...", "opzioni": ["..."]}` — al più 4000 caratteri di testo e 10 opzioni da 200 |
+| `risposta` | `{"id": "<id della domanda>"}` |
+
+`domanda` dice che la sessione aspetta l'utente. `scelta` viene da `AskUserQuestion` (`id` è l'id della
+chiamata del tool); `attesa` da una notifica di permesso richiesto o di sessione ferma, senza opzioni.
+`risposta` la chiude. Il server chiude le domande ancora aperte anche con un `prompt` o un
+`session_end` (e quelle `attesa` con uno `stop`), non dopo il loro stesso orario, e le fa scadere dopo
+24 ore. Lo stesso `id` nella stessa sessione si registra una volta sola; una `risposta` con un `id`
+sconosciuto è accettata e non cambia nulla.
 
 `titolo` è il titolo della sessione (quello di `/rename`, altrimenti quello generato da Claude
 Code), al massimo 200 caratteri.
@@ -93,7 +102,9 @@ Risposta 200:
 
 ### `GET /api/v1/progetti`
 
-200 → `{"progetti": [{"id": 3, "nome": "poker", "slug": "poker", "creato_il": "...", "cantieri": {"idea": 1, "aperto": 2, "sospeso": 0, "completato": 5, "abbandonato": 0}}]}`
+200 → `{"progetti": [{"id": 3, "nome": "poker", "slug": "poker", "creato_il": "...", "cantieri": {"idea": 1, "aperto": 2, "sospeso": 0, "completato": 5, "abbandonato": 0}, "domande_in_attesa": 0}]}`
+(`domande_in_attesa` conta tutte le domande aperte e non scadute del progetto, anche delle sessioni
+senza cantiere)
 
 ### `POST /api/v1/progetti`
 
@@ -167,12 +178,15 @@ Filtri: `progetto=<nome>`, `aperti=1` (solo `aperto`). Senza filtri, tutti gli s
   "task": {"fatti": 7, "totali": 12},
   "fasi": {"completate": 2, "totali": 3},
   "change_mancante": false, "da_archiviare": false, "file_idea": 0,
+  "domande_in_attesa": 1,
+  "domande": [{"id": "toolu_01", "session_id": "...", "tipo": "scelta | attesa", "testo": "...", "opzioni": ["..."], "host": "...", "ts": "...", "eta_secondi": 300}],
   "sessioni": [{"session_id": "...", "host": "...", "branch": "... | null", "stato": "...", "titolo": "... | null", "fatto": "... | null", "prossimo": "... | null", "eta_secondi": 42}]
 }]}
 ```
 
 `artefatti` e `task` sono `null` senza una copia del change; `fasi` è `null` senza figli; `sessioni`
-elenca le sessioni attive.
+elenca le sessioni attive. `domande_in_attesa` conta le domande aperte e non scadute del cantiere e dei
+suoi discendenti; `domande` elenca solo quelle del cantiere stesso.
 
 ### `GET /api/v1/sessioni`
 

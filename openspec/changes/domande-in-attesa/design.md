@@ -41,6 +41,7 @@ Tabella `domande` (id, sessione, tipo, testo, opzioni come JSON, host, creata_il
 ## Risks / Trade-offs
 
 - [Pallino rosso fermo se arriva `domanda` ma non la chiusura] → scadenza a 24 ore; chiusura anche da `prompt` e `session_end`.
+- [Un permesso concesso a metà turno lascia il pallino fino allo `stop` successivo, perché nessun hook segnala la concessione] → si accetta: lo stop arriva a fine turno, e un hook su ogni tool costerebbe più di quanto vale.
 - [`Notification` scatta per eventi che non sono domande] → solo i tipi permesso e inattività; se un altro tipo compare, si ignora.
 - [L'elenco dei tipi di evento è modificato anche da `integrazione-git`] → archiviare questo change dopo di quello, oppure tenere i due elenchi uguali; i test sulla validazione coprono tutti i tipi.
 - [Testo della domanda lungo o con dati sensibili] → lunghezza massima come gli altri campi di testo; la riservatezza è garantita dal server dietro SSH, come deciso.

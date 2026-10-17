@@ -120,6 +120,20 @@ export interface DB {
     percorso: string;
     contenuto: string;
   };
+  domande: {
+    id: Generated<number>;
+    /** Id scelto dal plugin: unico nella sessione. */
+    domanda_id: string;
+    session_id: string;
+    tipo: "scelta" | "attesa";
+    testo: string;
+    /** JSON: lista di stringhe. */
+    opzioni: string;
+    host: string;
+    ts: string;
+    stato: "in_attesa" | "risposta" | "chiusa";
+    chiusa_il: string | null;
+  };
   idee_file: {
     cantiere_id: number;
     nome: string;

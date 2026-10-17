@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { CorpoTroppoGrande, creaCommittente, elencaCommittenti, leggiCorpo, rigeneraToken, trovaCommittente } from "./accesso.ts";
 import { di, progettiDi, sessioniDi, TUTTI, type Ambito } from "./ambito.ts";
 import { AZIONI, cambiaEsito, creaProgetto, discendentiAttivi, elencaSessioni, formaProgetto, leggiCantieri, percorsoDi, type Ambiente, type Azione } from "./dominio.ts";
+import { domandeInAttesa } from "./domande.ts";
 import { aggiungiFile, creaIdea, eliminaFile, modificaIdea } from "./idee.ts";
 import { Rifiuto } from "./modelli.ts";
 
@@ -46,6 +47,7 @@ async function albero(amb: Ambiente, ambito: Ambito) {
   const committenti = (await elencaCommittenti(amb.db)).filter((c) => ambito.committenteId === null || c.id === ambito.committenteId);
   const progetti = await progettiDi(amb.db, ambito).selectAll("progetti").orderBy("progetti.slug").execute();
   const cantieri = await leggiCantieri(amb.db, amb.config, ambito);
+  const domande = await domandeInAttesa(amb.db, ambito);
   const sciolte = await sessioniDi(amb.db, ambito)
     .select(["sessioni.progetto_id", (eb) => eb.fn.countAll<number>().as("n")])
     .where("sessioni.cantiere_id", "is", null)
@@ -61,6 +63,7 @@ async function albero(amb: Ambiente, ambito: Ambito) {
           nome: p.nome,
           slug: p.slug,
           creato_il: p.creato_il,
+          domande_in_attesa: domande.filter((d) => d.progetto_id === p.id).length,
           non_censite: Number(sciolte.find((s) => s.progetto_id === p.id)?.n ?? 0),
           cantieri: cantieri.filter((x) => x.progetto_id === p.id),
         })),

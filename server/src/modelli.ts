@@ -23,6 +23,9 @@ export const LIMITI = {
   sessionId: 128,
   todo: 200,
   etichetta: 64,
+  domanda: 4000,
+  opzione: 200,
+  opzioniDomanda: 10,
 } as const;
 
 /** Errore di dominio con il codice HTTP da restituire e un messaggio per l'utente. */
@@ -92,6 +95,8 @@ const todo = z.strictObject({
   stato: z.enum(STATI_TODO),
 });
 
+const idDomanda = z.string().min(1).max(LIMITI.sessionId);
+
 export const schemaEvento = z.discriminatedUnion("tipo", [
   z.strictObject({
     ...base,
@@ -133,6 +138,17 @@ export const schemaEvento = z.discriminatedUnion("tipo", [
       padre: campi.nome.nullish(),
     }),
   }),
+  z.strictObject({
+    ...base,
+    tipo: z.literal("domanda"),
+    dati: z.strictObject({
+      id: idDomanda,
+      tipo: z.enum(["scelta", "attesa"]),
+      testo: z.string().max(LIMITI.domanda),
+      opzioni: z.array(z.string().max(LIMITI.opzione)).max(LIMITI.opzioniDomanda),
+    }),
+  }),
+  z.strictObject({ ...base, tipo: z.literal("risposta"), dati: z.strictObject({ id: idDomanda }) }),
 ]);
 
 export type EventoRest = z.infer<typeof schemaEvento>;

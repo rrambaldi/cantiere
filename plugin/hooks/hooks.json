@@ -5,7 +5,12 @@
       {"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook prompt", "timeout": 5},
       {"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook prompt_invio", "async": true}
     ]}],
-    "PostToolUse": [{"matcher": "TodoWrite|TaskCreate|TaskUpdate", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook todo", "async": true}]}],
+    "PreToolUse": [{"matcher": "AskUserQuestion", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook domanda", "async": true}]}],
+    "PostToolUse": [
+      {"matcher": "TodoWrite|TaskCreate|TaskUpdate", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook todo", "async": true}]},
+      {"matcher": "AskUserQuestion", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook risposta", "async": true}]}
+    ],
+    "Notification": [{"matcher": "permission_prompt|idle_prompt", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook notifica", "async": true}]}],
     "Stop": [{"hooks": [
       {"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook stop", "timeout": 10},
       {"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook copia", "async": true}

@@ -15,6 +15,17 @@ export interface SessioneAttiva {
   eta_secondi: number;
 }
 
+export interface Domanda {
+  id: string;
+  session_id: string;
+  tipo: "scelta" | "attesa";
+  testo: string;
+  opzioni: string[];
+  host: string;
+  ts: string;
+  eta_secondi: number;
+}
+
 export interface Cantiere {
   id: number;
   progetto: string;
@@ -33,6 +44,10 @@ export interface Cantiere {
   change_mancante: boolean;
   da_archiviare: boolean;
   file_idea: number;
+  /** Domande in attesa nel cantiere e nei suoi discendenti. */
+  domande_in_attesa: number;
+  /** Solo quelle del cantiere stesso. */
+  domande: Domanda[];
   sessioni: SessioneAttiva[];
 }
 
@@ -42,6 +57,7 @@ export interface Progetto {
   slug: string;
   creato_il: string;
   non_censite: number;
+  domande_in_attesa: number;
   cantieri: Cantiere[];
 }
 

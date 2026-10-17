@@ -52,6 +52,9 @@ Funziona anche come `/forgia:cantiere`. Un cantiere non si chiude da qui: comple
   progetto della cartella.
 - Il titolo della sessione: quello di `/rename`, altrimenti quello generato da Claude Code. Viene
   dal transcript locale (righe `custom-title` e `ai-title`, formato interno di Claude Code).
+- Le domande che Claude fa all'utente e che aspettano risposta: il testo e le opzioni di `AskUserQuestion`,
+  e il testo delle notifiche di permesso richiesto o di sessione ferma. La dashboard le mostra con un
+  pallino rosso sul cantiere; la risposta si dà dal terminale. Con le esclusioni sotto non parte nulla.
 - Dopo ogni turno, se è cambiata, la copia di `openspec/changes/`: per ogni change solo
   `.openspec.yaml`, `proposal.md`, `design.md`, `tasks.md`, i `.md` sotto `specs/` e i `.md`/`.txt`
   sotto `idee/` (fino a 256 KB l'uno), più i nomi dei change archiviati. Nient'altro della cartella.

@@ -29,7 +29,7 @@ describe("progetti", () => {
   test("API: crea ed elenca con i conteggi per stato; un altro committente non li vede", async () => {
     const creato = await richiesta(b, "/api/v1/progetti", { method: "POST", body: JSON.stringify({ nome: "mercurius" }) });
     assert.equal(creato.status, 200);
-    assert.deepEqual(Object.keys(creato.corpo.progetto).sort(), ["cantieri", "creato_il", "id", "nome", "slug"]);
+    assert.deepEqual(Object.keys(creato.corpo.progetto).sort(), ["cantieri", "creato_il", "domande_in_attesa", "id", "nome", "slug"]);
     await invia(b, evento("apri_cantiere", { nome: "tassi", descrizione: null, origine: "utente" }, { progetto: "mercurius" }));
     const { progetti } = (await richiesta(b, "/api/v1/progetti")).corpo;
     const mercurius = progetti.find((p: { nome: string }) => p.nome === "mercurius");
