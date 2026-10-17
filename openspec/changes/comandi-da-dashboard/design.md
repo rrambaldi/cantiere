@@ -64,6 +64,13 @@ letture `/api/v1`.
 **D7. Limiti.** 500 caratteri, 5 in attesa per sessione, solo sessioni non chiuse. Niente rate limit
 nuovo: la creazione passa dalle rotte della dashboard, che hanno già il loro controllo.
 
+**D8. Risposta a una domanda in attesa.** Il change `domande-in-attesa` mostra nella dashboard le domande di
+Claude, senza rispondere. La risposta dal web passa da qui, come un comando di testo. Limite: un
+`AskUserQuestion` aperto blocca il turno e il comando arriva solo al passo successivo, quindi il comando non
+può riempire la domanda aperta: la risposta scritta dal web arriva dopo e Claude la legge come un nuovo
+prompt. Da decidere quando si scrive questa parte: se il comando porta l'`id` della domanda per chiuderne il
+pallino, oppure se il pallino si chiude con il prompt successivo, come già fa `domande-in-attesa`.
+
 ## Risks / Trade-offs
 
 - [Sessione ferma: il comando non arriva] → la scheda lo dice ("consegnato al prossimo passo della
