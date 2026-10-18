@@ -26,6 +26,8 @@ function chiusiSalvati() {
         return [];
     }
 }
+/** Dalla pagina di un committente alla home: URL relativo, così regge il prefisso del proxy. */
+const tornaAllaHome = () => window.location.assign("./");
 function Voce({ attiva, rientro = 0, onClick, onDoppioClick, children, titolo }) {
     return (React.createElement("button", { className: "voce" + (attiva ? " attiva" : ""), style: { paddingLeft: 16 + rientro * 14 }, onClick: onClick, onDoubleClick: onDoppioClick, title: titolo, "aria-current": attiva || undefined }, children));
 }
@@ -45,8 +47,8 @@ export function Indice({ committenti, selezione, onScegli, vista, onVista, ristr
     const conta = (v) => tutti.filter((c) => VISTA_DI[c.stato] === v).length;
     return (React.createElement("aside", { className: "indice", "aria-label": T.indice },
         React.createElement("div", { className: "indice-testa" },
-            React.createElement(Logo, { size: 22, wordmark: true }),
-            ristretta && committenti[0] && React.createElement("span", { className: "committente-ristretto" }, committenti[0].nome),
+            React.createElement("span", { onDoubleClick: ristretta ? tornaAllaHome : undefined, title: ristretta ? T.tornaAllaHome : undefined },
+                React.createElement(Logo, { size: 22, wordmark: true })),
             React.createElement("span", { role: "group", "aria-label": T.lingua, style: { marginLeft: "auto", display: "inline-flex", gap: 2 } }, ["it", "en"].map((l) => (React.createElement(Button, { key: l, variant: l === lingua ? "secondario" : "fantasma", size: "sm", onClick: () => onLingua(l) }, l.toUpperCase()))))),
         React.createElement("div", { style: { padding: "0 16px" } },
             React.createElement(Tabs, { value: vista, onChange: onVista, items: [
@@ -63,7 +65,7 @@ export function Indice({ committenti, selezione, onScegli, vista, onVista, ristr
                 React.createElement("div", { className: "riga-committente" },
                     React.createElement("button", { className: "chevron", onClick: () => alterna(cm.id), "aria-expanded": !chiusi.includes(cm.id), "aria-label": chiusi.includes(cm.id) ? T.apriGruppo(cm.nome) : T.chiudiGruppo(cm.nome) },
                         React.createElement("span", { "aria-hidden": "true" }, chiusi.includes(cm.id) ? "▸" : "▾")),
-                    React.createElement(Voce, { attiva: stessa(selezione, { tipo: "committente", id: cm.id }), onClick: () => onScegli({ tipo: "committente", id: cm.id }), onDoppioClick: ristretta ? undefined : () => window.location.assign(encodeURIComponent(cm.nome)), titolo: ristretta ? undefined : T.paginaCommittente },
+                    React.createElement(Voce, { attiva: stessa(selezione, { tipo: "committente", id: cm.id }), onClick: () => onScegli({ tipo: "committente", id: cm.id }), onDoppioClick: ristretta ? tornaAllaHome : () => window.location.assign(encodeURIComponent(cm.nome)), titolo: ristretta ? T.tornaAllaHome : T.paginaCommittente },
                         React.createElement("span", { className: "nome-committente" }, cm.nome),
                         React.createElement(Pallino, { n: cm.progetti.reduce((n, p) => n + p.domande_in_attesa, 0) }))),
                 !chiusi.includes(cm.id) && cm.progetti.map((p) => {

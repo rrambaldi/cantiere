@@ -30,6 +30,7 @@ const it = {
   chiudiGruppo: (nome: string) => `Chiudi ${nome}`,
   apriGruppo: (nome: string) => `Apri ${nome}`,
   paginaCommittente: "doppio click: apre la pagina del committente",
+  tornaAllaHome: "doppio click: torna alla home",
 
   // api
   serverNonRaggiungibile: "Server non raggiungibile.",
@@ -207,6 +208,7 @@ const en: Testi = {
   chiudiGruppo: (nome) => `Collapse ${nome}`,
   apriGruppo: (nome) => `Expand ${nome}`,
   paginaCommittente: "double click: opens the client page",
+  tornaAllaHome: "double click: back to the home page",
 
   serverNonRaggiungibile: "Server unreachable.",
   accessoNegato: "Access denied: a client certificate is required.",

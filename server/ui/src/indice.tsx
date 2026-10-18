@@ -33,6 +33,9 @@ function chiusiSalvati(): number[] {
   }
 }
 
+/** Dalla pagina di un committente alla home: URL relativo, così regge il prefisso del proxy. */
+const tornaAllaHome = () => window.location.assign("./");
+
 function Voce({ attiva, rientro = 0, onClick, onDoppioClick, children, titolo }: {
   attiva: boolean; rientro?: number; onClick: () => void; onDoppioClick?: () => void; children: React.ReactNode; titolo?: string;
 }) {
@@ -63,8 +66,7 @@ export function Indice({ committenti, selezione, onScegli, vista, onVista, ristr
   return (
     <aside className="indice" aria-label={T.indice}>
       <div className="indice-testa">
-        <Logo size={22} wordmark />
-        {ristretta && committenti[0] && <span className="committente-ristretto">{committenti[0].nome}</span>}
+        <span onDoubleClick={ristretta ? tornaAllaHome : undefined} title={ristretta ? T.tornaAllaHome : undefined}><Logo size={22} wordmark /></span>
         <span role="group" aria-label={T.lingua} style={{ marginLeft: "auto", display: "inline-flex", gap: 2 }}>
           {(["it", "en"] as const).map((l) => (
             <Button key={l} variant={l === lingua ? "secondario" : "fantasma"} size="sm" onClick={() => onLingua(l)}>{l.toUpperCase()}</Button>
@@ -88,7 +90,8 @@ export function Indice({ committenti, selezione, onScegli, vista, onVista, ristr
                 <span aria-hidden="true">{chiusi.includes(cm.id) ? "▸" : "▾"}</span>
               </button>
               <Voce attiva={stessa(selezione, { tipo: "committente", id: cm.id })} onClick={() => onScegli({ tipo: "committente", id: cm.id })}
-                onDoppioClick={ristretta ? undefined : () => window.location.assign(encodeURIComponent(cm.nome))} titolo={ristretta ? undefined : T.paginaCommittente}>
+                onDoppioClick={ristretta ? tornaAllaHome : () => window.location.assign(encodeURIComponent(cm.nome))}
+                titolo={ristretta ? T.tornaAllaHome : T.paginaCommittente}>
                 <span className="nome-committente">{cm.nome}</span>
                 <Pallino n={cm.progetti.reduce((n, p) => n + p.domande_in_attesa, 0)} />
               </Voce>

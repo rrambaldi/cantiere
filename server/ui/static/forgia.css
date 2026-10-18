@@ -63,7 +63,6 @@ button{font:inherit;color:inherit}
 /* indice */
 .indice{display:flex;flex-direction:column;background:var(--sfondo-profondo);border-right:1px solid var(--linea)}
 .indice-testa{display:flex;align-items:center;gap:10px;min-height:56px;padding:0 16px}
-.committente-ristretto{margin-left:auto;font:600 12px/1 var(--font-mono);color:var(--testo-2)}
 .albero{flex:1;padding:8px 0;overflow-y:auto}
 .gruppo + .gruppo{margin-top:8px;padding-top:8px;border-top:1px solid var(--linea)}
 .voce{width:100%;display:flex;align-items:center;gap:8px;min-height:32px;padding:4px 16px;border:0;background:transparent;color:var(--testo);cursor:pointer;text-align:left}
