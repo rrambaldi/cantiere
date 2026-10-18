@@ -7,10 +7,18 @@ const FORMA = {
     sospeso: { border: "2px solid var(--stato-sospeso)", borderRadius: "50%" },
     abbandonato: { border: "2px dashed var(--stato-abbandonato)", borderRadius: "50%" },
 };
-export function StatoBadge({ stato, etichetta = true }) {
+// Una sessione prende la forma dello stato più vicino: piena se lavora, vuota se ha finito il turno.
+const FORMA_SESSIONE = { lavorando: "aperto", attiva: "sospeso", in_attesa: "sospeso", inattiva: "abbandonato", chiusa: "completato" };
+function Badge({ forma, testo, etichetta }) {
     return (React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 6, font: "var(--t-piccolo)", color: "var(--testo)", whiteSpace: "nowrap" } },
-        React.createElement("span", { "aria-hidden": "true", style: { width: 10, height: 10, flex: "none", boxSizing: "border-box", ...FORMA[stato] } }),
-        etichetta ? T.stato[stato] : React.createElement("span", { className: "solo-lettori" }, T.stato[stato])));
+        React.createElement("span", { "aria-hidden": "true", style: { width: 10, height: 10, flex: "none", boxSizing: "border-box", ...forma } }),
+        etichetta ? testo : React.createElement("span", { className: "solo-lettori" }, testo)));
+}
+export function StatoBadge({ stato, etichetta = true }) {
+    return React.createElement(Badge, { forma: FORMA[stato], testo: T.stato[stato], etichetta: etichetta });
+}
+export function SessioneBadge({ stato }) {
+    return React.createElement(Badge, { forma: FORMA[FORMA_SESSIONE[stato]], testo: T.statoSessione[stato], etichetta: true });
 }
 export function Toast({ tono = "info", titolo, children, onChiudi }) {
     return (React.createElement("div", { role: "status", style: { width: 360, maxWidth: "100%", background: "var(--sfondo-profondo)", color: "var(--carta-50)", border: "1px solid " + (tono === "errore" ? "var(--errore)" : "var(--linea-forte)"), borderRadius: "var(--r-2)" } },

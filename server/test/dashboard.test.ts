@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, test } from "node:test";
+import { aggiornaStato } from "../src/dominio.ts";
 import { CSP } from "../src/ui.ts";
 import { apri, avvia, changeAttivo, copia, evento, invia, richiesta, stop, ui, type Banco } from "./aiuto.ts";
 
@@ -136,8 +137,14 @@ describe("API della dashboard", () => {
     assert.deepEqual(dettaglio.esiti.map((e: any) => e.stato), ["aperto"]);
     assert.equal((await ui(b, `/ui/api/cantieri/${exportPdf.id}`, { headers: { "x-forgia-committente": "PRIV" } })).status, 404);
 
-    const sciolte = (await ui(b, `/ui/api/progetti/${progetto.id}/non-censite`)).corpo.sessioni;
-    assert.deepEqual(sciolte.map((s: any) => [s.session_id, s.titolo]), [["s2", "lavoro sciolto"]]);
+    let sciolte = (await ui(b, `/ui/api/progetti/${progetto.id}/non-censite`)).corpo.sessioni;
+    assert.deepEqual(sciolte.map((s: any) => [s.session_id, s.titolo, s.stato, s.ultimo_stato]), [["s2", "lavoro sciolto", "in_attesa", null]]);
+    await aggiornaStato(b, b.committente, { session_id: "s2", fatto: "letto il log", prossimo: "correggere", progetto: "poker" });
+    await aggiornaStato(b, b.committente, { session_id: "s2", fatto: "corretto il bug", prossimo: "niente", bloccato_da: "manca il token", progetto: "poker" });
+    await invia(b, evento("prompt", {}, { session_id: "s2", ...inPoker }));
+    sciolte = (await ui(b, `/ui/api/progetti/${progetto.id}/non-censite`)).corpo.sessioni;
+    assert.equal(sciolte[0].stato, "lavorando");
+    assert.deepEqual({ ...sciolte[0].ultimo_stato, ts: "" }, { ts: "", fatto: "corretto il bug", prossimo: "niente", bloccato_da: "manca il token" });
 
     const sospeso = await post(`/ui/api/cantieri/${exportPdf.id}/esito`, { azione: "sospendi" });
     assert.deepEqual(sospeso.corpo.cantieri.map((c: any) => [c.percorso, c.stato]), [["export-pdf", "sospeso"]]);

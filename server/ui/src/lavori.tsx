@@ -4,7 +4,7 @@ import type { Cantiere, Committente, Dettaglio, Domanda, FileCopia, NonCensita, 
 import { Documento } from "./documento.tsx";
 import { Nastro } from "./ds/cantiere.tsx";
 import { Button, Input, Tabs } from "./ds/core.tsx";
-import { StatoBadge } from "./ds/feedback.tsx";
+import { SessioneBadge, StatoBadge } from "./ds/feedback.tsx";
 import { eta, giorno, ora, quando } from "./formato.ts";
 import type { Selezione } from "./indice.tsx";
 import { T } from "./testi.ts";
@@ -218,6 +218,37 @@ function RigaCantiere({ c, onScegli }: { c: Cantiere; onScegli: (s: Selezione) =
   );
 }
 
+/** Doppio click (o Invio) apre sotto la riga l'ultimo messaggio di stato della sessione. */
+function RigaNonCensita({ s }: { s: NonCensita }) {
+  const [aperta, setAperta] = React.useState(false);
+  const u = s.ultimo_stato;
+  return (
+    <>
+      <tr className="apribile" tabIndex={0} title={T.apriUltimoStato} aria-expanded={aperta}
+        onDoubleClick={() => setAperta(!aperta)} onKeyDown={(e) => e.key === "Enter" && setAperta(!aperta)}
+        onMouseDown={(e) => e.detail > 1 && e.preventDefault()}>
+        <td>{s.titolo ?? <span className="secondario">{T.sessione} {s.session_id.slice(0, 8)}</span>}</td>
+        <td>{s.host}</td><td>{quando(s.avviata_il)}</td><td>{quando(s.ultimo_evento_il)}</td>
+        <td className="numero">{s.turni}</td><td><SessioneBadge stato={s.stato} /></td>
+      </tr>
+      {aperta && (
+        <tr className="ultimo-stato">
+          <td colSpan={6}>
+            {u ? (
+              <div className="resoconto-sessione">
+                <span className="etichetta">{T.ultimoStatoDel(quando(u.ts))}</span>
+                <RigaResoconto k={T.rFatto} v={u.fatto} />
+                <RigaResoconto k={T.rDopo} v={u.prossimo} />
+                {u.bloccato_da && <RigaResoconto k={T.rBlocca} v={u.bloccato_da} />}
+              </div>
+            ) : <span className="secondario">{T.nessunoStato}</span>}
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
 export function LavoroProgetto({ p, committente, nonCensite, onScegli }: {
   p: Progetto; committente: string; nonCensite: NonCensita[] | null; onScegli: (s: Selezione) => void;
 }) {
@@ -239,15 +270,7 @@ export function LavoroProgetto({ p, committente, nonCensite, onScegli }: {
               <div className="tabella-scorre">
                 <table className="tabella">
                   <thead><tr><th>{T.colTitolo}</th><th>{T.colMacchina}</th><th>{T.colAvviata}</th><th>{T.colUltimoEvento}</th><th className="numero">{T.colTurni}</th><th>{T.colStato}</th></tr></thead>
-                  <tbody>
-                    {nonCensite.map((s) => (
-                      <tr key={s.session_id}>
-                        <td>{s.titolo ?? <span className="secondario">{T.sessione} {s.session_id.slice(0, 8)}</span>}</td>
-                        <td>{s.host}</td><td>{quando(s.avviata_il)}</td><td>{quando(s.ultimo_evento_il)}</td>
-                        <td className="numero">{s.turni}</td><td>{s.stato}</td>
-                      </tr>
-                    ))}
-                  </tbody>
+                  <tbody>{nonCensite.map((s) => <RigaNonCensita key={s.session_id} s={s} />)}</tbody>
                 </table>
               </div>
             )}

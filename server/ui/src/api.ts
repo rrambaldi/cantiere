@@ -3,6 +3,8 @@ import { T } from "./testi.ts";
 // API JSON della dashboard (design D16): URL relativi, così funzionano sotto qualunque prefisso del proxy.
 
 export type Stato = "idea" | "aperto" | "sospeso" | "completato" | "abbandonato";
+/** "inattiva" la calcola il server in lettura: nessun evento da troppo tempo. */
+export type StatoSessione = "attiva" | "lavorando" | "in_attesa" | "inattiva" | "chiusa";
 
 export interface SessioneAttiva {
   session_id: string;
@@ -101,7 +103,8 @@ export interface NonCensita {
   avviata_il: string;
   ultimo_evento_il: string;
   turni: number;
-  stato: string;
+  stato: StatoSessione;
+  ultimo_stato: { ts: string; fatto: string; prossimo: string; bloccato_da: string | null } | null;
 }
 
 export type Azione = "sospendi" | "riattiva" | "abbandona";

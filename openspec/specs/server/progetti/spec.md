@@ -43,11 +43,16 @@ data di creazione e numero di cantieri per stato.
 ### Requirement: Lavoro diretto sul progetto
 Una sessione legata a un progetto ma a nessun cantiere MUST essere considerata lavoro diretto sul
 progetto. Il progetto MUST elencarla tra le attività non censite con titolo della sessione, host,
-avvio, ultimo evento e turni.
+avvio, ultimo evento, turni, stato della sessione e ultimo resoconto di `aggiorna_stato` (ora,
+fatto, prossimo e blocco), oppure nessun resoconto.
 
 #### Scenario: Sessione senza cantiere
 - **WHEN** una sessione su `poker` lavora senza scegliere un cantiere e manda il titolo `fix login mobile`
 - **THEN** `poker` mostra tra le attività non censite `fix login mobile` con host, avvio, ultimo evento e turni
+
+#### Scenario: Ultimo resoconto di una sessione senza cantiere
+- **WHEN** la sessione `fix login mobile` su `poker` chiama due volte `aggiorna_stato` e poi riceve un prompt
+- **THEN** l'attività non censita ha stato `lavorando` e come ultimo resoconto il secondo, con ora, fatto, prossimo e blocco
 
 #### Scenario: Sessione che entra in un cantiere
 - **WHEN** una sessione elencata tra le attività non censite di `poker` entra nel cantiere `pdfconverter`

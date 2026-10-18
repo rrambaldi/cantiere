@@ -1,6 +1,6 @@
 // Testi della dashboard in italiano e in inglese. `it` è la fonte del tipo: ogni chiave di `it` deve esistere in `en`.
 // I dati degli utenti (nomi, note, resoconti, file dei change) non passano di qui.
-import type { Stato } from "./api.ts";
+import type { Stato, StatoSessione } from "./api.ts";
 
 export type Lingua = "it" | "en";
 
@@ -142,6 +142,10 @@ const it = {
   colUltimoEvento: "ultimo evento",
   colTurni: "turni",
   colStato: "stato",
+  statoSessione: { lavorando: "al lavoro", attiva: "pronta", in_attesa: "turno finito", inattiva: "ferma", chiusa: "terminata" } as Record<StatoSessione, string>,
+  apriUltimoStato: "Doppio click: ultimo messaggio di stato",
+  ultimoStatoDel: (q: string) => `ultimo stato · ${q}`,
+  nessunoStato: "Nessun messaggio di stato: la sessione non ha ancora chiamato aggiorna_stato.",
   progettoSotto: (committente: string, n: number, giorno: string) => `${committente} · ${n} cantieri · creato ${giorno}`,
   committenteSotto: (n: number, giorno: string) => `${n} progetti · creato ${giorno}`,
   nessunProgetto: "Nessun progetto. Crealo dalla scheda a destra, oppure con /cantiere collega da Claude Code.",
@@ -315,6 +319,10 @@ const en: Testi = {
   colUltimoEvento: "last event",
   colTurni: "turns",
   colStato: "status",
+  statoSessione: { lavorando: "working", attiva: "ready", in_attesa: "turn done", inattiva: "idle", chiusa: "ended" },
+  apriUltimoStato: "Double click: last status message",
+  ultimoStatoDel: (q) => `last status · ${q}`,
+  nessunoStato: "No status message: the session has not called aggiorna_stato yet.",
   progettoSotto: (committente, n, giorno) => `${committente} · ${n} worksites · created ${giorno}`,
   committenteSotto: (n, giorno) => `${n} projects · created ${giorno}`,
   nessunProgetto: "No projects. Create one from the panel on the right, or with /cantiere collega from Claude Code.",

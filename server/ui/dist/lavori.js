@@ -1,7 +1,7 @@
 import { Documento } from "./documento.js";
 import { Nastro } from "./ds/cantiere.js";
 import { Button, Input, Tabs } from "./ds/core.js";
-import { StatoBadge } from "./ds/feedback.js";
+import { SessioneBadge, StatoBadge } from "./ds/feedback.js";
 import { eta, giorno, ora, quando } from "./formato.js";
 import { T } from "./testi.js";
 import { Avanzamento, Avviso, Etichetta, Pallino, Vuoto } from "./ui.js";
@@ -159,6 +159,29 @@ function RigaCantiere({ c, onScegli }) {
         c.task ? React.createElement(Avanzamento, { fatti: c.task.fatti, totali: c.task.totali, attivo: c.stato === "aperto" }) : React.createElement("span", { className: "secondario" }, "\u2014"),
         React.createElement(StatoBadge, { stato: c.stato })));
 }
+/** Doppio click (o Invio) apre sotto la riga l'ultimo messaggio di stato della sessione. */
+function RigaNonCensita({ s }) {
+    const [aperta, setAperta] = React.useState(false);
+    const u = s.ultimo_stato;
+    return (React.createElement(React.Fragment, null,
+        React.createElement("tr", { className: "apribile", tabIndex: 0, title: T.apriUltimoStato, "aria-expanded": aperta, onDoubleClick: () => setAperta(!aperta), onKeyDown: (e) => e.key === "Enter" && setAperta(!aperta), onMouseDown: (e) => e.detail > 1 && e.preventDefault() },
+            React.createElement("td", null, s.titolo ?? React.createElement("span", { className: "secondario" },
+                T.sessione,
+                " ",
+                s.session_id.slice(0, 8))),
+            React.createElement("td", null, s.host),
+            React.createElement("td", null, quando(s.avviata_il)),
+            React.createElement("td", null, quando(s.ultimo_evento_il)),
+            React.createElement("td", { className: "numero" }, s.turni),
+            React.createElement("td", null,
+                React.createElement(SessioneBadge, { stato: s.stato }))),
+        aperta && (React.createElement("tr", { className: "ultimo-stato" },
+            React.createElement("td", { colSpan: 6 }, u ? (React.createElement("div", { className: "resoconto-sessione" },
+                React.createElement("span", { className: "etichetta" }, T.ultimoStatoDel(quando(u.ts))),
+                React.createElement(RigaResoconto, { k: T.rFatto, v: u.fatto }),
+                React.createElement(RigaResoconto, { k: T.rDopo, v: u.prossimo }),
+                u.bloccato_da && React.createElement(RigaResoconto, { k: T.rBlocca, v: u.bloccato_da }))) : React.createElement("span", { className: "secondario" }, T.nessunoStato))))));
+}
 export function LavoroProgetto({ p, committente, nonCensite, onScegli }) {
     const attivi = p.cantieri.filter((c) => c.stato === "aperto" || c.stato === "sospeso" || c.stato === "idea");
     return (React.createElement("main", { className: "lavori" },
@@ -182,16 +205,7 @@ export function LavoroProgetto({ p, committente, nonCensite, onScegli }) {
                                     React.createElement("th", null, T.colUltimoEvento),
                                     React.createElement("th", { className: "numero" }, T.colTurni),
                                     React.createElement("th", null, T.colStato))),
-                            React.createElement("tbody", null, nonCensite.map((s) => (React.createElement("tr", { key: s.session_id },
-                                React.createElement("td", null, s.titolo ?? React.createElement("span", { className: "secondario" },
-                                    T.sessione,
-                                    " ",
-                                    s.session_id.slice(0, 8))),
-                                React.createElement("td", null, s.host),
-                                React.createElement("td", null, quando(s.avviata_il)),
-                                React.createElement("td", null, quando(s.ultimo_evento_il)),
-                                React.createElement("td", { className: "numero" }, s.turni),
-                                React.createElement("td", null, s.stato))))))))))));
+                            React.createElement("tbody", null, nonCensite.map((s) => React.createElement(RigaNonCensita, { key: s.session_id, s: s }))))))))));
 }
 export function LavoroCommittente({ cm, onScegli }) {
     return (React.createElement("main", { className: "lavori" },

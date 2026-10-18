@@ -54,6 +54,11 @@ i todo delle sue sessioni attive in sola lettura e, per ogni progetto, le attivi
 - **WHEN** si sceglie `poker/idoc-converter/prototipo`, con tre resoconti da due macchine
 - **THEN** il giornale mostra i tre turni dal più recente, con ora, host, fatto, prossimo e blocco
 
+#### Scenario: Ultimo stato di un'attività non censita
+- **WHEN** si fa doppio click (o Invio) sulla riga di un'attività non censita
+- **THEN** sotto la riga compare l'ultimo messaggio di stato della sessione, con ora, fatto, prossimo e blocco, oppure la nota che non ce n'è ancora; un altro doppio click lo chiude
+- **AND** la colonna dello stato dice con forma e parola se la sessione è al lavoro, ha finito il turno, è pronta, è ferma o è terminata
+
 #### Scenario: Change di un cantiere
 - **WHEN** si sceglie un cantiere con una copia del change
 - **THEN** la dashboard mostra proposal, design, specs e tasks formattati, con il contenuto dell'ultima copia del repo, e i task spuntati sul totale

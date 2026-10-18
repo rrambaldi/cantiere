@@ -126,6 +126,9 @@ button{font:inherit;color:inherit}
 .tabella th,.tabella td{padding:8px 12px;border-bottom:1px solid var(--linea);white-space:nowrap}
 .tabella td:first-child{white-space:normal;min-width:180px}
 .tabella tr:last-child td{border-bottom:0}
+.tabella tr.apribile{cursor:pointer}
+.tabella tr.apribile:hover td,.tabella tr.ultimo-stato td{background:var(--superficie)}
+.ultimo-stato .resoconto-sessione{display:grid;gap:4px;white-space:normal}
 
 /* giornale dei turni */
 .turni{list-style:none;margin:0;padding:0}

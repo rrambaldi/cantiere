@@ -1,6 +1,6 @@
 // Dal design system forgia (components/feedback): StatoBadge, Toast, Dialog.
 import type { CSSProperties, ReactNode } from "react";
-import type { Stato } from "../api.ts";
+import type { Stato, StatoSessione } from "../api.ts";
 import { T } from "../testi.ts";
 
 // Gli stati si distinguono per forma, non per colore. L'idea, che il design system non ha, è un rombo vuoto.
@@ -12,13 +12,24 @@ const FORMA: Record<Stato, CSSProperties> = {
   abbandonato: { border: "2px dashed var(--stato-abbandonato)", borderRadius: "50%" },
 };
 
-export function StatoBadge({ stato, etichetta = true }: { stato: Stato; etichetta?: boolean }) {
+// Una sessione prende la forma dello stato più vicino: piena se lavora, vuota se ha finito il turno.
+const FORMA_SESSIONE: Record<StatoSessione, Stato> = { lavorando: "aperto", attiva: "sospeso", in_attesa: "sospeso", inattiva: "abbandonato", chiusa: "completato" };
+
+function Badge({ forma, testo, etichetta }: { forma: CSSProperties; testo: string; etichetta: boolean }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, font: "var(--t-piccolo)", color: "var(--testo)", whiteSpace: "nowrap" }}>
-      <span aria-hidden="true" style={{ width: 10, height: 10, flex: "none", boxSizing: "border-box", ...FORMA[stato] }} />
-      {etichetta ? T.stato[stato] : <span className="solo-lettori">{T.stato[stato]}</span>}
+      <span aria-hidden="true" style={{ width: 10, height: 10, flex: "none", boxSizing: "border-box", ...forma }} />
+      {etichetta ? testo : <span className="solo-lettori">{testo}</span>}
     </span>
   );
+}
+
+export function StatoBadge({ stato, etichetta = true }: { stato: Stato; etichetta?: boolean }) {
+  return <Badge forma={FORMA[stato]} testo={T.stato[stato]} etichetta={etichetta} />;
+}
+
+export function SessioneBadge({ stato }: { stato: StatoSessione }) {
+  return <Badge forma={FORMA[FORMA_SESSIONE[stato]]} testo={T.statoSessione[stato]} etichetta />;
 }
 
 export function Toast({ tono = "info", titolo, children, onChiudi }: {

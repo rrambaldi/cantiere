@@ -716,16 +716,19 @@ export async function leggiCantieri(db: Db, config: Config, ambito: Ambito, filt
 
 export type CantiereLetto = Awaited<ReturnType<typeof leggiCantieri>>[number];
 
+/** L'ultimo resoconto di ogni sessione che ne ha uno. */
+export async function ultimiStati(db: Db, idSessioni: string[]) {
+  const ultimi = new Map<string, { ts: string; fatto: string; prossimo: string; bloccato_da: string | null }>();
+  if (!idSessioni.length) return ultimi;
+  const righe = await db.selectFrom("stati").select(["session_id", "ts", "fatto", "prossimo", "bloccato_da"]).where("session_id", "in", idSessioni).orderBy("id", "desc").execute();
+  for (const { session_id, ...st } of righe) if (!ultimi.has(session_id)) ultimi.set(session_id, st);
+  return ultimi;
+}
+
 /** Sessioni attive dei cantieri, con l'ultimo fatto e prossimo. */
 async function sessioniAttive(db: Db, config: Config, ambito: Ambito, cantieri: number[]) {
   const sessioni = await elencaSessioni(db, config, ambito, { cantieri, attive: true });
-  const ultimi = new Map<string, { fatto: string; prossimo: string }>();
-  const idSessioni = sessioni.map((s) => s.session_id);
-  if (idSessioni.length) {
-    for (const st of await db.selectFrom("stati").select(["session_id", "fatto", "prossimo"]).where("session_id", "in", idSessioni).orderBy("id", "desc").execute()) {
-      if (!ultimi.has(st.session_id)) ultimi.set(st.session_id, st);
-    }
-  }
+  const ultimi = await ultimiStati(db, sessioni.map((s) => s.session_id));
   return sessioni.map((s) => ({
     cantiere_id: s.cantiere_id,
     session_id: s.session_id,

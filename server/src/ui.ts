@@ -6,7 +6,7 @@ import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CorpoTroppoGrande, creaCommittente, elencaCommittenti, leggiCorpo, rigeneraToken, trovaCommittente } from "./accesso.ts";
 import { di, progettiDi, sessioniDi, TUTTI, type Ambito } from "./ambito.ts";
-import { AZIONI, cambiaEsito, creaProgetto, discendentiAttivi, elencaSessioni, formaProgetto, leggiCantieri, percorsoDi, type Ambiente, type Azione } from "./dominio.ts";
+import { AZIONI, cambiaEsito, creaProgetto, discendentiAttivi, elencaSessioni, formaProgetto, leggiCantieri, percorsoDi, ultimiStati, type Ambiente, type Azione } from "./dominio.ts";
 import { domandeInAttesa } from "./domande.ts";
 import { aggiungiFile, creaIdea, eliminaFile, modificaIdea } from "./idee.ts";
 import { Rifiuto } from "./modelli.ts";
@@ -108,7 +108,19 @@ async function nonCensite(amb: Ambiente, ambito: Ambito, progettoId: number) {
   const p = await progettiDi(amb.db, ambito).select("progetti.id").where("progetti.id", "=", progettoId).executeTakeFirst();
   if (!p) throw new Rifiuto(404, "Progetto inesistente.");
   const sessioni = await elencaSessioni(amb.db, amb.config, ambito, { progettoId, senzaCantiere: true });
-  return { sessioni: sessioni.map((s) => ({ session_id: s.session_id, titolo: s.titolo, host: s.host, avviata_il: s.avviata_il, ultimo_evento_il: s.ultimo_evento_il, turni: s.turni, stato: s.stato })) };
+  const ultimi = await ultimiStati(amb.db, sessioni.map((s) => s.session_id));
+  return {
+    sessioni: sessioni.map((s) => ({
+      session_id: s.session_id,
+      titolo: s.titolo,
+      host: s.host,
+      avviata_il: s.avviata_il,
+      ultimo_evento_il: s.ultimo_evento_il,
+      turni: s.turni,
+      stato: s.stato,
+      ultimo_stato: ultimi.get(s.session_id) ?? null,
+    })),
+  };
 }
 
 /** Committente dell'URL, se l'ambito lo vede. */
