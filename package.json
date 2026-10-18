@@ -7,7 +7,8 @@
     "server"
   ],
   "scripts": {
-    "typecheck": "tsc -p plugin && tsc -p server"
+    "typecheck": "tsc -p plugin && tsc -p server",
+    "release": "node scripts/rilascia.mjs"
   },
   "engines": {
     "node": ">=22.18"

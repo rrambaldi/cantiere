@@ -10,7 +10,7 @@
       "name": "forgia",
       "source": "./plugin",
       "description": "cantiere forgia: tiene traccia del lavoro con Claude Code, raggruppato in cantieri. Comando /cantiere.",
-      "version": "0.3.0"
+      "version": "26.10.0"
     }
   ]
 }

@@ -65,6 +65,7 @@ function App() {
   const [albero, setAlbero] = React.useState<Committente[] | null>(null);
   const [errore, setErrore] = React.useState<string | null>(null);
   const [aggiornato, setAggiornato] = React.useState<string | null>(null);
+  const [release, setRelease] = React.useState<string | null>(null);
   const [selezione, setSelezione] = React.useState<Selezione | null>(selezioneSalvata);
   const [vista, setVista] = React.useState<Vista>("aperti");
   const [dettaglio, setDettaglio] = React.useState<Dettaglio | null>(null);
@@ -78,6 +79,7 @@ function App() {
     try {
       const r = await api.albero(ristretta);
       setAlbero(r.committenti);
+      setRelease(r.release);
       setErrore(null);
       setAggiornato(new Date().toISOString());
     } catch (e) {
@@ -237,7 +239,7 @@ function App() {
   return (
     <div className="dashboard">
       <Indice committenti={albero ?? []} selezione={selezione} onScegli={scegli} vista={vista} onVista={setVista}
-        ristretta={Boolean(ristretta)} onNuovoCommittente={() => setRichiesta({ tipo: "committente" })} aggiornato={aggiornato} errore={errore}
+        ristretta={Boolean(ristretta)} onNuovoCommittente={() => setRichiesta({ tipo: "committente" })} aggiornato={aggiornato} release={release} errore={errore}
         onLingua={(l) => { salvaLingua(l); setLingua(l); }} />
       {centro}
       {destra}

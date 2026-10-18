@@ -61,6 +61,7 @@ function App() {
     const [albero, setAlbero] = React.useState(null);
     const [errore, setErrore] = React.useState(null);
     const [aggiornato, setAggiornato] = React.useState(null);
+    const [release, setRelease] = React.useState(null);
     const [selezione, setSelezione] = React.useState(selezioneSalvata);
     const [vista, setVista] = React.useState("aperti");
     const [dettaglio, setDettaglio] = React.useState(null);
@@ -73,6 +74,7 @@ function App() {
         try {
             const r = await api.albero(ristretta);
             setAlbero(r.committenti);
+            setRelease(r.release);
             setErrore(null);
             setAggiornato(new Date().toISOString());
         }
@@ -221,7 +223,7 @@ function App() {
         destra = React.createElement(SchedaCommittente, { cm: trovato.cm, onNuovoProgetto: () => setRichiesta({ tipo: "progetto", committente: trovato.cm }), onRigenera: () => setRichiesta({ tipo: "rigenera", committente: trovato.cm }) });
     }
     return (React.createElement("div", { className: "dashboard" },
-        React.createElement(Indice, { committenti: albero ?? [], selezione: selezione, onScegli: scegli, vista: vista, onVista: setVista, ristretta: Boolean(ristretta), onNuovoCommittente: () => setRichiesta({ tipo: "committente" }), aggiornato: aggiornato, errore: errore, onLingua: (l) => { salvaLingua(l); setLingua(l); } }),
+        React.createElement(Indice, { committenti: albero ?? [], selezione: selezione, onScegli: scegli, vista: vista, onVista: setVista, ristretta: Boolean(ristretta), onNuovoCommittente: () => setRichiesta({ tipo: "committente" }), aggiornato: aggiornato, release: release, errore: errore, onLingua: (l) => { salvaLingua(l); setLingua(l); } }),
         centro,
         destra,
         richiesta && React.createElement(Dialoghi, { r: richiesta, esecutori: esecutori, onChiudi: chiudi(richiesta) }),

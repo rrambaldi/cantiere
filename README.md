@@ -44,6 +44,17 @@ spedito compilato in JavaScript (`plugin/bin/forgia.mjs`), perché parta in fret
 Il nome tecnico, usato in comandi e identificativi, è `forgia`: `mcp__forgia__*`, `forgia-admin`,
 `FORGIA_*`.
 
+## Release
+
+La versione è `AA.MM.N`: anno a due cifre, mese senza zero iniziale e numero progressivo della
+release nel mese, da 0. La prima di ottobre 2026 è `26.10.0`, la terza `26.10.2`; a novembre si
+riparte con `26.11.0`. Il server, il plugin e il marketplace hanno sempre lo stesso numero, e la
+dashboard lo mostra in basso a sinistra.
+
+Per rilasciare: `npm run release` (calcola il numero dalla data e lo scrive in
+`plugin/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` e `server/package.json`;
+con `-- --dry` lo mostra soltanto), poi commit e push.
+
 ## Licenza
 
 [The Gratitude & Random Kindness License](LICENSE): la licenza MIT, parola per parola, con davanti

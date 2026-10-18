@@ -145,7 +145,7 @@ async function richiesta<T>(percorso: string, corpo?: unknown): Promise<T> {
 
 export const api = {
   albero: (committente: string) =>
-    richiesta<{ committenti: Committente[] }>("albero" + (committente ? `?committente=${encodeURIComponent(committente)}` : "")),
+    richiesta<{ release: string; committenti: Committente[] }>("albero" + (committente ? `?committente=${encodeURIComponent(committente)}` : "")),
   cantiere: (id: number) => richiesta<Dettaglio>(`cantieri/${id}`),
   nonCensite: (progetto: number) => richiesta<{ sessioni: NonCensita[] }>(`progetti/${progetto}/non-censite`),
   creaCommittente: (nome: string) => richiesta<{ committente: Committente; token: string }>("committenti", { nome }),

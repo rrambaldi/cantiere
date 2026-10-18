@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createRequire } from "node:module";
@@ -9,6 +10,9 @@ import { AZIONI, cambiaEsito, creaProgetto, discendentiAttivi, elencaSessioni, f
 import { domandeInAttesa } from "./domande.ts";
 import { aggiungiFile, creaIdea, eliminaFile, modificaIdea } from "./idee.ts";
 import { Rifiuto } from "./modelli.ts";
+
+/** La release (AA.MM.N) è la versione di server/package.json. */
+export const RELEASE: string = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 
 export const CARTELLA_UI = fileURLToPath(new URL("../ui/", import.meta.url));
 
@@ -54,6 +58,7 @@ async function albero(amb: Ambiente, ambito: Ambito) {
     .groupBy("sessioni.progetto_id")
     .execute();
   return {
+    release: RELEASE,
     committenti: committenti.map((c) => ({
       ...c,
       progetti: progetti

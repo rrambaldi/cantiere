@@ -26,6 +26,10 @@ const it = {
   caricamento: "Caricamento.",
   caricamentoMin: "caricamento",
   aggiornatoAlle: (ora: string) => `aggiornato ${ora}`,
+  release: (v: string) => `release ${v}`,
+  chiudiGruppo: (nome: string) => `Chiudi ${nome}`,
+  apriGruppo: (nome: string) => `Apri ${nome}`,
+  paginaCommittente: "doppio click: apre la pagina del committente",
 
   // api
   serverNonRaggiungibile: "Server non raggiungibile.",
@@ -199,6 +203,10 @@ const en: Testi = {
   caricamento: "Loading.",
   caricamentoMin: "loading",
   aggiornatoAlle: (ora) => `updated ${ora}`,
+  release: (v) => `release ${v}`,
+  chiudiGruppo: (nome) => `Collapse ${nome}`,
+  apriGruppo: (nome) => `Expand ${nome}`,
+  paginaCommittente: "double click: opens the client page",
 
   serverNonRaggiungibile: "Server unreachable.",
   accessoNegato: "Access denied: a client certificate is required.",

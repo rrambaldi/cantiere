@@ -16,10 +16,31 @@ function perPercorso(a, b) {
     }
     return x.length - y.length;
 }
-function Voce({ attiva, rientro = 0, onClick, children, titolo }) {
-    return (React.createElement("button", { className: "voce" + (attiva ? " attiva" : ""), style: { paddingLeft: 16 + rientro * 14 }, onClick: onClick, title: titolo, "aria-current": attiva || undefined }, children));
+const CHIAVE_CHIUSI = "forgia-committenti-chiusi";
+function chiusiSalvati() {
+    try {
+        const salvati = JSON.parse(localStorage.getItem(CHIAVE_CHIUSI) ?? "[]");
+        return Array.isArray(salvati) ? salvati.filter((x) => typeof x === "number") : [];
+    }
+    catch {
+        return [];
+    }
 }
-export function Indice({ committenti, selezione, onScegli, vista, onVista, ristretta, onNuovoCommittente, aggiornato, errore, onLingua }) {
+function Voce({ attiva, rientro = 0, onClick, onDoppioClick, children, titolo }) {
+    return (React.createElement("button", { className: "voce" + (attiva ? " attiva" : ""), style: { paddingLeft: 16 + rientro * 14 }, onClick: onClick, onDoubleClick: onDoppioClick, title: titolo, "aria-current": attiva || undefined }, children));
+}
+export function Indice({ committenti, selezione, onScegli, vista, onVista, ristretta, onNuovoCommittente, aggiornato, release, errore, onLingua }) {
+    const [chiusi, setChiusi] = React.useState(chiusiSalvati);
+    const alterna = (id) => setChiusi((c) => {
+        const nuovi = c.includes(id) ? c.filter((x) => x !== id) : [...c, id];
+        try {
+            localStorage.setItem(CHIAVE_CHIUSI, JSON.stringify(nuovi));
+        }
+        catch {
+            // niente archivio del browser: la scelta vale fino al ricaricamento
+        }
+        return nuovi;
+    });
     const tutti = committenti.flatMap((c) => c.progetti.flatMap((p) => p.cantieri));
     const conta = (v) => tutti.filter((c) => VISTA_DI[c.stato] === v).length;
     return (React.createElement("aside", { className: "indice", "aria-label": T.indice },
@@ -39,9 +60,13 @@ export function Indice({ committenti, selezione, onScegli, vista, onVista, ristr
                 " ",
                 ristretta ? "" : T.creaPrimoCommittente),
             committenti.map((cm) => (React.createElement("div", { key: cm.id, className: "gruppo" },
-                React.createElement(Voce, { attiva: stessa(selezione, { tipo: "committente", id: cm.id }), onClick: () => onScegli({ tipo: "committente", id: cm.id }) },
-                    React.createElement("span", { className: "nome-committente" }, cm.nome)),
-                cm.progetti.map((p) => {
+                React.createElement("div", { className: "riga-committente" },
+                    React.createElement("button", { className: "chevron", onClick: () => alterna(cm.id), "aria-expanded": !chiusi.includes(cm.id), "aria-label": chiusi.includes(cm.id) ? T.apriGruppo(cm.nome) : T.chiudiGruppo(cm.nome) },
+                        React.createElement("span", { "aria-hidden": "true" }, chiusi.includes(cm.id) ? "▸" : "▾")),
+                    React.createElement(Voce, { attiva: stessa(selezione, { tipo: "committente", id: cm.id }), onClick: () => onScegli({ tipo: "committente", id: cm.id }), onDoppioClick: ristretta ? undefined : () => window.location.assign(encodeURIComponent(cm.nome)), titolo: ristretta ? undefined : T.paginaCommittente },
+                        React.createElement("span", { className: "nome-committente" }, cm.nome),
+                        React.createElement(Pallino, { n: cm.progetti.reduce((n, p) => n + p.domande_in_attesa, 0) }))),
+                !chiusi.includes(cm.id) && cm.progetti.map((p) => {
                     const visibili = p.cantieri.filter((c) => VISTA_DI[c.stato] === vista).sort(perPercorso);
                     const ids = new Set(visibili.map((c) => c.id));
                     return (React.createElement("div", { key: p.id },
@@ -61,5 +86,5 @@ export function Indice({ committenti, selezione, onScegli, vista, onVista, ristr
                 }))))),
         React.createElement("div", { className: "indice-piede" },
             !ristretta && React.createElement(Button, { variant: "secondario", size: "sm", onClick: onNuovoCommittente, style: { width: "100%" } }, T.nuovoCommittente),
-            React.createElement("span", { className: "connessione" + (errore ? " errore" : "") }, errore ?? (aggiornato ? T.aggiornatoAlle(ora(aggiornato)) : T.caricamentoMin)))));
+            React.createElement("span", { className: "connessione" + (errore ? " errore" : ""), title: aggiornato ? T.aggiornatoAlle(ora(aggiornato)) : undefined }, errore ?? (release ? T.release(release) : T.caricamentoMin)))));
 }

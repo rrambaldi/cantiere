@@ -70,11 +70,16 @@ button{font:inherit;color:inherit}
 .voce:hover{background:var(--superficie)}
 .voce.attiva{background:var(--superficie-alta)}
 .voce > span{min-width:0}
+.riga-committente{display:flex;align-items:center}
+.riga-committente .voce{flex:1;min-width:0;padding-left:4px}
+.chevron{flex:none;width:28px;height:32px;border:0;background:transparent;color:var(--testo-2);cursor:pointer;padding:0 0 0 12px;font-size:11px}
+.chevron:hover{color:var(--testo)}
 .nome-committente{font:600 12px/1.2 var(--font-mono);letter-spacing:.04em}
 .nome-progetto{font:600 13px/1.3 var(--font-sans)}
 .nome-cantiere{font:500 12.5px/1.3 var(--font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .voce.attiva .nome-cantiere{font-weight:600}
 .pallino{display:inline-flex;align-items:center;justify-content:center;flex:none;min-width:10px;height:10px;padding:0 3px;border-radius:5px;background:#E5484D;color:#fff;font:700 9px/1 var(--font-mono);vertical-align:middle}
+.pallino:empty{width:10px;padding:0}
 .pallino:not(:empty){min-width:16px;height:16px;border-radius:8px;font-size:10px}
 .domande-attesa{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid #E5484D;border-radius:var(--r-2)}
 .domanda{display:flex;flex-direction:column;gap:4px}
