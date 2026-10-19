@@ -77,6 +77,10 @@ conserva gli a capo.
 - **WHEN** si apre un `tasks.md` con `- [x] 1.1 ...` e `- [ ] 1.2 ...`
 - **THEN** la 1.1 compare con la casella spuntata e la 1.2 con la casella vuota, e cliccarle non cambia nulla
 
+#### Scenario: Copia e salva di un file
+- **WHEN** si apre un file di un change o di un'idea, per esempio `specs/server/git/spec.md`
+- **THEN** sopra il file ci sono due pulsanti: "Copia negli appunti" copia il testo così com'è, con i simboli Markdown, e "Salva" lo scarica come `specs-server-git-spec.md`
+
 #### Scenario: File di testo di un'idea
 - **WHEN** si apre il file `appunti.txt` di un'idea
 - **THEN** compare come testo semplice con gli stessi a capo del file

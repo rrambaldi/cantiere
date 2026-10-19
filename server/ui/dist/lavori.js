@@ -44,6 +44,26 @@ const rango = (p) => {
     const i = ORDINE_FILE.indexOf(p);
     return i >= 0 ? i : p.startsWith("specs/") ? 3 : p.startsWith("idee/") ? 4 : 5;
 };
+function BottoneCopia({ testo }) {
+    const [esito, setEsito] = React.useState(null);
+    const copia = () => navigator.clipboard.writeText(testo).then(() => setEsito(T.copiato), () => setEsito(T.copiaNonRiuscita));
+    React.useEffect(() => {
+        if (!esito)
+            return;
+        const t = setTimeout(() => setEsito(null), 2000);
+        return () => clearTimeout(t);
+    }, [esito]);
+    return React.createElement(Button, { variant: "fantasma", size: "sm", onClick: copia }, esito ?? T.copiaAppunti);
+}
+/** Scarica il file con il suo percorso come nome: specs/a/spec.md diventa specs-a-spec.md. */
+function salva(f) {
+    const tipo = f.percorso.endsWith(".txt") ? "text/plain" : "text/markdown";
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([f.contenuto], { type: tipo + ";charset=utf-8" }));
+    a.download = f.percorso.replace(/^idee\//, "").replace(/\//g, "-");
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href));
+}
 /** Elenco dei file e il file scelto, formattato. */
 function Documenti({ file, vuoto, azioni }) {
     const ordinati = [...file].sort((a, b) => rango(a.percorso) - rango(b.percorso) || a.percorso.localeCompare(b.percorso));
@@ -57,7 +77,10 @@ function Documenti({ file, vuoto, azioni }) {
         React.createElement("article", { className: "documento" },
             React.createElement("div", { className: "documento-testa" },
                 React.createElement("code", null, corrente.percorso),
-                azioni?.(corrente)),
+                React.createElement("span", { className: "azioni-documento" },
+                    React.createElement(BottoneCopia, { key: corrente.percorso, testo: corrente.contenuto }),
+                    React.createElement(Button, { variant: "fantasma", size: "sm", onClick: () => salva(corrente) }, T.salvaFile),
+                    azioni?.(corrente))),
             React.createElement(Documento, { percorso: corrente.percorso, contenuto: corrente.contenuto }))));
 }
 /** Zona dove trascinare o scegliere i file .md e .txt di un'idea. */

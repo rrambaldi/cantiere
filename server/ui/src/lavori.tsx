@@ -64,6 +64,27 @@ const rango = (p: string) => {
   return i >= 0 ? i : p.startsWith("specs/") ? 3 : p.startsWith("idee/") ? 4 : 5;
 };
 
+function BottoneCopia({ testo }: { testo: string }) {
+  const [esito, setEsito] = React.useState<string | null>(null);
+  const copia = () => navigator.clipboard.writeText(testo).then(() => setEsito(T.copiato), () => setEsito(T.copiaNonRiuscita));
+  React.useEffect(() => {
+    if (!esito) return;
+    const t = setTimeout(() => setEsito(null), 2000);
+    return () => clearTimeout(t);
+  }, [esito]);
+  return <Button variant="fantasma" size="sm" onClick={copia}>{esito ?? T.copiaAppunti}</Button>;
+}
+
+/** Scarica il file con il suo percorso come nome: specs/a/spec.md diventa specs-a-spec.md. */
+function salva(f: FileCopia) {
+  const tipo = f.percorso.endsWith(".txt") ? "text/plain" : "text/markdown";
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([f.contenuto], { type: tipo + ";charset=utf-8" }));
+  a.download = f.percorso.replace(/^idee\//, "").replace(/\//g, "-");
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href));
+}
+
 /** Elenco dei file e il file scelto, formattato. */
 function Documenti({ file, vuoto, azioni }: {
   file: FileCopia[]; vuoto: ReactNode; azioni?: (f: FileCopia) => ReactNode;
@@ -84,7 +105,11 @@ function Documenti({ file, vuoto, azioni }: {
       <article className="documento">
         <div className="documento-testa">
           <code>{corrente.percorso}</code>
-          {azioni?.(corrente)}
+          <span className="azioni-documento">
+            <BottoneCopia key={corrente.percorso} testo={corrente.contenuto} />
+            <Button variant="fantasma" size="sm" onClick={() => salva(corrente)}>{T.salvaFile}</Button>
+            {azioni?.(corrente)}
+          </span>
         </div>
         <Documento percorso={corrente.percorso} contenuto={corrente.contenuto} />
       </article>
