@@ -69,22 +69,40 @@ function salva(f) {
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href));
 }
+/**
+ * Bozze aperte, una per cantiere: cambiando cantiere e tornando il testo scritto è ancora lì.
+ * ParceEtRecte: stanno nella memoria della pagina; se servono anche dopo un ricaricamento, sessionStorage.
+ */
+const BOZZE = new Map();
+// Chiudendo o ricaricando la pagina con una bozza aperta il browser chiede conferma. Nei test non c'è window.
+globalThis.addEventListener?.("beforeunload", (e) => { if (BOZZE.size)
+    e.preventDefault(); });
 /** Elenco dei file e il file scelto, formattato. */
-function Documenti({ file, vuoto, azioni, onModifica }) {
+function Documenti({ file, vuoto, azioni, modifica }) {
     const ordinati = [...file].sort((a, b) => rango(a.percorso) - rango(b.percorso) || a.percorso.localeCompare(b.percorso));
-    const [scelto, setScelto] = React.useState(null);
-    const [bozza, setBozza] = React.useState(null);
+    const [bozza, setBozzaStato] = React.useState(() => (modifica && BOZZE.get(modifica.cantiere)) ?? null);
+    const [scelto, setScelto] = React.useState(bozza?.percorso ?? null);
     const [salvando, setSalvando] = React.useState(false);
+    const setBozza = (b) => {
+        if (modifica)
+            b ? BOZZE.set(modifica.cantiere, b) : BOZZE.delete(modifica.cantiere);
+        setBozzaStato(b);
+    };
     const corrente = ordinati.find((f) => f.percorso === scelto) ?? ordinati[0];
     if (!corrente)
         return React.createElement(Vuoto, null, vuoto);
-    const inModifica = onModifica && bozza?.percorso === corrente.percorso ? bozza : null;
+    const inModifica = modifica && bozza?.percorso === corrente.percorso ? bozza : null;
     // Se il salvataggio non riesce la bozza resta aperta; mentre salva, il testo e gli altri file restano fermi.
     const salvaBozza = async (b) => {
+        const { cantiere, salva } = modifica;
         setSalvando(true);
         try {
-            if (await onModifica(corrente, b.contenuto))
-                setBozza(null);
+            if (!(await salva(corrente, b.contenuto)))
+                return;
+            // Se intanto si è usciti, rientrati e scritto ancora, la bozza nuova resta.
+            if (BOZZE.get(cantiere) === b)
+                BOZZE.delete(cantiere);
+            setBozzaStato(null);
         }
         finally {
             setSalvando(false);
@@ -99,7 +117,7 @@ function Documenti({ file, vuoto, azioni, onModifica }) {
                 React.createElement("span", { className: "azioni-documento" }, inModifica ? (React.createElement(React.Fragment, null,
                     React.createElement(BottoneIcona, { icona: "fatto", titolo: T.salvaModifiche, onClick: () => void salvaBozza(inModifica), disabled: salvando }),
                     React.createElement(BottoneIcona, { icona: "chiudi", titolo: T.annulla, onClick: () => setBozza(null), disabled: salvando }))) : (React.createElement(React.Fragment, null,
-                    onModifica && React.createElement(BottoneIcona, { icona: "modifica", titolo: T.modificaFile, onClick: () => setBozza(corrente) }),
+                    modifica && React.createElement(BottoneIcona, { icona: "modifica", titolo: T.modificaFile, onClick: () => setBozza(corrente) }),
                     React.createElement(BottoneCopia, { key: corrente.percorso, testo: corrente.contenuto }),
                     React.createElement(BottoneIcona, { icona: "scarica", titolo: T.salvaFile, onClick: () => salva(corrente) }),
                     azioni?.(corrente))))),
@@ -131,7 +149,7 @@ export function ZonaFile({ onFile, testo = T.trascinaFile, conTesto = true }) {
             React.createElement("input", { ref: input, type: "file", multiple: true, accept: FILE_AMMESSI, hidden: true, onChange: (e) => { onFile([...(e.target.files ?? [])]); e.target.value = ""; } })),
         conTesto && React.createElement(CampoTesto, { scritto: scritto, setScritto: setScritto, nome: nome, setNome: setNome, azione: React.createElement(Button, { variant: "secondario", size: "sm", onClick: () => { onFile([fileDaTesto(nome, scritto)]); setScritto(""); } }, T.aggiungiTesto) })));
 }
-export function LavoroCantiere({ d, onFile, onTogliFile }) {
+export function LavoroCantiere({ d, onFile, onSalvaFile, onTogliFile }) {
     const c = d.cantiere;
     const idea = c.stato === "idea";
     const daFare = d.task_aperti.length > 0;
@@ -141,6 +159,14 @@ export function LavoroCantiere({ d, onFile, onTogliFile }) {
     // Spuntato l'ultimo task, la scheda «Da fare» sparisce: si torna al giornale.
     const vista = scheda === "daFare" && !daFare ? "giornale" : scheda;
     const macchine = new Set(d.turni.map((t) => t.host)).size;
+    // Un'idea con la copia di un change archiviato con lo stesso nome mostra quella: si modificano e si tolgono solo i file dell'idea.
+    const fileIdea = d.file.every((f) => f.percorso.startsWith(PREFISSO_IDEA));
+    // Una bozza vive finché il suo file si può modificare: con l'idea abbandonata o presa, o il file tolto altrove, il
+    // server non la accetterebbe più e il browser non deve chiedere conferma per un testo che non si vede.
+    const bozzaValida = idea && fileIdea && d.file.some((f) => f.percorso === BOZZE.get(c.id)?.percorso);
+    // A ogni render: la bozza nasce dentro Documenti, senza che questo componente lo sappia.
+    React.useEffect(() => { if (!bozzaValida)
+        BOZZE.delete(c.id); });
     const sotto = [
         c.progetto,
         T.changeNome(c.change),
@@ -171,7 +197,7 @@ export function LavoroCantiere({ d, onFile, onTogliFile }) {
             idea ? (React.createElement(React.Fragment, null,
                 React.createElement(Etichetta, null, T.fileIdea(d.file.length)),
                 React.createElement(ZonaFile, { onFile: onFile }),
-                React.createElement(Documenti, { file: d.file, vuoto: T.nessunFileIdea, onModifica: d.file.every((f) => f.percorso.startsWith(PREFISSO_IDEA)) ? (f, testo) => onFile([new File([testo], nomeIdea(f))]) : undefined, azioni: (f) => React.createElement(BottoneIcona, { icona: "cestino", titolo: T.togli, onClick: () => onTogliFile(nomeIdea(f)) }) }))) : (React.createElement(React.Fragment, null,
+                React.createElement(Documenti, { key: c.id, file: d.file, vuoto: T.nessunFileIdea, modifica: fileIdea ? { cantiere: c.id, salva: (f, testo) => onSalvaFile(nomeIdea(f), testo) } : undefined, azioni: fileIdea ? (f) => React.createElement(BottoneIcona, { icona: "cestino", titolo: T.togli, onClick: () => onTogliFile(nomeIdea(f)) }) : undefined }))) : (React.createElement(React.Fragment, null,
                 React.createElement(Tabs, { value: vista, onChange: setScheda, items: [
                         ...(daFare ? [{ id: "daFare", label: T.daFareScheda, count: d.task_aperti.length }] : []),
                         { id: "giornale", label: T.giornale, count: d.turni.length },

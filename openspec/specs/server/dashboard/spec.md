@@ -80,7 +80,7 @@ conserva gli a capo.
 #### Scenario: Copia e salva di un file
 - **WHEN** si apre un file di un change o di un'idea, per esempio `specs/server/git/spec.md`
 - **THEN** sopra il file ci sono due pulsanti a icona, con il nome nel tooltip: "Copia negli appunti" copia il testo così com'è, con i simboli Markdown, e "Salva sul computer" lo scarica come `specs-server-git-spec.md`
-- **AND** non c'è il pulsante "Modifica" sui file di un change, che sono la copia del repo
+- **AND** sui file di un change, che sono la copia del repo, non ci sono i pulsanti "Modifica" e "Togli"
 
 #### Scenario: File di testo di un'idea
 - **WHEN** si apre il file `appunti.txt` di un'idea
@@ -119,6 +119,11 @@ stato `idea`.
 #### Scenario: Modifica di un file di un'idea
 - **WHEN** sul file `appunti.md` di un'idea si preme "Modifica", si cambia il testo e si preme "Salva le modifiche"
 - **THEN** il file sul server ha il testo nuovo e la dashboard lo mostra formattato; se il salvataggio non riesce il testo scritto resta nel campo
+
+#### Scenario: Bozza non salvata
+- **WHEN** mentre si modifica `appunti.md` si apre un altro cantiere e poi si torna all'idea, oppure si chiude la pagina
+- **THEN** tornando, `appunti.md` è ancora in modifica con il testo scritto; chiudendo, il browser chiede conferma
+- **AND** se intanto l'idea è stata abbandonata o presa, o `appunti.md` è stato tolto, la bozza si scarta e il browser non chiede più conferma
 
 ### Requirement: Esiti dalla dashboard
 La dashboard MUST permettere di sospendere, riattivare e abbandonare un cantiere, ciascuno dopo una

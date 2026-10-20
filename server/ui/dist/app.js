@@ -151,7 +151,18 @@ function App() {
         }
         else if (caricati)
             setMessaggio({ titolo: T.fileCaricati(caricati) });
-        return !errori.length;
+    }
+    async function salvaFile(cantiere, nome, testo) {
+        try {
+            await api.caricaFile(cantiere, nome, testo);
+        }
+        catch (e) {
+            setMessaggio({ titolo: T.modificaNonSalvata, testo: `${nome}: ${e.message}`, tono: "errore" });
+            return false;
+        }
+        setMessaggio({ titolo: T.modificaSalvata, testo: nome });
+        await aggiorna();
+        return true;
     }
     const esecutori = {
         async creaCommittente(nome) {
@@ -211,7 +222,7 @@ function App() {
     if (trovato?.tipo === "cantiere") {
         const d = dettaglioDi(trovato.c);
         if (d) {
-            centro = React.createElement(LavoroCantiere, { d: d, onFile: async (f) => { const ok = await caricaFile(d.cantiere.id, f); await aggiorna(); return ok; }, onTogliFile: (nome) => setRichiesta({ tipo: "togli", cantiere: d.cantiere, nome }) });
+            centro = React.createElement(LavoroCantiere, { d: d, onFile: (f) => void caricaFile(d.cantiere.id, f).then(aggiorna), onSalvaFile: (nome, testo) => salvaFile(d.cantiere.id, nome, testo), onTogliFile: (nome) => setRichiesta({ tipo: "togli", cantiere: d.cantiere, nome }) });
             destra = React.createElement(SchedaCantiere, { d: d, onEsito: (azione) => setRichiesta({ tipo: "esito", cantiere: d.cantiere, azione, discendenti: d.discendenti_attivi }), onModifica: () => setRichiesta({ tipo: "modifica", cantiere: d.cantiere }), onNuovaIdea: () => setRichiesta({ tipo: "idea", progetto: trovato.p, padre: d.cantiere }) });
         }
     }

@@ -94,24 +94,40 @@ function salva(f: FileCopia) {
   setTimeout(() => URL.revokeObjectURL(a.href));
 }
 
+/**
+ * Bozze aperte, una per cantiere: cambiando cantiere e tornando il testo scritto è ancora lì.
+ * ParceEtRecte: stanno nella memoria della pagina; se servono anche dopo un ricaricamento, sessionStorage.
+ */
+const BOZZE = new Map<number, FileCopia>();
+// Chiudendo o ricaricando la pagina con una bozza aperta il browser chiede conferma. Nei test non c'è window.
+globalThis.addEventListener?.("beforeunload", (e) => { if (BOZZE.size) e.preventDefault(); });
+
 /** Elenco dei file e il file scelto, formattato. */
-function Documenti({ file, vuoto, azioni, onModifica }: {
+function Documenti({ file, vuoto, azioni, modifica }: {
   file: FileCopia[]; vuoto: ReactNode; azioni?: (f: FileCopia) => ReactNode;
-  /** Solo per i file delle idee: quelli del change sono la copia del repo. Dice se il salvataggio è riuscito. */
-  onModifica?: (f: FileCopia, testo: string) => Promise<boolean>;
+  /** Solo per i file delle idee: quelli del change sono la copia del repo. `salva` dice se è riuscito. */
+  modifica?: { cantiere: number; salva: (f: FileCopia, testo: string) => Promise<boolean> };
 }) {
   const ordinati = [...file].sort((a, b) => rango(a.percorso) - rango(b.percorso) || a.percorso.localeCompare(b.percorso));
-  const [scelto, setScelto] = React.useState<string | null>(null);
-  const [bozza, setBozza] = React.useState<FileCopia | null>(null);
+  const [bozza, setBozzaStato] = React.useState<FileCopia | null>(() => (modifica && BOZZE.get(modifica.cantiere)) ?? null);
+  const [scelto, setScelto] = React.useState<string | null>(bozza?.percorso ?? null);
   const [salvando, setSalvando] = React.useState(false);
+  const setBozza = (b: FileCopia | null) => {
+    if (modifica) b ? BOZZE.set(modifica.cantiere, b) : BOZZE.delete(modifica.cantiere);
+    setBozzaStato(b);
+  };
   const corrente = ordinati.find((f) => f.percorso === scelto) ?? ordinati[0];
   if (!corrente) return <Vuoto>{vuoto}</Vuoto>;
-  const inModifica = onModifica && bozza?.percorso === corrente.percorso ? bozza : null;
+  const inModifica = modifica && bozza?.percorso === corrente.percorso ? bozza : null;
   // Se il salvataggio non riesce la bozza resta aperta; mentre salva, il testo e gli altri file restano fermi.
   const salvaBozza = async (b: FileCopia) => {
+    const { cantiere, salva } = modifica!;
     setSalvando(true);
     try {
-      if (await onModifica!(corrente, b.contenuto)) setBozza(null);
+      if (!(await salva(corrente, b.contenuto))) return;
+      // Se intanto si è usciti, rientrati e scritto ancora, la bozza nuova resta.
+      if (BOZZE.get(cantiere) === b) BOZZE.delete(cantiere);
+      setBozzaStato(null);
     } finally {
       setSalvando(false);
     }
@@ -137,7 +153,7 @@ function Documenti({ file, vuoto, azioni, onModifica }: {
               </>
             ) : (
               <>
-                {onModifica && <BottoneIcona icona="modifica" titolo={T.modificaFile} onClick={() => setBozza(corrente)} />}
+                {modifica && <BottoneIcona icona="modifica" titolo={T.modificaFile} onClick={() => setBozza(corrente)} />}
                 <BottoneCopia key={corrente.percorso} testo={corrente.contenuto} />
                 <BottoneIcona icona="scarica" titolo={T.salvaFile} onClick={() => salva(corrente)} />
                 {azioni?.(corrente)}
@@ -201,9 +217,10 @@ export function ZonaFile({ onFile, testo = T.trascinaFile, conTesto = true }: {
 
 type Scheda = "daFare" | "giornale" | "change";
 
-export function LavoroCantiere({ d, onFile, onTogliFile }: {
-  /** Dice se tutti i file sono stati caricati. */
-  d: Dettaglio; onFile: (f: File[]) => Promise<boolean>; onTogliFile: (nome: string) => void;
+export function LavoroCantiere({ d, onFile, onSalvaFile, onTogliFile }: {
+  d: Dettaglio; onFile: (f: File[]) => void; onTogliFile: (nome: string) => void;
+  /** Salva il testo modificato di un file dell'idea; dice se è riuscito. */
+  onSalvaFile: (nome: string, testo: string) => Promise<boolean>;
 }) {
   const c = d.cantiere;
   const idea = c.stato === "idea";
@@ -214,6 +231,13 @@ export function LavoroCantiere({ d, onFile, onTogliFile }: {
   // Spuntato l'ultimo task, la scheda «Da fare» sparisce: si torna al giornale.
   const vista = scheda === "daFare" && !daFare ? "giornale" : scheda;
   const macchine = new Set(d.turni.map((t) => t.host)).size;
+  // Un'idea con la copia di un change archiviato con lo stesso nome mostra quella: si modificano e si tolgono solo i file dell'idea.
+  const fileIdea = d.file.every((f) => f.percorso.startsWith(PREFISSO_IDEA));
+  // Una bozza vive finché il suo file si può modificare: con l'idea abbandonata o presa, o il file tolto altrove, il
+  // server non la accetterebbe più e il browser non deve chiedere conferma per un testo che non si vede.
+  const bozzaValida = idea && fileIdea && d.file.some((f) => f.percorso === BOZZE.get(c.id)?.percorso);
+  // A ogni render: la bozza nasce dentro Documenti, senza che questo componente lo sappia.
+  React.useEffect(() => { if (!bozzaValida) BOZZE.delete(c.id); });
   const sotto = [
     c.progetto,
     T.changeNome(c.change),
@@ -237,10 +261,10 @@ export function LavoroCantiere({ d, onFile, onTogliFile }: {
           <>
             <Etichetta>{T.fileIdea(d.file.length)}</Etichetta>
             <ZonaFile onFile={onFile} />
-            {/* Un'idea con la copia di un change archiviato mostra quella: si modificano solo i file dell'idea. */}
-            <Documenti file={d.file} vuoto={T.nessunFileIdea}
-              onModifica={d.file.every((f) => f.percorso.startsWith(PREFISSO_IDEA)) ? (f, testo) => onFile([new File([testo], nomeIdea(f))]) : undefined}
-              azioni={(f) => <BottoneIcona icona="cestino" titolo={T.togli} onClick={() => onTogliFile(nomeIdea(f))} />} />
+            {/* La chiave tiene la bozza di un'idea lontana dai file con lo stesso nome di un'altra. */}
+            <Documenti key={c.id} file={d.file} vuoto={T.nessunFileIdea}
+              modifica={fileIdea ? { cantiere: c.id, salva: (f, testo) => onSalvaFile(nomeIdea(f), testo) } : undefined}
+              azioni={fileIdea ? (f) => <BottoneIcona icona="cestino" titolo={T.togli} onClick={() => onTogliFile(nomeIdea(f))} /> : undefined} />
           </>
         ) : (
           <>

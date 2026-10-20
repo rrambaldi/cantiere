@@ -159,7 +159,18 @@ function App() {
     if (errori.length) {
       setMessaggio({ titolo: `${T.fileCaricati(caricati)}, ${T.fileRifiutati(errori.length)}`, testo: errori.join(" · "), tono: "errore" });
     } else if (caricati) setMessaggio({ titolo: T.fileCaricati(caricati) });
-    return !errori.length;
+  }
+
+  async function salvaFile(cantiere: number, nome: string, testo: string) {
+    try {
+      await api.caricaFile(cantiere, nome, testo);
+    } catch (e) {
+      setMessaggio({ titolo: T.modificaNonSalvata, testo: `${nome}: ${(e as Error).message}`, tono: "errore" });
+      return false;
+    }
+    setMessaggio({ titolo: T.modificaSalvata, testo: nome });
+    await aggiorna();
+    return true;
   }
 
   const esecutori: Esecutori = {
@@ -221,7 +232,8 @@ function App() {
   if (trovato?.tipo === "cantiere") {
     const d = dettaglioDi(trovato.c);
     if (d) {
-      centro = <LavoroCantiere d={d} onFile={async (f) => { const ok = await caricaFile(d.cantiere.id, f); await aggiorna(); return ok; }}
+      centro = <LavoroCantiere d={d} onFile={(f) => void caricaFile(d.cantiere.id, f).then(aggiorna)}
+        onSalvaFile={(nome, testo) => salvaFile(d.cantiere.id, nome, testo)}
         onTogliFile={(nome) => setRichiesta({ tipo: "togli", cantiere: d.cantiere, nome })} />;
       destra = <SchedaCantiere d={d}
         onEsito={(azione) => setRichiesta({ tipo: "esito", cantiere: d.cantiere, azione, discendenti: d.discendenti_attivi })}
