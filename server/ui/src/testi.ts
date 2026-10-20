@@ -1,6 +1,6 @@
 // Testi della dashboard in italiano e in inglese. `it` è la fonte del tipo: ogni chiave di `it` deve esistere in `en`.
 // I dati degli utenti (nomi, note, resoconti, file dei change) non passano di qui.
-import type { Stato, StatoSessione } from "./api.ts";
+import type { AutoreEsito, Stato, StatoSessione } from "./api.ts";
 
 export type Lingua = "it" | "en";
 
@@ -75,12 +75,14 @@ const it = {
   change: "change",
   stato_: "stato",
   origine: "origine",
+  origini: { claude: "da Claude", utente: "dall'utente", repo: "dal repo (openspec)", dashboard: "dalla dashboard", presa: "presa con /cantiere prendi" } as Record<AutoreEsito, string>,
   creato: "creato",
   aggiornato: "aggiornato",
   avanzamento: "avanzamento",
   task: "task",
   fasi: "fasi",
   nessunTasks: "Nessun tasks.md nella copia del change.",
+  eAltri: (n: number) => (n === 1 ? "e un altro" : `e altri ${n}`),
   todoSessioni: "todo delle sessioni",
   inCorsoTodo: " · in corso",
   storico: "storico",
@@ -112,6 +114,8 @@ const it = {
   // lavori
   giornaleLavori: "giornale dei lavori",
   nessunResoconto: "Nessun resoconto ancora. Arriva quando Claude chiude un turno con aggiorna_stato.",
+  nessunResocontoRepo: (quando: string) =>
+    `Cantiere creato dalla copia di openspec/changes/ del repo (${quando}). Il lavoro fatto prima, o in sessioni non associate al cantiere, non è nel giornale: resta nei commit del repo, e le sessioni senza cantiere sono tra le attività non censite del progetto.`,
   sessione: "sessione",
   rFatto: "fatto",
   rDopo: "dopo",
@@ -256,12 +260,14 @@ const en: Testi = {
   change: "change",
   stato_: "status",
   origine: "origin",
+  origini: { claude: "by Claude", utente: "by the user", repo: "from the repo (openspec)", dashboard: "from the dashboard", presa: "taken with /cantiere prendi" },
   creato: "created",
   aggiornato: "updated",
   avanzamento: "progress",
   task: "tasks",
   fasi: "phases",
   nessunTasks: "No tasks.md in the change copy.",
+  eAltri: (n) => `and ${n} more`,
   todoSessioni: "session todos",
   inCorsoTodo: " · in progress",
   storico: "history",
@@ -292,6 +298,8 @@ const en: Testi = {
 
   giornaleLavori: "worklog",
   nessunResoconto: "No report yet. It arrives when Claude closes a turn with aggiorna_stato.",
+  nessunResocontoRepo: (quando) =>
+    `Worksite created from the repo's openspec/changes/ copy (${quando}). Work done before, or in sessions not linked to the worksite, is not in the log: it stays in the repo's commits, and sessions without a worksite are in the project's unlisted activity.`,
   sessione: "session",
   rFatto: "done",
   rDopo: "next",

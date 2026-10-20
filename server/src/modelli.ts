@@ -199,8 +199,14 @@ export const schemaCopia = (maxFile: number) =>
   });
 export type Copia = z.infer<ReturnType<typeof schemaCopia>>;
 
-/** Task di un tasks.md: una casella `- [x]` è fatta, ogni altra `- [...]` no (come OpenSpec). */
-export function contaTask(testo: string): { fatti: number; totali: number } {
-  const caselle = [...testo.matchAll(/^\s*- \[([^\]\n]{0,3})\](?=\s|$)/gm)];
-  return { fatti: caselle.filter((c) => c[1].trim().toLowerCase() === "x").length, totali: caselle.length };
+/**
+ * Task di un tasks.md: una casella `- [x]` è fatta, ogni altra `- [...]` no (come OpenSpec).
+ * `aperti` ha il testo dei task non fatti, con le righe rientrate che lo continuano.
+ */
+export function contaTask(testo: string): { fatti: number; totali: number; aperti: string[] } {
+  const caselle = [...testo.matchAll(/^([^\S\r\n]*)- \[([^\]\n]{0,3})\](?=\s|$)(.*(?:\r?\n\1[^\S\r\n]+(?!- \[)\S.*)*)/gm)].map((c) => ({
+    fatta: c[2].trim().toLowerCase() === "x",
+    testo: c[3].replace(/\s+/g, " ").trim(),
+  }));
+  return { fatti: caselle.filter((c) => c.fatta).length, totali: caselle.length, aperti: caselle.filter((c) => !c.fatta).map((c) => c.testo) };
 }

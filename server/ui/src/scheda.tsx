@@ -1,5 +1,6 @@
 // Colonna destra: scheda tecnica del cantiere, del progetto o del committente scelto, con le loro azioni.
 import type { Azione, Committente, Dettaglio, Progetto } from "./api.ts";
+import { RigaMarkdown } from "./documento.tsx";
 import { Button, Checkbox } from "./ds/core.tsx";
 import { StatoBadge } from "./ds/feedback.tsx";
 import { eta, finale, giorno, quando } from "./formato.ts";
@@ -7,6 +8,7 @@ import { T } from "./testi.ts";
 import { Avanzamento, Campi, Etichetta, Vuoto } from "./ui.tsx";
 
 const ARTEFATTI = ["proposal", "design", "specs", "tasks"] as const;
+const MAX_APERTI = 5;
 
 function Blocco({ titolo, children }: { titolo: string; children: React.ReactNode }) {
   return <div className="blocco"><Etichetta>{titolo}</Etichetta>{children}</div>;
@@ -23,7 +25,7 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea }: {
           [T.progetto, c.progetto],
           [T.change, <code>{c.change}</code>],
           [T.stato_, <StatoBadge stato={c.stato} />],
-          [T.origine, c.origine],
+          [T.origine, T.origini[c.origine]],
           [T.creato, quando(c.creato_il)],
           [T.aggiornato, quando(c.aggiornato_il)],
         ]} />
@@ -32,6 +34,15 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea }: {
         <Blocco titolo={T.avanzamento}>
           {c.task ? <Campi righe={[[T.task, <Avanzamento fatti={c.task.fatti} totali={c.task.totali} attivo={c.stato === "aperto"} />]]} />
             : <Vuoto>{T.nessunTasks}</Vuoto>}
+          {d.task_aperti.length > 0 && (
+            <div className="task-aperti">
+              <span className="secondario">{T.daFare}</span>
+              <ul>
+                {d.task_aperti.slice(0, MAX_APERTI).map((t, i) => <li key={i}><RigaMarkdown testo={t} /></li>)}
+                {d.task_aperti.length > MAX_APERTI && <li className="secondario">{T.eAltri(d.task_aperti.length - MAX_APERTI)}</li>}
+              </ul>
+            </div>
+          )}
           {c.fasi && <Campi righe={[[T.fasi, <Avanzamento fatti={c.fasi.completate} totali={c.fasi.totali} attivo={c.stato === "aperto"} />]]} />}
           {c.artefatti && (
             <ul className="artefatti">
@@ -46,7 +57,7 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea }: {
             {c.sessioni.map((s) => (
               <li key={s.session_id}>
                 <span>{s.host}{s.branch ? ` · ${s.branch}` : ""}</span>
-                <span className="secondario">{s.titolo ?? s.stato} · {eta(s.eta_secondi)}</span>
+                <span className="secondario">{s.titolo ?? T.statoSessione[s.stato]} · {eta(s.eta_secondi)}</span>
               </li>
             ))}
           </ul>
@@ -62,7 +73,7 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea }: {
       )}
       {d.esiti.length > 0 && (
         <Blocco titolo={T.storico}>
-          <ul className="storico">{d.esiti.map((e, i) => <li key={i}><StatoBadge stato={e.stato} /> <span className="secondario">{giorno(e.ts)} · {e.da}</span></li>)}</ul>
+          <ul className="storico">{d.esiti.map((e, i) => <li key={i}><StatoBadge stato={e.stato} /> <span className="secondario">{giorno(e.ts)} · {T.origini[e.da]}</span></li>)}</ul>
         </Blocco>
       )}
       <div className="blocco azioni">

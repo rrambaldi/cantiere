@@ -34,8 +34,8 @@ function RigaResoconto({ k, v }: { k: string; v: string | null }) {
   );
 }
 
-function Turni({ turni }: { turni: Turno[] }) {
-  if (!turni.length) return <Vuoto>{T.nessunResoconto}</Vuoto>;
+function Turni({ turni, vuoto }: { turni: Turno[]; vuoto: string }) {
+  if (!turni.length) return <Vuoto>{vuoto}</Vuoto>;
   return (
     <ol className="turni">
       {turni.map((t, i) => (
@@ -205,7 +205,7 @@ export function LavoroCantiere({ d, onFile, onTogliFile }: {
               { id: "change", label: T.changeScheda, count: d.file.length },
             ]} />
             {scheda === "giornale"
-              ? <Turni turni={d.turni} />
+              ? <Turni turni={d.turni} vuoto={c.origine === "repo" ? T.nessunResocontoRepo(quando(c.creato_il)) : T.nessunResoconto} />
               : <Documenti file={d.file} vuoto={T.nessunaCopiaChange} />}
           </>
         )}

@@ -35,9 +35,9 @@ function creaRenderer() {
     return md;
 }
 let renderer;
+const md = () => (renderer ??= creaRenderer());
 export function rendiMarkdown(testo) {
-    renderer ??= creaRenderer();
-    return renderer.render(testo);
+    return md().render(testo);
 }
 export const eMarkdown = (percorso) => percorso.toLowerCase().endsWith(".md");
 /** File formattato se è Markdown, testo semplice con gli a capo del file negli altri casi (.txt, .yaml). */
@@ -45,4 +45,8 @@ export function Documento({ percorso, contenuto }) {
     if (!eMarkdown(percorso))
         return React.createElement("pre", { className: "testo-semplice" }, contenuto);
     return React.createElement("div", { className: "md", dangerouslySetInnerHTML: { __html: rendiMarkdown(contenuto) } });
+}
+/** Una riga di Markdown senza blocchi, per esempio il testo di un task. */
+export function RigaMarkdown({ testo }) {
+    return React.createElement("span", { dangerouslySetInnerHTML: { __html: md().renderInline(testo) } });
 }

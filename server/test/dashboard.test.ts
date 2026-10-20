@@ -118,7 +118,7 @@ describe("API della dashboard", () => {
     const inPoker = { progetto: "poker" };
     await apri(b, "s1", "export-pdf", "utente", inPoker);
     await invia(b, evento("todo", { strumento: "TodoWrite", completo: true, todos: [{ id: null, testo: "rendere i PDF", stato: "in_progress" }] }, { session_id: "s1", ...inPoker }));
-    await copia(b, { attivi: [changeAttivo("export-pdf", { "proposal.md": "# Export", "tasks.md": "- [x] a" })], archiviati: [] }, "poker");
+    await copia(b, { attivi: [changeAttivo("export-pdf", { "proposal.md": "# Export", "tasks.md": "- [x] a\n- [ ] b" })], archiviati: [] }, "poker");
     await invia(b, evento("stop", stop("lavoro sciolto"), { session_id: "s2", ...inPoker }));
 
     const albero = (await ui(b, "/ui/api/albero")).corpo.committenti;
@@ -133,6 +133,7 @@ describe("API della dashboard", () => {
     const exportPdf = poker.cantieri.find((c: any) => c.percorso === "export-pdf");
     const dettaglio = (await ui(b, `/ui/api/cantieri/${exportPdf.id}`)).corpo;
     assert.deepEqual(dettaglio.file.map((f: any) => f.percorso), ["proposal.md", "tasks.md"]);
+    assert.deepEqual(dettaglio.task_aperti, ["b"]);
     assert.deepEqual(dettaglio.todo.map((t: any) => [t.testo, t.host]), [["rendere i PDF", "portatile"]]);
     assert.deepEqual(dettaglio.esiti.map((e: any) => e.stato), ["aperto"]);
     assert.equal((await ui(b, `/ui/api/cantieri/${exportPdf.id}`, { headers: { "x-forgia-committente": "PRIV" } })).status, 404);

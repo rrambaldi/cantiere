@@ -19,9 +19,9 @@ function RigaResoconto({ k, v }) {
         React.createElement("span", null, k),
         React.createElement("span", { className: v ? "" : "vuota" }, v || "—")));
 }
-function Turni({ turni }) {
+function Turni({ turni, vuoto }) {
     if (!turni.length)
-        return React.createElement(Vuoto, null, T.nessunResoconto);
+        return React.createElement(Vuoto, null, vuoto);
     return (React.createElement("ol", { className: "turni" }, turni.map((t, i) => (React.createElement("li", { key: t.ts + t.session_id, className: "turno" },
         React.createElement("div", { className: "turno-quando" },
             React.createElement("strong", null, giorno(t.ts)),
@@ -149,7 +149,7 @@ export function LavoroCantiere({ d, onFile, onTogliFile }) {
                         { id: "change", label: T.changeScheda, count: d.file.length },
                     ] }),
                 scheda === "giornale"
-                    ? React.createElement(Turni, { turni: d.turni })
+                    ? React.createElement(Turni, { turni: d.turni, vuoto: c.origine === "repo" ? T.nessunResocontoRepo(quando(c.creato_il)) : T.nessunResoconto })
                     : React.createElement(Documenti, { file: d.file, vuoto: T.nessunaCopiaChange }))))));
 }
 /** Le domande che le sessioni del cantiere hanno fatto e che aspettano risposta (solo lettura). */

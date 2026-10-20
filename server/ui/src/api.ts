@@ -3,6 +3,9 @@ import { T } from "./testi.ts";
 // API JSON della dashboard (design D16): URL relativi, così funzionano sotto qualunque prefisso del proxy.
 
 export type Stato = "idea" | "aperto" | "sospeso" | "completato" | "abbandonato";
+export type OrigineCantiere = "claude" | "utente" | "repo" | "dashboard";
+/** Chi ha cambiato lo stato di un cantiere: un'origine, o "presa" per un'idea presa con /cantiere prendi. */
+export type AutoreEsito = OrigineCantiere | "presa";
 /** "inattiva" la calcola il server in lettura: nessun evento da troppo tempo. */
 export type StatoSessione = "attiva" | "lavorando" | "in_attesa" | "inattiva" | "chiusa";
 
@@ -10,7 +13,7 @@ export interface SessioneAttiva {
   session_id: string;
   host: string;
   branch: string | null;
-  stato: string;
+  stato: StatoSessione;
   titolo: string | null;
   fatto: string | null;
   prossimo: string | null;
@@ -35,7 +38,7 @@ export interface Cantiere {
   percorso: string;
   padre_id: number | null;
   stato: Stato;
-  origine: string;
+  origine: OrigineCantiere;
   change: string;
   descrizione: string | null;
   creato_il: string;
@@ -91,8 +94,9 @@ export interface Dettaglio {
   cantiere: Cantiere;
   turni: Turno[];
   file: FileCopia[];
+  task_aperti: string[];
   todo: { session_id: string; host: string; testo: string; stato: string }[];
-  esiti: { stato: Stato; ts: string; da: string }[];
+  esiti: { stato: Stato; ts: string; da: AutoreEsito }[];
   discendenti_attivi: string[];
 }
 

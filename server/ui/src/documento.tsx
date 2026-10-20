@@ -39,10 +39,10 @@ function creaRenderer() {
 }
 
 let renderer: ReturnType<typeof creaRenderer> | undefined;
+const md = () => (renderer ??= creaRenderer());
 
 export function rendiMarkdown(testo: string): string {
-  renderer ??= creaRenderer();
-  return renderer.render(testo);
+  return md().render(testo);
 }
 
 export const eMarkdown = (percorso: string) => percorso.toLowerCase().endsWith(".md");
@@ -51,4 +51,9 @@ export const eMarkdown = (percorso: string) => percorso.toLowerCase().endsWith("
 export function Documento({ percorso, contenuto }: { percorso: string; contenuto: string }) {
   if (!eMarkdown(percorso)) return <pre className="testo-semplice">{contenuto}</pre>;
   return <div className="md" dangerouslySetInnerHTML={{ __html: rendiMarkdown(contenuto) }} />;
+}
+
+/** Una riga di Markdown senza blocchi, per esempio il testo di un task. */
+export function RigaMarkdown({ testo }: { testo: string }) {
+  return <span dangerouslySetInnerHTML={{ __html: md().renderInline(testo) }} />;
 }

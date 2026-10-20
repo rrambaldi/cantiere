@@ -27,7 +27,14 @@ test("nomi dei committenti: riservati, barre e vuoti rifiutati", () => {
 
 test("caselle dei task contate come OpenSpec", () => {
   const tasks = "# Tasks\n- [x] 1.1 a\n- [X] 1.2 b\n- [ ] 1.3 c\n  - [ x] 1.4 d\n- [~] 1.5 e\n- [] 1.6 f\nTesto - [x] non in testa\n- [link](x) non è una casella\n- [ ]";
-  assert.deepEqual(contaTask(tasks), { fatti: 3, totali: 7 });
+  assert.deepEqual(contaTask(tasks), { fatti: 3, totali: 7, aperti: ["1.3 c", "1.5 e", "1.6 f", ""] });
+});
+
+test("task aperti: il testo continua sulle righe rientrate, non oltre una riga vuota o una casella", () => {
+  const tasks = "- [ ] 4.4 Cancellare i file. Verifica: `ls` non\n  trova niente.\n\n  Nota a parte.\n- [ ] 4.5 a\n  - [ ] 4.6 b\n  - punto";
+  assert.deepEqual(contaTask(tasks).aperti, ["4.4 Cancellare i file. Verifica: `ls` non trova niente.", "4.5 a", "4.6 b"]);
+  assert.deepEqual(contaTask(tasks.replace(/\n/g, "\r\n")).aperti, contaTask(tasks).aperti, "fine riga CRLF");
+  assert.deepEqual(contaTask("\uFEFF- [ ] 1.1 a\n- [x] 1.2 b"), { fatti: 1, totali: 2, aperti: ["1.1 a"] }, "BOM in testa al file");
 });
 
 test("percorsi ammessi nella copia dei change", () => {

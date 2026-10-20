@@ -1,9 +1,11 @@
+import { RigaMarkdown } from "./documento.js";
 import { Button, Checkbox } from "./ds/core.js";
 import { StatoBadge } from "./ds/feedback.js";
 import { eta, finale, giorno, quando } from "./formato.js";
 import { T } from "./testi.js";
 import { Avanzamento, Campi, Etichetta, Vuoto } from "./ui.js";
 const ARTEFATTI = ["proposal", "design", "specs", "tasks"];
+const MAX_APERTI = 5;
 function Blocco({ titolo, children }) {
     return React.createElement("div", { className: "blocco" },
         React.createElement(Etichetta, null, titolo),
@@ -16,13 +18,19 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea }) {
                 [T.progetto, c.progetto],
                 [T.change, React.createElement("code", null, c.change)],
                 [T.stato_, React.createElement(StatoBadge, { stato: c.stato })],
-                [T.origine, c.origine],
+                [T.origine, T.origini[c.origine]],
                 [T.creato, quando(c.creato_il)],
                 [T.aggiornato, quando(c.aggiornato_il)],
             ] })),
         c.stato !== "idea" && (React.createElement(Blocco, { titolo: T.avanzamento },
             c.task ? React.createElement(Campi, { righe: [[T.task, React.createElement(Avanzamento, { fatti: c.task.fatti, totali: c.task.totali, attivo: c.stato === "aperto" })]] })
                 : React.createElement(Vuoto, null, T.nessunTasks),
+            d.task_aperti.length > 0 && (React.createElement("div", { className: "task-aperti" },
+                React.createElement("span", { className: "secondario" }, T.daFare),
+                React.createElement("ul", null,
+                    d.task_aperti.slice(0, MAX_APERTI).map((t, i) => React.createElement("li", { key: i },
+                        React.createElement(RigaMarkdown, { testo: t }))),
+                    d.task_aperti.length > MAX_APERTI && React.createElement("li", { className: "secondario" }, T.eAltri(d.task_aperti.length - MAX_APERTI))))),
             c.fasi && React.createElement(Campi, { righe: [[T.fasi, React.createElement(Avanzamento, { fatti: c.fasi.completate, totali: c.fasi.totali, attivo: c.stato === "aperto" })]] }),
             c.artefatti && (React.createElement("ul", { className: "artefatti" }, ARTEFATTI.map((a) => React.createElement("li", { key: a, className: c.artefatti[a] ? "c-e" : "" },
                 c.artefatti[a] ? "✓" : "—",
@@ -34,7 +42,7 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea }) {
                     s.host,
                     s.branch ? ` · ${s.branch}` : ""),
                 React.createElement("span", { className: "secondario" },
-                    s.titolo ?? s.stato,
+                    s.titolo ?? T.statoSessione[s.stato],
                     " \u00B7 ",
                     eta(s.eta_secondi)))))))),
         d.todo.length > 0 && (React.createElement(Blocco, { titolo: T.todoSessioni }, d.todo.map((t, i) => (React.createElement(Checkbox, { key: i, checked: t.stato === "completed", label: React.createElement("span", { style: { color: t.stato === "completed" ? "var(--testo-2)" : "var(--testo)" } },
@@ -47,7 +55,7 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea }) {
                 React.createElement("span", { className: "secondario" },
                     giorno(e.ts),
                     " \u00B7 ",
-                    e.da)))))),
+                    T.origini[e.da])))))),
         React.createElement("div", { className: "blocco azioni" },
             React.createElement(Etichetta, null, T.esito),
             finale(c.stato) ? React.createElement(StatoBadge, { stato: c.stato }) : (React.createElement(React.Fragment, null,

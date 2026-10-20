@@ -9,7 +9,7 @@ import { di, progettiDi, sessioniDi, TUTTI, type Ambito } from "./ambito.ts";
 import { AZIONI, cambiaEsito, creaProgetto, discendentiAttivi, elencaSessioni, formaProgetto, leggiCantieri, percorsoDi, ultimiStati, type Ambiente, type Azione } from "./dominio.ts";
 import { domandeInAttesa } from "./domande.ts";
 import { aggiungiFile, creaIdea, eliminaFile, modificaIdea } from "./idee.ts";
-import { Rifiuto } from "./modelli.ts";
+import { contaTask, Rifiuto } from "./modelli.ts";
 
 /** La release (AA.MM.N) è la versione di server/package.json. */
 export const RELEASE: string = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
@@ -101,7 +101,16 @@ async function dettaglio(amb: Ambiente, ambito: Ambito, id: number) {
     : [];
   const esiti = await amb.db.selectFrom("esiti").select(["stato", "ts", "da"]).where("cantiere_id", "=", id).orderBy("id").execute();
   const discendenti = await discendentiAttivi(amb.db, id);
-  return { cantiere, turni, file, todo, esiti, discendenti_attivi: await Promise.all(discendenti.map((d) => percorsoDi(amb.db, d.id))) };
+  const tasks = copia && file.find((f) => f.percorso === "tasks.md");
+  return {
+    cantiere,
+    turni,
+    file,
+    task_aperti: tasks ? contaTask(tasks.contenuto).aperti : [],
+    todo,
+    esiti,
+    discendenti_attivi: await Promise.all(discendenti.map((d) => percorsoDi(amb.db, d.id))),
+  };
 }
 
 async function nonCensite(amb: Ambiente, ambito: Ambito, progettoId: number) {
