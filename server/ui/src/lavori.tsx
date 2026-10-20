@@ -1,9 +1,9 @@
-// Colonna centrale: giornale e change di un cantiere, oppure il quadro di un progetto o di un committente.
+// Colonna centrale: task da fare, giornale e change di un cantiere, oppure il quadro di un progetto o di un committente.
 import type { ReactNode } from "react";
 import type { Cantiere, Committente, Dettaglio, Domanda, FileCopia, NonCensita, Progetto, Turno } from "./api.ts";
-import { Documento } from "./documento.tsx";
+import { Documento, RigaMarkdown } from "./documento.tsx";
 import { Nastro } from "./ds/cantiere.tsx";
-import { Button, Input, Tabs } from "./ds/core.tsx";
+import { Button, Checkbox, Input, Tabs } from "./ds/core.tsx";
 import { SessioneBadge, StatoBadge } from "./ds/feedback.tsx";
 import { eta, giorno, ora, quando } from "./formato.ts";
 import type { Selezione } from "./indice.tsx";
@@ -162,15 +162,19 @@ export function ZonaFile({ onFile, testo = T.trascinaFile, conTesto = true }: {
   );
 }
 
-type Scheda = "giornale" | "change";
+type Scheda = "daFare" | "giornale" | "change";
 
 export function LavoroCantiere({ d, onFile, onTogliFile }: {
   d: Dettaglio; onFile: (f: File[]) => void; onTogliFile: (nome: string) => void;
 }) {
   const c = d.cantiere;
   const idea = c.stato === "idea";
-  const [scheda, setScheda] = React.useState<Scheda>("giornale");
-  React.useEffect(() => setScheda("giornale"), [c.id]);
+  const daFare = d.task_aperti.length > 0;
+  const prima: Scheda = daFare ? "daFare" : "giornale";
+  const [scheda, setScheda] = React.useState<Scheda>(prima);
+  React.useEffect(() => setScheda(prima), [c.id]);
+  // Spuntato l'ultimo task, la scheda «Da fare» sparisce: si torna al giornale.
+  const vista = scheda === "daFare" && !daFare ? "giornale" : scheda;
   const macchine = new Set(d.turni.map((t) => t.host)).size;
   const sotto = [
     c.progetto,
@@ -200,11 +204,14 @@ export function LavoroCantiere({ d, onFile, onTogliFile }: {
           </>
         ) : (
           <>
-            <Tabs value={scheda} onChange={setScheda} items={[
+            <Tabs value={vista} onChange={setScheda} items={[
+              ...(daFare ? [{ id: "daFare" as const, label: T.daFareScheda, count: d.task_aperti.length }] : []),
               { id: "giornale", label: T.giornale, count: d.turni.length },
               { id: "change", label: T.changeScheda, count: d.file.length },
             ]} />
-            {scheda === "giornale"
+            {vista === "daFare"
+              ? <ul className="task-aperti">{d.task_aperti.map((t, i) => <li key={i}><Checkbox checked={false} label={<RigaMarkdown testo={t} />} /></li>)}</ul>
+              : vista === "giornale"
               ? <Turni turni={d.turni} vuoto={c.origine === "repo" ? T.nessunResocontoRepo(quando(c.creato_il)) : T.nessunResoconto} />
               : <Documenti file={d.file} vuoto={T.nessunaCopiaChange} />}
           </>

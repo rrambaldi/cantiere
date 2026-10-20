@@ -32,3 +32,4 @@ Server locale con dati di prova (il `tasks.md` vero di crescita-fed-g17, un chan
 - Nello «storico» il campo `da` passa da `T.origini` (`presa` → «presa con /cantiere prendi»): `scheda.tsx`, blocco storico.
 - Nelle «sessioni attive», senza titolo, lo stato passa da `T.statoSessione` (`attiva` → «pronta»).
 - Verifica: test `server/test/ui-cantiere.test.ts` sul markup della scheda; non riguardati nel browser (solo testo in span esistenti). Test: 144 verdi.
+- I task da fare passano dalla scheda a destra a una scheda «Da fare» nella colonna centrale, prima di Giornale e Change e aperta per prima; c'è solo se restano task aperti, e li mostra tutti (21/10/2026). Verifica: test `server/test/ui-cantiere.test.ts` e screenshot del markup con `forgia.css`.

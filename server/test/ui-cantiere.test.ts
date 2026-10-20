@@ -1,4 +1,4 @@
-// Pagina del cantiere: task da fare nella scheda, origine tradotta, giornale vuoto dei cantieri nati dal repo.
+// Pagina del cantiere: scheda «Da fare» nella colonna centrale, origine tradotta, giornale vuoto dei cantieri nati dal repo.
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { test } from "node:test";
@@ -25,14 +25,24 @@ const dettaglio = (cantiere: object, task_aperti: string[] = []) => ({
   turni: [], file: [], task_aperti, todo: [], esiti: [], discendenti_attivi: [],
 });
 
-test("scheda: i primi 5 task da fare, formattati, poi quanti ne restano; origine tradotta", () => {
+test("lavoro: con task aperti la prima scheda è «Da fare», con tutti i task formattati; la scheda a destra non li ripete", () => {
   const aperti = ["1.1 cancellare `a.json`", "1.2 b", "1.3 c", "1.4 d", "1.5 e", "1.6 f"];
-  const scheda = html(SchedaCantiere, { d: dettaglio({}, aperti), onEsito: niente, onModifica: niente, onNuovaIdea: niente });
-  assert.match(scheda, /1\.1 cancellare <code>a\.json<\/code>/);
-  assert.match(scheda, /1\.5 e/);
-  assert.doesNotMatch(scheda, /1\.6 f/);
-  assert.match(scheda, /e un altro/);
+  const d = dettaglio({}, aperti);
+  const lavoro = html(LavoroCantiere, { d, onFile: niente, onTogliFile: niente });
+  const schede = [...lavoro.matchAll(/role="tab"[^>]*>([^<]+)/g)].map((m) => m[1]);
+  assert.deepEqual(schede, ["Da fare", "Giornale", "Change"]);
+  assert.match(lavoro, /aria-selected="true"[^>]*>Da fare/);
+  assert.match(lavoro, /1\.1 cancellare <code>a\.json<\/code>/);
+  assert.match(lavoro, /1\.6 f/);
+  const scheda = html(SchedaCantiere, { d, onEsito: niente, onModifica: niente, onNuovaIdea: niente });
+  assert.doesNotMatch(scheda, /1\.1 cancellare/);
   assert.match(scheda, /dal repo \(openspec\)/);
+});
+
+test("lavoro: senza task aperti niente scheda «Da fare», si apre il giornale", () => {
+  const lavoro = html(LavoroCantiere, { d: dettaglio({}), onFile: niente, onTogliFile: niente });
+  assert.doesNotMatch(lavoro, />Da fare/);
+  assert.match(lavoro, /aria-selected="true"[^>]*>Giornale/);
 });
 
 test("scheda: storico e sessioni attive senza valori grezzi", () => {

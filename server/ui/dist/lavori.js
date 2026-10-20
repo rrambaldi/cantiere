@@ -1,6 +1,6 @@
-import { Documento } from "./documento.js";
+import { Documento, RigaMarkdown } from "./documento.js";
 import { Nastro } from "./ds/cantiere.js";
-import { Button, Input, Tabs } from "./ds/core.js";
+import { Button, Checkbox, Input, Tabs } from "./ds/core.js";
 import { SessioneBadge, StatoBadge } from "./ds/feedback.js";
 import { eta, giorno, ora, quando } from "./formato.js";
 import { T } from "./testi.js";
@@ -110,8 +110,12 @@ export function ZonaFile({ onFile, testo = T.trascinaFile, conTesto = true }) {
 export function LavoroCantiere({ d, onFile, onTogliFile }) {
     const c = d.cantiere;
     const idea = c.stato === "idea";
-    const [scheda, setScheda] = React.useState("giornale");
-    React.useEffect(() => setScheda("giornale"), [c.id]);
+    const daFare = d.task_aperti.length > 0;
+    const prima = daFare ? "daFare" : "giornale";
+    const [scheda, setScheda] = React.useState(prima);
+    React.useEffect(() => setScheda(prima), [c.id]);
+    // Spuntato l'ultimo task, la scheda «Da fare» sparisce: si torna al giornale.
+    const vista = scheda === "daFare" && !daFare ? "giornale" : scheda;
     const macchine = new Set(d.turni.map((t) => t.host)).size;
     const sotto = [
         c.progetto,
@@ -144,13 +148,17 @@ export function LavoroCantiere({ d, onFile, onTogliFile }) {
                 React.createElement(Etichetta, null, T.fileIdea(d.file.length)),
                 React.createElement(ZonaFile, { onFile: onFile }),
                 React.createElement(Documenti, { file: d.file, vuoto: T.nessunFileIdea, azioni: (f) => React.createElement(Button, { variant: "fantasma", size: "sm", onClick: () => onTogliFile(f.percorso.replace(/^idee\//, "")) }, T.togli) }))) : (React.createElement(React.Fragment, null,
-                React.createElement(Tabs, { value: scheda, onChange: setScheda, items: [
+                React.createElement(Tabs, { value: vista, onChange: setScheda, items: [
+                        ...(daFare ? [{ id: "daFare", label: T.daFareScheda, count: d.task_aperti.length }] : []),
                         { id: "giornale", label: T.giornale, count: d.turni.length },
                         { id: "change", label: T.changeScheda, count: d.file.length },
                     ] }),
-                scheda === "giornale"
-                    ? React.createElement(Turni, { turni: d.turni, vuoto: c.origine === "repo" ? T.nessunResocontoRepo(quando(c.creato_il)) : T.nessunResoconto })
-                    : React.createElement(Documenti, { file: d.file, vuoto: T.nessunaCopiaChange }))))));
+                vista === "daFare"
+                    ? React.createElement("ul", { className: "task-aperti" }, d.task_aperti.map((t, i) => React.createElement("li", { key: i },
+                        React.createElement(Checkbox, { checked: false, label: React.createElement(RigaMarkdown, { testo: t }) }))))
+                    : vista === "giornale"
+                        ? React.createElement(Turni, { turni: d.turni, vuoto: c.origine === "repo" ? T.nessunResocontoRepo(quando(c.creato_il)) : T.nessunResoconto })
+                        : React.createElement(Documenti, { file: d.file, vuoto: T.nessunaCopiaChange }))))));
 }
 /** Le domande che le sessioni del cantiere hanno fatto e che aspettano risposta (solo lettura). */
 function DomandeInAttesa({ domande }) {
