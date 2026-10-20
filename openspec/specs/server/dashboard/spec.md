@@ -79,7 +79,8 @@ conserva gli a capo.
 
 #### Scenario: Copia e salva di un file
 - **WHEN** si apre un file di un change o di un'idea, per esempio `specs/server/git/spec.md`
-- **THEN** sopra il file ci sono due pulsanti: "Copia negli appunti" copia il testo così com'è, con i simboli Markdown, e "Salva" lo scarica come `specs-server-git-spec.md`
+- **THEN** sopra il file ci sono due pulsanti a icona, con il nome nel tooltip: "Copia negli appunti" copia il testo così com'è, con i simboli Markdown, e "Salva sul computer" lo scarica come `specs-server-git-spec.md`
+- **AND** non c'è il pulsante "Modifica" sui file di un change, che sono la copia del repo
 
 #### Scenario: File di testo di un'idea
 - **WHEN** si apre il file `appunti.txt` di un'idea
@@ -114,6 +115,10 @@ stato `idea`.
 #### Scenario: Idea con file
 - **WHEN** in `poker` si crea l'idea `iDOC converter` trascinando 10 file `.md`
 - **THEN** compare `idoc-converter` in stato `idea` con i suoi 10 file
+
+#### Scenario: Modifica di un file di un'idea
+- **WHEN** sul file `appunti.md` di un'idea si preme "Modifica", si cambia il testo e si preme "Salva le modifiche"
+- **THEN** il file sul server ha il testo nuovo e la dashboard lo mostra formattato; se il salvataggio non riesce il testo scritto resta nel campo
 
 ### Requirement: Esiti dalla dashboard
 La dashboard MUST permettere di sospendere, riattivare e abbandonare un cantiere, ciascuno dopo una

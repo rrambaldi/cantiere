@@ -1,4 +1,4 @@
-// Pagina del cantiere: scheda «Da fare» nella colonna centrale, origine tradotta, giornale vuoto dei cantieri nati dal repo.
+// Pagina del cantiere: scheda «Da fare» nella colonna centrale, origine tradotta, giornale vuoto dei cantieri nati dal repo, azioni dei documenti.
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { test } from "node:test";
@@ -57,4 +57,13 @@ test("giornale vuoto: un cantiere nato dal repo dice da dove viene, le altre ori
   const lavoro = (origine: string) => html(LavoroCantiere, { d: dettaglio({ origine }), onFile: niente, onTogliFile: niente });
   assert.match(lavoro("repo"), /Cantiere creato dalla copia di openspec\/changes\/ del repo/);
   assert.match(lavoro("utente"), /Nessun resoconto ancora/);
+});
+
+test("documento di un'idea: azioni a icone con il testo come tooltip, Modifica solo sui file dell'idea", () => {
+  const file = [{ percorso: "idee/appunti.md", contenuto: "# Appunti" }];
+  const azioni = (d: object) => [...html(LavoroCantiere, { d, onFile: niente, onTogliFile: niente })
+    .matchAll(/<button[^>]*title="([^"]+)"[^>]*aria-label="\1"[^>]*><svg/g)].map((m) => m[1]);
+  assert.deepEqual(azioni({ ...dettaglio({ stato: "idea" }), file }), ["Modifica", "Copia negli appunti", "Salva sul computer", "Togli"]);
+  // Un'idea con la copia di un change archiviato con lo stesso nome mostra i file del change: niente Modifica.
+  assert.deepEqual(azioni({ ...dettaglio({ stato: "idea" }), file: [{ percorso: "proposal.md", contenuto: "# P" }] }), ["Copia negli appunti", "Salva sul computer", "Togli"]);
 });

@@ -5,14 +5,14 @@ const BASE_PULSANTE = {
     transition: "background var(--durata-1) var(--curva), border-color var(--durata-1) var(--curva)",
 };
 const MISURE = { sm: { height: 28, padding: "0 10px", fontSize: 13 }, md: { height: 36, padding: "0 14px", fontSize: 14 } };
-export function Button({ variant = "primario", size = "md", disabled = false, children, onClick, type = "button", style }) {
+export function Button({ variant = "primario", size = "md", disabled = false, children, onClick, type = "button", style, title }) {
     const [h, setH] = React.useState(false);
     const v = {
         primario: { background: h ? "var(--segnale-hover)" : "var(--segnale)", color: "var(--testo-su-segnale)" },
         secondario: { background: h ? "var(--superficie-alta)" : "transparent", color: "var(--testo)", borderColor: "var(--linea-forte)" },
         fantasma: { background: h ? "var(--superficie)" : "transparent", color: "var(--testo)" },
     }[variant];
-    return (React.createElement("button", { type: type, disabled: disabled, onClick: onClick, onMouseEnter: () => setH(true), onMouseLeave: () => setH(false), style: { ...BASE_PULSANTE, ...MISURE[size], ...v, ...(disabled ? { opacity: 0.45, cursor: "not-allowed" } : {}), ...style } }, children));
+    return (React.createElement("button", { type: type, disabled: disabled, onClick: onClick, title: title, "aria-label": title, onMouseEnter: () => setH(true), onMouseLeave: () => setH(false), style: { ...BASE_PULSANTE, ...MISURE[size], ...v, ...(disabled ? { opacity: 0.45, cursor: "not-allowed" } : {}), ...style } }, children));
 }
 /** Casella in sola lettura: i todo li scrive Claude, la dashboard li mostra soltanto. */
 export function Checkbox({ checked, label }) {

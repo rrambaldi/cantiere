@@ -8,7 +8,7 @@ import { SessioneBadge, StatoBadge } from "./ds/feedback.tsx";
 import { eta, giorno, ora, quando } from "./formato.ts";
 import type { Selezione } from "./indice.tsx";
 import { T } from "./testi.ts";
-import { Avanzamento, Avviso, Etichetta, Pallino, Vuoto } from "./ui.tsx";
+import { Avanzamento, Avviso, BottoneIcona, Etichetta, Pallino, Vuoto } from "./ui.tsx";
 
 const FILE_AMMESSI = ".md,.txt,text/markdown,text/plain";
 
@@ -65,40 +65,64 @@ const rango = (p: string) => {
 };
 
 function BottoneCopia({ testo }: { testo: string }) {
-  const [esito, setEsito] = React.useState<string | null>(null);
-  const copia = () => navigator.clipboard.writeText(testo).then(() => setEsito(T.copiato), () => setEsito(T.copiaNonRiuscita));
+  const [riuscita, setRiuscita] = React.useState<boolean | null>(null);
+  const copia = () => navigator.clipboard.writeText(testo).then(() => setRiuscita(true), () => setRiuscita(false));
   React.useEffect(() => {
-    if (!esito) return;
-    const t = setTimeout(() => setEsito(null), 2000);
+    if (riuscita === null) return;
+    const t = setTimeout(() => setRiuscita(null), 2000);
     return () => clearTimeout(t);
-  }, [esito]);
-  return <Button variant="fantasma" size="sm" onClick={copia}>{esito ?? T.copiaAppunti}</Button>;
+  }, [riuscita]);
+  const esito = riuscita === null ? null : riuscita ? T.copiato : T.copiaNonRiuscita;
+  return (
+    <>
+      <BottoneIcona icona={riuscita === null ? "copia" : riuscita ? "fatto" : "chiudi"} titolo={esito ?? T.copiaAppunti} onClick={copia} />
+      <span className="solo-lettori" role="status">{esito}</span>
+    </>
+  );
 }
+
+const PREFISSO_IDEA = "idee/";
+const nomeIdea = (f: FileCopia) => (f.percorso.startsWith(PREFISSO_IDEA) ? f.percorso.slice(PREFISSO_IDEA.length) : f.percorso);
 
 /** Scarica il file con il suo percorso come nome: specs/a/spec.md diventa specs-a-spec.md. */
 function salva(f: FileCopia) {
   const tipo = f.percorso.endsWith(".txt") ? "text/plain" : "text/markdown";
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([f.contenuto], { type: tipo + ";charset=utf-8" }));
-  a.download = f.percorso.replace(/^idee\//, "").replace(/\//g, "-");
+  a.download = nomeIdea(f).replace(/\//g, "-");
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href));
 }
 
 /** Elenco dei file e il file scelto, formattato. */
-function Documenti({ file, vuoto, azioni }: {
+function Documenti({ file, vuoto, azioni, onModifica }: {
   file: FileCopia[]; vuoto: ReactNode; azioni?: (f: FileCopia) => ReactNode;
+  /** Solo per i file delle idee: quelli del change sono la copia del repo. Dice se il salvataggio è riuscito. */
+  onModifica?: (f: FileCopia, testo: string) => Promise<boolean>;
 }) {
   const ordinati = [...file].sort((a, b) => rango(a.percorso) - rango(b.percorso) || a.percorso.localeCompare(b.percorso));
   const [scelto, setScelto] = React.useState<string | null>(null);
+  const [bozza, setBozza] = React.useState<FileCopia | null>(null);
+  const [salvando, setSalvando] = React.useState(false);
   const corrente = ordinati.find((f) => f.percorso === scelto) ?? ordinati[0];
   if (!corrente) return <Vuoto>{vuoto}</Vuoto>;
+  const inModifica = onModifica && bozza?.percorso === corrente.percorso ? bozza : null;
+  // Se il salvataggio non riesce la bozza resta aperta; mentre salva, il testo e gli altri file restano fermi.
+  const salvaBozza = async (b: FileCopia) => {
+    setSalvando(true);
+    try {
+      if (await onModifica!(corrente, b.contenuto)) setBozza(null);
+    } finally {
+      setSalvando(false);
+    }
+  };
   return (
     <div className="documenti">
       <ul className="elenco-file">
         {ordinati.map((f) => (
           <li key={f.percorso}>
-            <button className={"voce-file" + (f === corrente ? " attiva" : "")} onClick={() => setScelto(f.percorso)}>{f.percorso}</button>
+            <button className={"voce-file" + (f === corrente ? " attiva" : "")} onClick={() => setScelto(f.percorso)}
+              disabled={!!inModifica && f !== corrente}>{f.percorso}</button>
           </li>
         ))}
       </ul>
@@ -106,12 +130,25 @@ function Documenti({ file, vuoto, azioni }: {
         <div className="documento-testa">
           <code>{corrente.percorso}</code>
           <span className="azioni-documento">
-            <BottoneCopia key={corrente.percorso} testo={corrente.contenuto} />
-            <Button variant="fantasma" size="sm" onClick={() => salva(corrente)}>{T.salvaFile}</Button>
-            {azioni?.(corrente)}
+            {inModifica ? (
+              <>
+                <BottoneIcona icona="fatto" titolo={T.salvaModifiche} onClick={() => void salvaBozza(inModifica)} disabled={salvando} />
+                <BottoneIcona icona="chiudi" titolo={T.annulla} onClick={() => setBozza(null)} disabled={salvando} />
+              </>
+            ) : (
+              <>
+                {onModifica && <BottoneIcona icona="modifica" titolo={T.modificaFile} onClick={() => setBozza(corrente)} />}
+                <BottoneCopia key={corrente.percorso} testo={corrente.contenuto} />
+                <BottoneIcona icona="scarica" titolo={T.salvaFile} onClick={() => salva(corrente)} />
+                {azioni?.(corrente)}
+              </>
+            )}
           </span>
         </div>
-        <Documento percorso={corrente.percorso} contenuto={corrente.contenuto} />
+        {inModifica
+          ? <textarea className="modifica-documento" aria-label={`${T.modificaFile} ${corrente.percorso}`} value={inModifica.contenuto} readOnly={salvando}
+              onChange={(e) => setBozza({ ...inModifica, contenuto: e.target.value })} autoFocus />
+          : <Documento percorso={corrente.percorso} contenuto={corrente.contenuto} />}
       </article>
     </div>
   );
@@ -165,7 +202,8 @@ export function ZonaFile({ onFile, testo = T.trascinaFile, conTesto = true }: {
 type Scheda = "daFare" | "giornale" | "change";
 
 export function LavoroCantiere({ d, onFile, onTogliFile }: {
-  d: Dettaglio; onFile: (f: File[]) => void; onTogliFile: (nome: string) => void;
+  /** Dice se tutti i file sono stati caricati. */
+  d: Dettaglio; onFile: (f: File[]) => Promise<boolean>; onTogliFile: (nome: string) => void;
 }) {
   const c = d.cantiere;
   const idea = c.stato === "idea";
@@ -199,8 +237,10 @@ export function LavoroCantiere({ d, onFile, onTogliFile }: {
           <>
             <Etichetta>{T.fileIdea(d.file.length)}</Etichetta>
             <ZonaFile onFile={onFile} />
+            {/* Un'idea con la copia di un change archiviato mostra quella: si modificano solo i file dell'idea. */}
             <Documenti file={d.file} vuoto={T.nessunFileIdea}
-              azioni={(f) => <Button variant="fantasma" size="sm" onClick={() => onTogliFile(f.percorso.replace(/^idee\//, ""))}>{T.togli}</Button>} />
+              onModifica={d.file.every((f) => f.percorso.startsWith(PREFISSO_IDEA)) ? (f, testo) => onFile([new File([testo], nomeIdea(f))]) : undefined}
+              azioni={(f) => <BottoneIcona icona="cestino" titolo={T.togli} onClick={() => onTogliFile(nomeIdea(f))} />} />
           </>
         ) : (
           <>
