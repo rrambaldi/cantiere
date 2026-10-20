@@ -68,6 +68,9 @@ mkdir -p "$CODICE.nuovo"
 tar -C "$REPO" --exclude=node_modules --exclude=.env --exclude='*.db*' -cf - package.json package-lock.json server |
 	tar -C "$CODICE.nuovo" --no-same-owner -xf -
 (cd "$CODICE.nuovo" && npm ci --omit=dev --no-audit --no-fund)
+# better-sqlite3 usa il modulo già compilato in prebuilds/: il suo script di compilazione è negato in allowScripts.
+"$NODE" -e 'new (require(process.argv[1]))(":memory:")' "$CODICE.nuovo/node_modules/better-sqlite3" ||
+	errore "better-sqlite3 non ha il modulo compilato per $(uname -sm): nel package.json metti \"better-sqlite3\": true in allowScripts (serve un compilatore C++) e rilancia"
 chmod -R a+rX "$CODICE.nuovo"
 
 # Da v1 a v2 la migrazione 0002 svuota il database: senza conferma ci si ferma qui, a servizio intatto.
