@@ -163,6 +163,26 @@ button{font:inherit;color:inherit}
 .documento > .md,.documento > .testo-semplice{padding:16px 20px 20px}
 .modifica-documento{display:block;width:100%;min-height:60vh;padding:16px 20px 20px;border:0;resize:vertical;background:transparent;color:var(--testo);font:400 13px/1.6 var(--font-mono)}
 .modifica-documento:focus-visible{outline-offset:-2px}
+/* EasyMDE (CodeMirror 5) con i token della dashboard, al posto del suo tema chiaro */
+.editor-markdown .editor-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:6px 14px;border:0;border-bottom:1px solid var(--linea);border-radius:0;background:var(--sfondo-profondo);opacity:1}
+.editor-markdown .editor-toolbar button{display:inline-flex;align-items:center;justify-content:center;width:28px;min-width:28px;height:28px;padding:0;border:1px solid transparent;border-radius:var(--r-2);color:var(--testo-2)}
+.editor-markdown .editor-toolbar button:hover,.editor-markdown .editor-toolbar button.active{background:var(--superficie-alta);border-color:var(--linea-forte);color:var(--testo)}
+.editor-markdown .editor-toolbar button::after{content:none}
+.editor-markdown .editor-toolbar i.separator{height:18px;margin:0 6px;border-left:1px solid var(--linea);border-right:0}
+.editor-markdown .editor-toolbar.disabled-for-preview button:not(.no-disable){opacity:.45}
+.editor-markdown .CodeMirror{padding:12px 20px 20px;border:0;border-radius:0;background:transparent;color:var(--testo);font:var(--t-codice)}
+.editor-markdown .CodeMirror-cursor{border-left-color:var(--testo)}
+.editor-markdown .CodeMirror-selected,.editor-markdown .CodeMirror-focused .CodeMirror-selected{background:var(--superficie-alta)}
+.editor-markdown .CodeMirror-line::selection,.editor-markdown .CodeMirror-line>span::selection,.editor-markdown .CodeMirror-line>span>span::selection{background:var(--superficie-alta)}
+.editor-markdown .cm-s-easymde .cm-header{color:var(--testo);font-weight:600}
+.editor-markdown .cm-s-easymde .cm-header-1,.editor-markdown .cm-s-easymde .cm-header-2,.editor-markdown .cm-s-easymde .cm-header-3{font-size:1.15em}
+.editor-markdown .cm-s-easymde .cm-link,.editor-markdown .cm-s-easymde .cm-quote,.editor-markdown .cm-s-easymde .cm-hr{color:var(--testo-2)}
+.editor-markdown .cm-s-easymde .cm-url{color:var(--testo-2);opacity:.8}
+.editor-markdown .cm-s-easymde .cm-comment{background:var(--sfondo-profondo);color:var(--segnale)}
+.editor-markdown .cm-s-easymde .cm-formatting-list,.editor-markdown .cm-s-easymde .cm-formatting-task{color:var(--segnale)}
+.editor-markdown[aria-busy=true] .editor-toolbar{pointer-events:none;opacity:.45}
+.editor-markdown .editor-preview,.editor-markdown .editor-preview-side{max-width:none;padding:16px 20px 20px;border:0;background:var(--superficie)}
+.editor-markdown .editor-preview-side{border-left:1px solid var(--linea)}
 .zona-file{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:14px;border:1px dashed var(--linea-forte);border-radius:var(--r-2);font:var(--t-piccolo);color:var(--testo-2)}
 .zona-file.sopra{border-color:var(--segnale);background:var(--superficie)}
 

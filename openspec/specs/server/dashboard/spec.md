@@ -120,6 +120,11 @@ stato `idea`.
 - **WHEN** sul file `appunti.md` di un'idea si preme "Modifica", si cambia il testo e si preme "Salva le modifiche"
 - **THEN** il file sul server ha il testo nuovo e la dashboard lo mostra formattato; se il salvataggio non riesce il testo scritto resta nel campo
 
+#### Scenario: Editor Markdown
+- **WHEN** si preme "Modifica" su `appunti.md` di un'idea
+- **THEN** si apre un editor con la barra (grassetto, corsivo, titolo, elenchi, task, citazione, codice, collegamento, anteprima e anteprima affiancata) e l'anteprima formatta il testo come il documento mostrato
+- **AND** la pagina non carica niente da altri siti: script, stili e icone dell'editor arrivano dal server
+
 #### Scenario: Bozza non salvata
 - **WHEN** mentre si modifica `appunti.md` si apre un altro cantiere e poi si torna all'idea, oppure si chiude la pagina
 - **THEN** tornando, `appunti.md` è ancora in modifica con il testo scritto; chiudendo, il browser chiede conferma

@@ -1,6 +1,6 @@
 {
   "name": "forgia-server",
-  "version": "26.10.9",
+  "version": "26.10.10",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -29,6 +29,7 @@
     "@modelcontextprotocol/node": "^2.1.1",
     "@modelcontextprotocol/server": "^2.3.1",
     "better-sqlite3": "^13.0.3",
+    "easymde": "2.21.0",
     "kysely": "^0.29.6",
     "markdown-it": "14.3.3",
     "react": "18.3.1",

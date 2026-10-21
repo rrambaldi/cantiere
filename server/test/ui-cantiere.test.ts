@@ -178,3 +178,72 @@ test("modifica: uscendo e rientrando durante il salvataggio, il testo scritto do
   await clic('button[aria-label="Annulla"]');
   await smonta();
 });
+
+// ---- Editor EasyMDE, come nel browser
+
+const { impostaLingua: lingua } = await dist("testi.js");
+type CodeMirror = { getValue(): string; setValue(v: string): void; setCursor(r: number, c: number): void; getOption(o: string): any };
+const codemirror = () => ($(".CodeMirror") as unknown as { CodeMirror: CodeMirror }).CodeMirror;
+const titoli = () => [...window.document.querySelectorAll(".editor-toolbar button")].map((b) => b.getAttribute("aria-label"));
+/** Carica EasyMDE solo per `prova`: gli altri test provano il textarea che resta senza. */
+async function conEasyMDE(salva: (nome: string, testo: string) => Promise<boolean>, prova: (mostra: (d: object) => Promise<void>) => Promise<void>) {
+  Object.assign(globalThis, { EasyMDE: richiedi("easymde"), ReactDOM: richiedi("react-dom") });
+  // CodeMirror misura il testo con Range, che jsdom non impagina: bastano misure vuote.
+  Object.assign(window.Range.prototype, { getBoundingClientRect: () => new window.DOMRect(), getClientRects: () => [] });
+  const { mostra, smonta } = await monta(salva);
+  try {
+    await mostra(idea(1));
+    await clic('button[aria-label="Modifica"]');
+    await prova(mostra);
+  } finally {
+    await smonta();
+    delete (globalThis as { EasyMDE?: unknown }).EasyMDE;
+  }
+}
+
+test("editor: barra a icone del design system; il testo scritto va al salvataggio, e se cambia mentre salva resta aperto", async () => {
+  const chiamate: string[] = [];
+  let esito!: (ok: boolean) => void;
+  await conEasyMDE((_nome, testo) => (chiamate.push(testo), new Promise((r) => (esito = r))), async () => {
+    assert.deepEqual(titoli(), ["Grassetto", "Corsivo", "Titolo", "Elenco puntato", "Elenco numerato", "Elenco di task", "Citazione", "Codice",
+      "Collegamento", "Anteprima", "Anteprima affiancata"]);
+    assert.ok([...window.document.querySelectorAll(".editor-toolbar button")].every((b) => b.querySelector("svg path")), "ogni pulsante ha la sua icona");
+    assert.equal(codemirror().getValue(), "# A di 1");
+    await React.act(async () => codemirror().setValue("uno due"));
+    await clic('button[aria-label="Salva le modifiche"]');
+    assert.deepEqual(chiamate, ["uno due"]);
+    assert.equal(codemirror().getOption("readOnly"), true);
+    assert.equal($(".editor-markdown")!.getAttribute("aria-busy"), "true");
+    await clic('.editor-toolbar button.bold');
+    await React.act(async () => esito(true));
+    assert.notEqual(codemirror().getValue(), "uno due");
+    assert.ok(chiudendo(), "il testo cambiato mentre salvava resta una bozza aperta");
+    await React.act(async () => codemirror().setValue("uno due tre"));
+    await clic('button[aria-label="Salva le modifiche"]');
+    await React.act(async () => esito(true));
+    assert.ok(!$(".EasyMDEContainer"), "salvato, l'editor si chiude");
+    assert.ok(!chiudendo());
+  });
+});
+
+test("editor: anteprima col nostro Markdown anche dopo l'anteprima piena, pulsanti accesi, Tab libero, titoli nella lingua scelta", async () => {
+  await conEasyMDE(async () => true, async (mostra) => {
+    await React.act(async () => codemirror().setValue("**uno** due\n\n- [ ] da fare"));
+    await React.act(async () => codemirror().setCursor(0, 3));
+    assert.ok($(".editor-toolbar button.bold")!.classList.contains("active"), "il cursore nel grassetto accende Grassetto");
+    await clic('.editor-toolbar button.preview');
+    await clic('.editor-toolbar button.side-by-side');
+    assert.ok($(".editor-preview-side input.casella"), "l'anteprima affiancata passa da rendiMarkdown");
+    assert.equal(codemirror().getOption("extraKeys").Tab, false);
+    lingua("en");
+    try {
+      await mostra(idea(1));
+      assert.equal(titoli()[0], "Bold");
+      assert.equal(codemirror().getValue(), "**uno** due\n\n- [ ] da fare");
+    } finally {
+      lingua("it");
+      await mostra(idea(1));
+    }
+    await clic('button[aria-label="Annulla"]');
+  });
+});

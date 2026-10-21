@@ -50,10 +50,11 @@ describe("rotte della dashboard", () => {
     const css = await ui(b, "/ui/static/forgia.css");
     assert.deepEqual([css.status, css.headers.get("content-type")], [200, "text/css; charset=utf-8"]);
     assert.equal((await ui(b, "/ui/dist/ds/Logo.js")).headers.get("content-type"), "text/javascript; charset=utf-8");
-    for (const nome of ["react.production.min.js", "react-dom.production.min.js", "markdown-it.min.js"]) {
+    for (const nome of ["react.production.min.js", "react-dom.production.min.js", "markdown-it.min.js", "easymde.min.js"]) {
       const r = await ui(b, `/ui/vendor/${nome}`);
       assert.deepEqual([r.status, r.headers.get("content-type")], [200, "text/javascript; charset=utf-8"], nome);
     }
+    assert.equal((await ui(b, "/ui/vendor/easymde.min.css")).headers.get("content-type"), "text/css; charset=utf-8");
     assert.equal((await ui(b, "/ui/vendor/lodash.js")).status, 404);
     assert.equal((await ui(b, "/ui/static/..%2F..%2Fpackage.json")).status, 404);
     assert.equal((await ui(b, "/ui/static/mancante.css")).status, 404);

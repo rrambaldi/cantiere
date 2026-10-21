@@ -1,7 +1,7 @@
 // Colonna centrale: task da fare, giornale e change di un cantiere, oppure il quadro di un progetto o di un committente.
 import type { ReactNode } from "react";
 import type { Cantiere, Committente, Dettaglio, Domanda, FileCopia, NonCensita, Progetto, Turno } from "./api.ts";
-import { Documento, RigaMarkdown } from "./documento.tsx";
+import { Documento, EditorMarkdown, RigaMarkdown } from "./documento.tsx";
 import { Nastro } from "./ds/cantiere.tsx";
 import { Button, Checkbox, Input, Tabs } from "./ds/core.tsx";
 import { SessioneBadge, StatoBadge } from "./ds/feedback.tsx";
@@ -124,9 +124,9 @@ function Documenti({ file, vuoto, azioni, modifica }: {
     const { cantiere, salva } = modifica!;
     setSalvando(true);
     try {
-      if (!(await salva(corrente, b.contenuto))) return;
-      // Se intanto si è usciti, rientrati e scritto ancora, la bozza nuova resta.
-      if (BOZZE.get(cantiere) === b) BOZZE.delete(cantiere);
+      // Se intanto la bozza è cambiata (dalla barra dell'editor, o uscendo e rientrando), resta aperta col testo nuovo.
+      if (!(await salva(corrente, b.contenuto)) || BOZZE.get(cantiere) !== b) return;
+      BOZZE.delete(cantiere);
       setBozzaStato(null);
     } finally {
       setSalvando(false);
@@ -162,8 +162,8 @@ function Documenti({ file, vuoto, azioni, modifica }: {
           </span>
         </div>
         {inModifica
-          ? <textarea className="modifica-documento" aria-label={`${T.modificaFile} ${corrente.percorso}`} value={inModifica.contenuto} readOnly={salvando}
-              onChange={(e) => setBozza({ ...inModifica, contenuto: e.target.value })} autoFocus />
+          ? <EditorMarkdown valore={inModifica.contenuto} onCambia={(testo) => setBozza({ ...inModifica, contenuto: testo })} fermo={salvando}
+              etichetta={`${T.modificaFile} ${corrente.percorso}`} />
           : <Documento percorso={corrente.percorso} contenuto={corrente.contenuto} />}
       </article>
     </div>

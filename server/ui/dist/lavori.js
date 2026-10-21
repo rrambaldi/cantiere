@@ -1,4 +1,4 @@
-import { Documento, RigaMarkdown } from "./documento.js";
+import { Documento, EditorMarkdown, RigaMarkdown } from "./documento.js";
 import { Nastro } from "./ds/cantiere.js";
 import { Button, Checkbox, Input, Tabs } from "./ds/core.js";
 import { SessioneBadge, StatoBadge } from "./ds/feedback.js";
@@ -97,11 +97,10 @@ function Documenti({ file, vuoto, azioni, modifica }) {
         const { cantiere, salva } = modifica;
         setSalvando(true);
         try {
-            if (!(await salva(corrente, b.contenuto)))
+            // Se intanto la bozza è cambiata (dalla barra dell'editor, o uscendo e rientrando), resta aperta col testo nuovo.
+            if (!(await salva(corrente, b.contenuto)) || BOZZE.get(cantiere) !== b)
                 return;
-            // Se intanto si è usciti, rientrati e scritto ancora, la bozza nuova resta.
-            if (BOZZE.get(cantiere) === b)
-                BOZZE.delete(cantiere);
+            BOZZE.delete(cantiere);
             setBozzaStato(null);
         }
         finally {
@@ -122,7 +121,7 @@ function Documenti({ file, vuoto, azioni, modifica }) {
                     React.createElement(BottoneIcona, { icona: "scarica", titolo: T.salvaFile, onClick: () => salva(corrente) }),
                     azioni?.(corrente))))),
             inModifica
-                ? React.createElement("textarea", { className: "modifica-documento", "aria-label": `${T.modificaFile} ${corrente.percorso}`, value: inModifica.contenuto, readOnly: salvando, onChange: (e) => setBozza({ ...inModifica, contenuto: e.target.value }), autoFocus: true })
+                ? React.createElement(EditorMarkdown, { valore: inModifica.contenuto, onCambia: (testo) => setBozza({ ...inModifica, contenuto: testo }), fermo: salvando, etichetta: `${T.modificaFile} ${corrente.percorso}` })
                 : React.createElement(Documento, { percorso: corrente.percorso, contenuto: corrente.contenuto }))));
 }
 /** Zona dove trascinare o scegliere i file .md e .txt di un'idea. */

@@ -21,6 +21,8 @@ const VENDOR: Record<string, string> = {
   "react.production.min.js": join(pacchetto("react"), "umd", "react.production.min.js"),
   "react-dom.production.min.js": join(pacchetto("react-dom"), "umd", "react-dom.production.min.js"),
   "markdown-it.min.js": join(pacchetto("markdown-it"), "dist", "markdown-it.min.js"),
+  "easymde.min.js": join(pacchetto("easymde"), "dist", "easymde.min.js"),
+  "easymde.min.css": join(pacchetto("easymde"), "dist", "easymde.min.css"),
 };
 const TIPI: Record<string, string> = {
   ".html": "text/html; charset=utf-8",

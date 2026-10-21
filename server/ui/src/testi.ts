@@ -140,6 +140,11 @@ const it = {
   copiaNonRiuscita: "Copia non riuscita",
   salvaFile: "Salva sul computer",
   modificaFile: "Modifica",
+  barra: {
+    grassetto: "Grassetto", corsivo: "Corsivo", titolo: "Titolo", elenco: "Elenco puntato", elencoNumerato: "Elenco numerato",
+    caselle: "Elenco di task", citazione: "Citazione", codice: "Codice", collegamento: "Collegamento", anteprima: "Anteprima",
+    affiancato: "Anteprima affiancata",
+  },
   salvaModifiche: "Salva le modifiche",
   modificaSalvata: "Modifica salvata",
   modificaNonSalvata: "Modifica non salvata",
@@ -328,6 +333,11 @@ const en: Testi = {
   copiaNonRiuscita: "Copy failed",
   salvaFile: "Save to your computer",
   modificaFile: "Edit",
+  barra: {
+    grassetto: "Bold", corsivo: "Italic", titolo: "Heading", elenco: "Bulleted list", elencoNumerato: "Numbered list",
+    caselle: "Task list", citazione: "Quote", codice: "Code", collegamento: "Link", anteprima: "Preview",
+    affiancato: "Side-by-side preview",
+  },
   salvaModifiche: "Save changes",
   modificaSalvata: "Change saved",
   modificaNonSalvata: "Change not saved",
