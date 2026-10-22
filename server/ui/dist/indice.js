@@ -40,8 +40,35 @@ export function segmentiDi(t) {
     }
     return [...su, { testo: t.p.nome, scelta: scelta("progetto", t.p.id) }, ...padri, { testo: t.c.nome }];
 }
+/** L'indirizzo di una scelta: `#/committente/progetto/padre/cantiere`, un nome per segmento (i nomi non hanno `/`). */
+export function hashDi(t) {
+    const nomi = [t.cm.nome, ...(t.tipo === "committente" ? [] : [t.p.nome]), ...(t.tipo === "cantiere" ? t.c.percorso.split("/") : [])];
+    return "#/" + nomi.map(encodeURIComponent).join("/");
+}
+/** La scelta scritta in un indirizzo, se c'è ancora nell'albero. */
+export function selezioneDaHash(albero, hash) {
+    let nomi;
+    try {
+        nomi = hash.replace(/^#\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
+    }
+    catch {
+        return null; // codifica rotta (`%E0`): vale come un indirizzo senza scelta
+    }
+    const cm = albero.find((x) => x.nome === nomi[0]);
+    if (!cm)
+        return null;
+    if (nomi.length === 1)
+        return { tipo: "committente", id: cm.id };
+    const p = cm.progetti.find((x) => x.nome === nomi[1]);
+    if (!p)
+        return null;
+    if (nomi.length === 2)
+        return { tipo: "progetto", id: p.id };
+    const c = p.cantieri.find((x) => x.percorso === nomi.slice(2).join("/"));
+    return c ? { tipo: "cantiere", id: c.id } : null;
+}
 const PROFONDITA = { committenti: 0, progetti: 1, cantieri: 2 };
-const stessa = (a, b) => a?.tipo === b.tipo && a.id === b.id;
+export const stessa = (a, b) => a?.tipo === b.tipo && a.id === b.id;
 const domandeDi = (cm) => cm.progetti.reduce((n, p) => n + p.domande_in_attesa, 0);
 /** Ordine per segmenti, così i figli seguono subito il padre (`a/b` dopo `a`, prima di `a-x`). */
 function perPercorso(a, b) {

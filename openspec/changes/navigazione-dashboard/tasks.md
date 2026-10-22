@@ -10,7 +10,7 @@
 
 ## 2. Indirizzo
 
-- [ ] 2.1 Scelta nell'hash, letta all'avvio e su `hashchange`; Indietro e link funzionano
+- [x] 2.1 Scelta nell'hash, letta all'avvio e su `hashchange`; Indietro e link funzionano
 
 ## 3. Telefono
 

@@ -3,7 +3,7 @@ import { api, committenteDellaPagina, type Azione, type Cantiere, type Committen
 import { Dialoghi, type Esecutori, type Richiesta } from "./dialoghi.tsx";
 import { Toast } from "./ds/feedback.tsx";
 import { VISTA_DI, type Vista } from "./formato.ts";
-import { Indice, Percorso, posizioneDi, segmentiDi, trova, type Colonne, type Posizione, type Selezione } from "./indice.tsx";
+import { hashDi, Indice, Percorso, posizioneDi, segmentiDi, selezioneDaHash, stessa, trova, type Colonne, type Posizione, type Selezione } from "./indice.tsx";
 import { LavoroCantiere, LavoroCommittente, LavoroProgetto } from "./lavori.tsx";
 import { SchedaCantiere, SchedaCommittente, SchedaProgetto } from "./scheda.tsx";
 import { impostaLingua, lingua as linguaCorrente, salvaLingua, T, type Lingua } from "./testi.ts";
@@ -61,23 +61,47 @@ function App() {
   const [messaggio, setMessaggio] = React.useState<Messaggio | null>(null);
   const selezioneCorrente = React.useRef(selezione);
   selezioneCorrente.current = selezione;
+  const alberoCorrente = React.useRef(albero);
+  alberoCorrente.current = albero;
 
+  /** Sceglie e, per un cantiere, porta il filtro della colonna sul suo stato. */
+  const scegliIn = React.useCallback((alb: Committente[], s: Selezione) => {
+    const t = trova(alb, s);
+    if (t?.tipo === "cantiere") setVista(VISTA_DI[t.c.stato]);
+    setSelezione(s);
+  }, []);
+
+  const hashLetto = React.useRef(false);
   const caricaAlbero = React.useCallback(async () => {
     try {
       const r = await api.albero(ristretta);
       setAlbero(r.committenti);
+      // Al primo caricamento vince l'indirizzo: un link porta lì; la scelta ricordata vale per gli indirizzi senza.
+      if (!hashLetto.current) {
+        hashLetto.current = true;
+        const s = selezioneDaHash(r.committenti, location.hash);
+        if (s) scegliIn(r.committenti, s);
+      }
       setRelease(r.release);
       setErrore(null);
       setAggiornato(new Date().toISOString());
     } catch (e) {
       setErrore((e as Error).message);
     }
-  }, [ristretta]);
+  }, [ristretta, scegliIn]);
 
   const caricaSelezione = React.useCallback(async (s: Selezione | null) => {
+    // Una risposta arrivata dopo un'altra scelta (un link, più Indietro di fila) non copre quella corrente.
+    const ancora = () => s !== null && stessa(selezioneCorrente.current, s);
     try {
-      if (s?.tipo === "cantiere") setDettaglio(await api.cantiere(s.id));
-      if (s?.tipo === "progetto") setNonCensite((await api.nonCensite(s.id)).sessioni);
+      if (s?.tipo === "cantiere") {
+        const d = await api.cantiere(s.id);
+        if (ancora()) setDettaglio(d);
+      }
+      if (s?.tipo === "progetto") {
+        const r = await api.nonCensite(s.id);
+        if (ancora()) setNonCensite(r.sessioni);
+      }
     } catch (e) {
       setMessaggio({ titolo: T.datiNonCaricati, testo: (e as Error).message, tono: "errore" });
     }
@@ -123,13 +147,38 @@ function App() {
     return () => clearTimeout(t);
   }, [messaggio]);
 
-  const scegli = (s: Selezione) => {
-    if (albero && s.tipo === "cantiere") {
-      const t = trova(albero, s);
-      if (t?.tipo === "cantiere") setVista(VISTA_DI[t.c.stato]);
+  const scegli = (s: Selezione) => (albero ? scegliIn(albero, s) : setSelezione(s));
+
+  // La scelta sta nell'indirizzo. Una scelta nuova aggiunge un passo alla cronologia, così Indietro ci torna; la prima,
+  // o la stessa con un nome cambiato, lo sostituisce. Indietro e Avanti cambiano l'indirizzo, e la scelta lo segue.
+  const scrittaNellIndirizzo = React.useRef<Selezione | null>(null);
+  React.useEffect(() => {
+    const t = albero && trova(albero, selezione);
+    if (!t || !selezione) return;
+    const indirizzo = hashDi(t);
+    if (location.hash !== indirizzo) {
+      // Un indirizzo che dice già questa scelta in un'altra codifica si riscrive e basta, senza un passo in più.
+      const passo = scrittaNellIndirizzo.current !== null && !stessa(scrittaNellIndirizzo.current, selezione)
+        && !stessa(selezioneDaHash(albero, location.hash), selezione);
+      if (passo) history.pushState(null, "", indirizzo);
+      else history.replaceState(null, "", indirizzo);
     }
-    setSelezione(s);
-  };
+    scrittaNellIndirizzo.current = selezione;
+  }, [albero, selezione]);
+
+  React.useEffect(() => {
+    const segui = () => {
+      const alb = alberoCorrente.current;
+      if (!alb) return;
+      const s = selezioneDaHash(alb, location.hash);
+      if (s) return scegliIn(alb, s);
+      // Un indirizzo che non porta a niente (scritto a mano, il nome vecchio di un'idea rinominata) torna quello della scelta.
+      const t = trova(alb, selezioneCorrente.current);
+      if (t) history.replaceState(null, "", hashDi(t));
+    };
+    addEventListener("hashchange", segui);
+    return () => removeEventListener("hashchange", segui);
+  }, [scegliIn]);
   // Un segmento del percorso sceglie quel livello e riapre la colonna lì.
   const daPercorso = (s: Selezione) => {
     scegli(s);

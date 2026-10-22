@@ -14,3 +14,14 @@ La colonna di sinistra MUST mostrare un livello alla volta (committenti, progett
 #### Scenario: Tornare su
 - **WHEN** la colonna mostra i cantieri di `mercurius` e si clicca «‹ PRIV»
 - **THEN** la colonna mostra i progetti di `PRIV`, senza cambiare quello che c'è al centro
+
+### Requirement: Scelta nell'indirizzo
+La scelta corrente MUST stare nell'indirizzo della pagina (`#/committente/progetto/padre/cantiere`). Una scelta nuova MUST aggiungere un passo alla cronologia del browser; Indietro e Avanti MUST riportare alle scelte di quei passi. Aprendo la pagina, l'indirizzo MUST vincere sulla scelta ricordata dal browser. Un indirizzo che non porta a niente MUST lasciare la scelta corrente e tornare il suo indirizzo.
+
+#### Scenario: Indietro
+- **WHEN** si sceglie il progetto `mercurius`, poi `AI-Berkshire`, poi il committente `PRIV`, e si preme tre volte Indietro
+- **THEN** la pagina mostra `AI-Berkshire`, poi `mercurius`, poi la scelta di partenza
+
+#### Scenario: Link
+- **WHEN** si apre `#/PRIV/parity-deriva/multi-instrument-simulations/basket-mix` con un'altra scelta ricordata
+- **THEN** la pagina mostra `basket-mix` con il suo percorso

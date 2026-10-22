@@ -12,7 +12,7 @@ const { createRoot } = richiedi("react-dom/client");
 const React = richiedi("react");
 const dist = (nome: string) => import(new URL(`../ui/dist/${nome}`, import.meta.url).href);
 const { impostaLingua } = await dist("testi.js");
-const { Indice, Percorso, posizioneDi, segmentiDi } = await dist("indice.js");
+const { hashDi, Indice, Percorso, posizioneDi, segmentiDi, selezioneDaHash } = await dist("indice.js");
 impostaLingua("it");
 
 const ORA = "2026-10-22T08:00:00Z";
@@ -156,4 +156,21 @@ test("percorso: committente, progetto, padri dal più alto e cantiere; un botton
   await clic(".percorso li:nth-child(2) button");
   assert.deepEqual(scelte, [{ tipo: "progetto", id: 10 }]);
   await React.act(async () => radice.unmount());
+});
+
+test("indirizzo: un nome per segmento, codificato; andata e ritorno; un indirizzo sbagliato non sceglie niente", () => {
+  const [cm] = ALBERO;
+  const [p] = cm.progetti;
+  const figlio = p.cantieri[3];
+  assert.equal(hashDi({ tipo: "committente", cm }), "#/PRIV");
+  assert.equal(hashDi({ tipo: "progetto", cm, p }), "#/PRIV/cantiere");
+  assert.equal(hashDi({ tipo: "cantiere", cm, p, c: p.cantieri[1] }), "#/PRIV/cantiere/avvisi%20telegram");
+  assert.equal(hashDi({ tipo: "cantiere", cm, p, c: figlio }), "#/PRIV/cantiere/navigazione-dashboard/figlio");
+  assert.deepEqual(selezioneDaHash(ALBERO, "#/PRIV"), { tipo: "committente", id: 1 });
+  assert.deepEqual(selezioneDaHash(ALBERO, "#/PRIV/mercurius"), { tipo: "progetto", id: 11 });
+  assert.deepEqual(selezioneDaHash(ALBERO, "#/PRIV/cantiere/avvisi%20telegram"), { tipo: "cantiere", id: 101 });
+  assert.deepEqual(selezioneDaHash(ALBERO, "#/PRIV/cantiere/navigazione-dashboard/figlio"), { tipo: "cantiere", id: 103 });
+  for (const sbagliato of ["", "#", "#/ALTRO", "#/PRIV/poker", "#/PRIV/cantiere/figlio", "#/PRIV/%E0"]) {
+    assert.equal(selezioneDaHash(ALBERO, sbagliato), null, sbagliato);
+  }
 });
