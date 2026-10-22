@@ -1,35 +1,55 @@
-# Piano di restyle: dashboard forgia
-Origine: docs/ux/analisi-2026-10-20.md · commit analizzato: 961a67e
-Stato del piano: approvato fino alla fase 1, fase 1 verificata
-Direzione scelta: nessuna, solo interventi rapidi (analisi mirata)
+# Piano di restyle: dashboard forgia, navigazione
+Origine: docs/ux/analisi-2026-10-22.md · commit analizzato: cac4cab
+Stato del piano: fase 1 verificata (22/10/2026), fasi 2 e 3 da approvare
+Direzione scelta: D2 · cascata a una colonna — https://claude.ai/artifact/8hLCoDG8RtDFkyGvHmhh4s
+Il piano precedente (analisi del 20/10, interventi A1 M1 B1, tutti verificati) è nella storia di git.
 
 ## Da non toccare
-- Scheda «Change» con i file formattati, copia e salva — l'informazione completa resta lì — `server/ui/src/lavori.tsx:89`
+- Stati per forma (pieno, rombo, anello) — `server/ui/src/ds/feedback.tsx:7`
+- Scheda «Change» con i file formattati, copia e salva — `server/ui/src/lavori.tsx`
 - Conteggio dei task dal file vero — `server/src/modelli.ts:203`
+- Scegliere un cantiere porta il filtro sul suo stato (aperti, idee, chiusi) — `server/ui/src/app.tsx:138`
+- I figli seguono il padre, con il rientro; un orfano mostra il percorso intero — `server/ui/src/indice.tsx:15`, `:111`
+- Pallino delle domande in attesa, conteggio delle attività non censite e delle sessioni — `server/ui/src/indice.tsx`
+- Lingua IT/EN, doppio clic sul committente per la sua pagina, «Nuovo committente» solo fuori dalla vista ristretta
 
 ## Vincoli
-React senza build esterna in `server/ui`, testi in `server/ui/src/testi.ts` in italiano e inglese.
+React senza build esterna (`tsc -p server/ui`, `ui/dist` nel repo), niente stili in linea nell'HTML (CSP), testi in `server/ui/src/testi.ts` in italiano e inglese, token in `server/ui/static/forgia.css`, icone Lucide ridisegnate in `server/ui/src/ui.tsx`.
 
 ## Interventi
 | ID | Fase | Severità | Dove | Correzione minima | Criterio di accettazione | Stato |
 |---|---|---|---|---|---|---|
-| A1 | 1 rapidi | Alta | `scheda.tsx:33` | sotto la barra, i task non spuntati del `tasks.md` in `d.file`, con la stessa regola di `contaTask` | `crescita-fed-g17` mostra il 4.4 | verificato |
-| M1 | 1 rapidi | Media | `lavori.tsx:38`, `testi.ts:114` | testo del giornale vuoto diverso per `origine === "repo"`, con la data di nascita | `crescita-fed-g17` mostra il testo con 15/10 | verificato |
-| B1 | 1 rapidi | Bassa | `scheda.tsx:27` | valore di `origine` tradotto in `testi.ts` | niente valori grezzi, IT e EN | verificato |
+| M2 | 1 struttura | Media | `indice.tsx` | colonna a una colonna: committenti → progetti → cantieri, un livello alla volta, «‹» torna su, filtri aperti/idee/chiusi con i conteggi del progetto | da `navigazione-dashboard`: «‹ PRIV» mostra i 4 progetti, `mercurius` mostra i suoi cantieri | verificato |
+| M1 | 1 struttura | Media | `forgia.css` `.nome-cantiere` | nomi a capo, colonna 304 px | «aggiungiamo predizioni con Timestral-209M» intero su due righe | verificato |
+| M3 | 1 struttura | Media | `app.tsx`, `indice.tsx`, `forgia.css` | colonna che si chiude in una rotaia «sfoglia» (anche da sola dopo la scelta di un cantiere, salvo puntina) e scheda destra apribile e chiudibile; stato ricordato | a 1440 px con colonna e scheda chiuse il centro va da 56 px al bordo destro; al ricaricamento resta così | verificato |
+| A1 | 1 struttura | Alta | `lavori.tsx` `Testata` | percorso sopra il titolo: committente / progetto / padri / cantiere; ogni segmento sceglie quel livello e riapre la colonna | da `navigazione-dashboard` un clic su `cantiere` mostra il progetto e i suoi cantieri nella colonna | verificato |
+| A2 | 2 indirizzo | Alta | `app.tsx` | scelta nell'hash, letta all'avvio e su `hashchange` | tre scelte e tre Indietro le ripercorrono; un link con l'hash apre quel cantiere | da approvare |
+| M4 | 3 telefono | Media | `forgia.css`, `indice.tsx` | a ≤720 px un livello per schermata, scheda come foglio dal basso | a 390×844 nessuno scorrimento orizzontale, la colonna non copre il contenuto | da approvare |
 
 ## Fasi
-1. Interventi rapidi — A1, M1, B1 — verifica: pagina di `crescita-fed-g17` e di un cantiere con origine dashboard.
+1. Struttura al desktop — M2 M1 M3 A1 — verifica: server locale con i dati di prova, 1440×900 e 1100×800, clic veri su «‹», filtri, cantiere, puntina, «sfoglia», segmenti del percorso, bottone della scheda; console pulita; 390×844 senza scorrimento orizzontale.
+2. Indirizzo — A2.
+3. Telefono — M4.
 
-## Verifica fase 1 (20/10/2026)
-Server locale con dati di prova (il `tasks.md` vero di crescita-fed-g17, un change con 13 task aperti, un cantiere aperto da sessione), Chrome headless via CDP, 1440×900 e 390×844, IT e EN.
-- A1: la scheda mostra «da fare · 4.4 Col via dell'utente, cancellare i 10 `data/crescita/fred.*.json`. Verifica: …»; con 0/13 mostra 5 task e «e altri 8».
-- M1: con origine repo il giornale vuoto mostra il testo nuovo; con origine utente resta quello di prima.
-- B1: origine «dal repo (openspec)», «dall'utente»; in EN «from the repo (openspec)», «by the user».
-- Overflow orizzontale: nessuno. Console: nessun errore o warning.
-- Revisione indipendente: 6 rilievi, corretti 6 (BOM e CRLF nel tasks.md, Markdown del task formattato, «e un altro», testo di M1 più preciso, test della UI in `server/test/ui-cantiere.test.ts`). Non trattati due casi rari: un blocco di codice rientrato sotto un task e la casella senza testo. Riverificato nel browser con il tasks.md in CRLF. Test: 143 verdi.
+## Regole anti-regressione
+- Ogni colonna richiudibile ha il suo bottone con nome accessibile; lo stato si ricorda in localStorage con un valore predefinito se manca.
+- Nell'indice niente `white-space:nowrap` sui nomi: vanno a capo.
+- Il percorso nel centro viene dalla stessa scelta dell'indice, non da una seconda copia dello stato.
 
-## Fuori piano (approvati dopo la fase 1, fatti)
-- Nello «storico» il campo `da` passa da `T.origini` (`presa` → «presa con /cantiere prendi»): `scheda.tsx`, blocco storico.
-- Nelle «sessioni attive», senza titolo, lo stato passa da `T.statoSessione` (`attiva` → «pronta»).
-- Verifica: test `server/test/ui-cantiere.test.ts` sul markup della scheda; non riguardati nel browser (solo testo in span esistenti). Test: 144 verdi.
-- I task da fare passano dalla scheda a destra a una scheda «Da fare» nella colonna centrale, prima di Giornale e Change e aperta per prima; c'è solo se restano task aperti, e li mostra tutti (20/10/2026). Verifica: test `server/test/ui-cantiere.test.ts` e screenshot del markup con `forgia.css`.
+## Verifica fase 1 (22/10/2026)
+Server locale con dati di prova a forma dei dati veri (PRIV: cantiere, mercurius, parity-deriva con un figlio `multi-instrument-simulations/basket-mix`, poker vuoto), Chrome headless via CDP con clic veri, in italiano.
+- M2: da `navigazione-dashboard` «‹ PRIV» mostra i 4 progetti e il centro non cambia; `mercurius` mostra i suoi cantieri (aperti 1, idee 4, chiusi 1); «Idee» mostra le 4 idee.
+- M1: «aggiungiamo predizioni con Timestral-209M» va a capo su due righe nella colonna da 304 px.
+- M3: scelta un'idea con la puntina spenta la colonna diventa la rotaia «sfoglia» (centro da 56 px); con la puntina accesa resta aperta. Colonna e scheda chiuse: il centro va da 56 a 1440 px; al ricaricamento restano chiuse; «sfoglia» e il bottone della scheda le riaprono.
+- A1: il segmento `mercurius` sceglie il progetto e riapre la colonna sui suoi cantieri; per `basket-mix` il percorso è `PRIV / parity-deriva / multi-instrument-simulations / basket-mix`.
+- Misure (misure.js): nessuno scorrimento orizzontale né testo tagliato a 1440, 1100, 768 e 390 px; a 390 nessun bersaglio sotto 24 px (i segmenti del percorso erano 22 px, ora 25); focus da tastiera con contorno giallo; console senza errori né warning. Contrasto: nella colonna e nel percorso nessuna coppia sotto soglia; resta #9DB0CC su #24487F (4,12:1) nelle etichette della scheda tecnica, che questa fase non tocca (vedi Proposte).
+- Test: `server/test/ui-navigazione.test.ts` (8 casi con clic in jsdom); suite intera 160 verdi, compreso il controllo che `ui/dist` sia la compilazione di `ui/src`.
+- Revisione indipendente: 8 rilievi. Corretti 6: doppio clic per la pagina del committente spostato sul titolo del livello progetti (la riga spariva al primo clic); pallino sulle domande rimaste fuori dal livello, su «‹»; fuoco da tastiera al titolo del livello nuovo o a «sfoglia»; puntina con nome fisso e `aria-pressed`; animazione che non riparte ai ridisegni; test più stretti (conteggi del progetto, orfano, vista ristretta, percorso con i padri, fuoco). Scartati: il segmento radice «committenti» nel percorso (al centro non c'è una pagina dei committenti; si torna su con «‹»), l'avanzamento nelle righe (è nel mock D2 scelto), le regole della rotaia a ≤720 px (senza, la rotaia al telefono diventa una striscia verticale a tutta larghezza). Tolta la correzione di contrasto della scheda, fuori dal compito: rendeva quasi uguali i todo fatti e quelli da fare.
+
+## Fuori piano (fatti durante la verifica della fase 1)
+- I numeri a destra della voce scelta passano a `--prussia-200`: `--testo-2` su `--superficie-alta` restava sotto 4,5:1.
+
+## Proposte (non fatte)
+- Scheda tecnica: `--testo-2` (#9DB0CC) su `--superficie` (#24487F) sta a 4,12:1 nelle etichette e nei `dt`. Correzione da decidere insieme ai todo fatti (`scheda.tsx:60`), che oggi si distinguono proprio per quel colore.
+- Nelle righe dei cantieri della pagina di un progetto i nomi lunghi finiscono ancora coi puntini (`.riga-cantiere .nome`), come succedeva nell'indice.
+- Al telefono il percorso lungo va a capo con il separatore a inizio riga: da rivedere nella fase 3.

@@ -10,6 +10,7 @@ import { T } from "./testi.js";
 // ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
 // DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+const RIQUADRO = "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z";
 const ICONE = {
     copia: ["M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z", "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"],
     scarica: ["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "M7 10l5 5 5-5", "M12 15V3"],
@@ -28,16 +29,24 @@ const ICONE = {
     codice: ["m16 18 6-6-6-6", "m8 6-6 6 6 6"],
     collegamento: ["M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71", "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"],
     anteprima: ["M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0", "M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0"],
-    affiancato: ["M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z", "M12 3v18"],
+    affiancato: [RIQUADRO, "M12 3v18"],
+    // Navigazione: colonna, scheda, livelli
+    chiudiColonna: [RIQUADRO, "M9 3v18", "m16 15-3-3 3-3"],
+    apriColonna: [RIQUADRO, "M9 3v18", "m14 9 3 3-3 3"],
+    chiudiScheda: [RIQUADRO, "M15 3v18", "m8 9 3 3-3 3"],
+    apriScheda: [RIQUADRO, "M15 3v18", "m10 15-3-3 3-3"],
+    puntina: ["M12 17v5", "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"],
+    avanti: ["m9 18 6-6-6-6"],
+    indietro: ["m15 18-6-6 6-6"],
 };
 /** Icona da 16 px, tratto 1,5 in currentColor, come chiede il design system. */
 export function Icona({ nome }) {
     return (React.createElement("svg", { viewBox: "0 0 24 24", width: 16, height: 16, fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" }, ICONE[nome].map((d) => React.createElement("path", { key: d, d: d }))));
 }
-/** Pulsante con la sola icona: il testo diventa tooltip e nome accessibile. */
-export function BottoneIcona({ icona, titolo, onClick, disabled = false }) {
-    return React.createElement(Button, { variant: "fantasma", size: "sm", title: titolo, onClick: onClick, disabled: disabled, style: { width: 28, padding: 0 } },
-        React.createElement(Icona, { nome: icona }));
+/** Pulsante con la sola icona: il testo diventa tooltip e nome accessibile. Un interruttore acceso ha il bordo. */
+export function BottoneIcona({ icona, titolo, onClick, disabled = false, premuto }) {
+    return (React.createElement(Button, { variant: premuto ? "secondario" : "fantasma", size: "sm", title: titolo, onClick: onClick, disabled: disabled, premuto: premuto, style: { width: 28, padding: 0 } },
+        React.createElement(Icona, { nome: icona })));
 }
 export function Etichetta({ children }) {
     return React.createElement("span", { className: "etichetta" }, children);

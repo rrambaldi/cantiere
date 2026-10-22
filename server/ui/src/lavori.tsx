@@ -12,11 +12,13 @@ import { Avanzamento, Avviso, BottoneIcona, Etichetta, Pallino, Vuoto } from "./
 
 const FILE_AMMESSI = ".md,.txt,text/markdown,text/plain";
 
-function Testata({ etichetta, titolo, sotto }: { etichetta: string; titolo: string; sotto: ReactNode }) {
+/** `barra`: il percorso e il bottone della scheda, sopra l'etichetta. */
+function Testata({ etichetta, titolo, sotto, barra }: { etichetta: string; titolo: string; sotto: ReactNode; barra?: ReactNode }) {
   return (
     <>
       <Nastro altezza={6} />
       <header className="testata griglia">
+        {barra}
         <Etichetta>{etichetta}</Etichetta>
         <h1 className="titolo-lavoro">{titolo}</h1>
         <span className="sotto">{sotto}</span>
@@ -217,8 +219,8 @@ export function ZonaFile({ onFile, testo = T.trascinaFile, conTesto = true }: {
 
 type Scheda = "daFare" | "giornale" | "change";
 
-export function LavoroCantiere({ d, onFile, onSalvaFile, onTogliFile }: {
-  d: Dettaglio; onFile: (f: File[]) => void; onTogliFile: (nome: string) => void;
+export function LavoroCantiere({ d, onFile, onSalvaFile, onTogliFile, barra }: {
+  d: Dettaglio; onFile: (f: File[]) => void; onTogliFile: (nome: string) => void; barra?: ReactNode;
   /** Salva il testo modificato di un file dell'idea; dice se è riuscito. */
   onSalvaFile: (nome: string, testo: string) => Promise<boolean>;
 }) {
@@ -247,7 +249,7 @@ export function LavoroCantiere({ d, onFile, onSalvaFile, onTogliFile }: {
   ].join(" · ");
   return (
     <main className="lavori">
-      <Testata etichetta={idea ? T.stato.idea : T.giornaleLavori} titolo={c.percorso} sotto={sotto} />
+      <Testata etichetta={idea ? T.stato.idea : T.giornaleLavori} titolo={c.percorso} sotto={sotto} barra={barra} />
       <div className="corpo-lavoro">
         {c.descrizione && <p className="descrizione">{c.descrizione}</p>}
         <DomandeInAttesa domande={c.domande} />
@@ -345,13 +347,13 @@ function RigaNonCensita({ s }: { s: NonCensita }) {
   );
 }
 
-export function LavoroProgetto({ p, committente, nonCensite, onScegli }: {
-  p: Progetto; committente: string; nonCensite: NonCensita[] | null; onScegli: (s: Selezione) => void;
+export function LavoroProgetto({ p, committente, nonCensite, onScegli, barra }: {
+  p: Progetto; committente: string; nonCensite: NonCensita[] | null; onScegli: (s: Selezione) => void; barra?: ReactNode;
 }) {
   const attivi = p.cantieri.filter((c) => c.stato === "aperto" || c.stato === "sospeso" || c.stato === "idea");
   return (
     <main className="lavori">
-      <Testata etichetta={T.progetto} titolo={p.nome} sotto={T.progettoSotto(committente, p.cantieri.length, giorno(p.creato_il))} />
+      <Testata etichetta={T.progetto} titolo={p.nome} sotto={T.progettoSotto(committente, p.cantieri.length, giorno(p.creato_il))} barra={barra} />
       <div className="corpo-lavoro">
         <section className="sezione">
           <Etichetta>{T.cantieriApertiIdee}</Etichetta>
@@ -376,10 +378,10 @@ export function LavoroProgetto({ p, committente, nonCensite, onScegli }: {
   );
 }
 
-export function LavoroCommittente({ cm, onScegli }: { cm: Committente; onScegli: (s: Selezione) => void }) {
+export function LavoroCommittente({ cm, onScegli, barra }: { cm: Committente; onScegli: (s: Selezione) => void; barra?: ReactNode }) {
   return (
     <main className="lavori">
-      <Testata etichetta={T.committente} titolo={cm.nome} sotto={T.committenteSotto(cm.progetti.length, giorno(cm.creato_il))} />
+      <Testata etichetta={T.committente} titolo={cm.nome} sotto={T.committenteSotto(cm.progetti.length, giorno(cm.creato_il))} barra={barra} />
       <div className="corpo-lavoro">
         <section className="sezione">
           <Etichetta>{T.progetti}</Etichetta>

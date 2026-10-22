@@ -1,50 +1,34 @@
 // Ingresso della dashboard: dati, selezione, aggiornamento periodico e azioni.
-import { api, committenteDellaPagina, type Azione, type Cantiere, type Committente, type Dettaglio, type NonCensita, type Progetto } from "./api.ts";
+import { api, committenteDellaPagina, type Azione, type Cantiere, type Committente, type Dettaglio, type NonCensita } from "./api.ts";
 import { Dialoghi, type Esecutori, type Richiesta } from "./dialoghi.tsx";
 import { Toast } from "./ds/feedback.tsx";
 import { VISTA_DI, type Vista } from "./formato.ts";
-import { Indice, type Selezione } from "./indice.tsx";
+import { Indice, Percorso, posizioneDi, segmentiDi, trova, type Colonne, type Posizione, type Selezione } from "./indice.tsx";
 import { LavoroCantiere, LavoroCommittente, LavoroProgetto } from "./lavori.tsx";
 import { SchedaCantiere, SchedaCommittente, SchedaProgetto } from "./scheda.tsx";
 import { impostaLingua, lingua as linguaCorrente, salvaLingua, T, type Lingua } from "./testi.ts";
-import { Vuoto } from "./ui.tsx";
+import { BottoneIcona, Vuoto } from "./ui.tsx";
 
 const CHIAVE_SELEZIONE = "forgia-selezione";
+const CHIAVE_COLONNE = "forgia-colonne";
+const COLONNE_PREDEFINITE: Colonne = { colonna: true, fissata: false, scheda: true };
 const AGGIORNA_OGNI_MS = 30_000;
 const FILE_AMMESSO = /\.(md|txt)$/i;
 
-// La selezione ricordata è una comodità: se il browser non dà lo storage, si riparte senza.
-function selezioneSalvata(): Selezione | null {
+// Quel che il browser ricorda (scelta, colonne) è una comodità: senza storage si riparte dal valore predefinito.
+function ricordato<V>(chiave: string, predefinito: V): V {
   try {
-    return JSON.parse(localStorage.getItem(CHIAVE_SELEZIONE) ?? "null");
+    return JSON.parse(localStorage.getItem(chiave) ?? "null") ?? predefinito;
   } catch {
-    return null;
+    return predefinito;
   }
 }
-function salvaSelezione(s: Selezione | null) {
+function ricorda(chiave: string, valore: unknown) {
   try {
-    localStorage.setItem(CHIAVE_SELEZIONE, JSON.stringify(s));
+    localStorage.setItem(chiave, JSON.stringify(valore));
   } catch {
-    /* storage non disponibile: la selezione non resta, il resto funziona */
+    /* storage non disponibile: il valore non resta, il resto funziona */
   }
-}
-
-type Trovato =
-  | { tipo: "committente"; cm: Committente }
-  | { tipo: "progetto"; cm: Committente; p: Progetto }
-  | { tipo: "cantiere"; cm: Committente; p: Progetto; c: Cantiere };
-
-function trova(albero: Committente[], s: Selezione | null): Trovato | null {
-  if (!s) return null;
-  for (const cm of albero) {
-    if (s.tipo === "committente" && cm.id === s.id) return { tipo: "committente", cm };
-    for (const p of cm.progetti) {
-      if (s.tipo === "progetto" && p.id === s.id) return { tipo: "progetto", cm, p };
-      const c = s.tipo === "cantiere" ? p.cantieri.find((x) => x.id === s.id) : undefined;
-      if (c) return { tipo: "cantiere", cm, p, c };
-    }
-  }
-  return null;
 }
 
 /** All'apertura: il primo cantiere in corso, altrimenti il primo progetto, altrimenti il primo committente. */
@@ -66,8 +50,11 @@ function App() {
   const [errore, setErrore] = React.useState<string | null>(null);
   const [aggiornato, setAggiornato] = React.useState<string | null>(null);
   const [release, setRelease] = React.useState<string | null>(null);
-  const [selezione, setSelezione] = React.useState<Selezione | null>(selezioneSalvata);
+  const [selezione, setSelezione] = React.useState<Selezione | null>(() => ricordato(CHIAVE_SELEZIONE, null));
   const [vista, setVista] = React.useState<Vista>("aperti");
+  const [colonne, setColonne] = React.useState<Colonne>(() => ({ ...COLONNE_PREDEFINITE, ...ricordato(CHIAVE_COLONNE, {}) }));
+  // «‹» nella colonna torna su senza cambiare la scelta; a ogni scelta nuova la colonna segue di nuovo la scelta.
+  const [tornatoSu, setTornatoSu] = React.useState<Posizione | null>(null);
   const [dettaglio, setDettaglio] = React.useState<Dettaglio | null>(null);
   const [nonCensite, setNonCensite] = React.useState<NonCensita[] | null>(null);
   const [richiesta, setRichiesta] = React.useState<Richiesta | null>(null);
@@ -115,10 +102,14 @@ function App() {
   }, [aggiorna]);
 
   React.useEffect(() => {
-    salvaSelezione(selezione);
+    ricorda(CHIAVE_SELEZIONE, selezione);
     setNonCensite(null);
+    setTornatoSu(null);
     void caricaSelezione(selezione);
   }, [selezione, caricaSelezione]);
+
+  React.useEffect(() => ricorda(CHIAVE_COLONNE, colonne), [colonne]);
+  const cambiaColonne = (c: Partial<Colonne>) => setColonne((v) => ({ ...v, ...c }));
 
   const trovato = albero ? trova(albero, selezione) : null;
   // Selezione sparita (o mai fatta): si sceglie quella predefinita.
@@ -138,6 +129,11 @@ function App() {
       if (t?.tipo === "cantiere") setVista(VISTA_DI[t.c.stato]);
     }
     setSelezione(s);
+  };
+  // Un segmento del percorso sceglie quel livello e riapre la colonna lì.
+  const daPercorso = (s: Selezione) => {
+    scegli(s);
+    cambiaColonne({ colonna: true });
   };
 
   /** Carica i file uno per uno: uno rifiutato non ferma gli altri. */
@@ -227,12 +223,19 @@ function App() {
   const chiudi = (r: Richiesta) => () => setRichiesta((attuale) => (attuale === r ? null : attuale));
   const dettaglioDi = (c: Cantiere) => (dettaglio?.cantiere.id === c.id ? dettaglio : null);
 
+  const barra = trovato && (
+    <div className="barra-testata">
+      <Percorso segmenti={segmentiDi(trovato)} onScegli={daPercorso} />
+      <BottoneIcona icona={colonne.scheda ? "chiudiScheda" : "apriScheda"} titolo={colonne.scheda ? T.chiudiScheda : T.apriScheda}
+        onClick={() => cambiaColonne({ scheda: !colonne.scheda })} />
+    </div>
+  );
   let centro: React.ReactNode = <main className="lavori"><Vuoto>{albero ? T.scegliQualcosa : errore ?? T.caricamento}</Vuoto></main>;
   let destra: React.ReactNode = <aside className="scheda" />;
   if (trovato?.tipo === "cantiere") {
     const d = dettaglioDi(trovato.c);
     if (d) {
-      centro = <LavoroCantiere d={d} onFile={(f) => void caricaFile(d.cantiere.id, f).then(aggiorna)}
+      centro = <LavoroCantiere d={d} barra={barra} onFile={(f) => void caricaFile(d.cantiere.id, f).then(aggiorna)}
         onSalvaFile={(nome, testo) => salvaFile(d.cantiere.id, nome, testo)}
         onTogliFile={(nome) => setRichiesta({ tipo: "togli", cantiere: d.cantiere, nome })} />;
       destra = <SchedaCantiere d={d}
@@ -241,10 +244,10 @@ function App() {
         onNuovaIdea={() => setRichiesta({ tipo: "idea", progetto: trovato.p, padre: d.cantiere })} />;
     }
   } else if (trovato?.tipo === "progetto") {
-    centro = <LavoroProgetto p={trovato.p} committente={trovato.cm.nome} nonCensite={nonCensite} onScegli={scegli} />;
+    centro = <LavoroProgetto p={trovato.p} committente={trovato.cm.nome} nonCensite={nonCensite} onScegli={scegli} barra={barra} />;
     destra = <SchedaProgetto p={trovato.p} committente={trovato.cm.nome} onNuovaIdea={() => setRichiesta({ tipo: "idea", progetto: trovato.p, padre: null })} />;
   } else if (trovato?.tipo === "committente") {
-    centro = <LavoroCommittente cm={trovato.cm} onScegli={scegli} />;
+    centro = <LavoroCommittente cm={trovato.cm} onScegli={scegli} barra={barra} />;
     destra = <SchedaCommittente cm={trovato.cm} onNuovoProgetto={() => setRichiesta({ tipo: "progetto", committente: trovato.cm })}
       onRigenera={() => setRichiesta({ tipo: "rigenera", committente: trovato.cm })} />;
   }
@@ -252,10 +255,11 @@ function App() {
   return (
     <div className="dashboard">
       <Indice committenti={albero ?? []} selezione={selezione} onScegli={scegli} vista={vista} onVista={setVista}
+        posizione={tornatoSu ?? posizioneDi(trovato)} onPosizione={setTornatoSu} colonne={colonne} onColonne={cambiaColonne}
         ristretta={Boolean(ristretta)} onNuovoCommittente={() => setRichiesta({ tipo: "committente" })} aggiornato={aggiornato} release={release} errore={errore}
         onLingua={(l) => { salvaLingua(l); setLingua(l); }} />
       {centro}
-      {destra}
+      {colonne.scheda && destra}
       {richiesta && <Dialoghi r={richiesta} esecutori={esecutori} onChiudi={chiudi(richiesta)} />}
       {messaggio && (
         <div className="posto-toast">

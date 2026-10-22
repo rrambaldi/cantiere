@@ -9,11 +9,13 @@ const BASE_PULSANTE: CSSProperties = {
 };
 const MISURE = { sm: { height: 28, padding: "0 10px", fontSize: 13 }, md: { height: 36, padding: "0 14px", fontSize: 14 } };
 
-export function Button({ variant = "primario", size = "md", disabled = false, children, onClick, type = "button", style, title }: {
+export function Button({ variant = "primario", size = "md", disabled = false, children, onClick, type = "button", style, title, premuto }: {
   variant?: "primario" | "secondario" | "fantasma"; size?: "sm" | "md"; disabled?: boolean; children: ReactNode;
   onClick?: () => void; type?: "button" | "submit"; style?: CSSProperties;
   /** Tooltip e nome accessibile, per i pulsanti con la sola icona. */
   title?: string;
+  /** Solo per gli interruttori: acceso o spento. */
+  premuto?: boolean;
 }) {
   const [h, setH] = React.useState(false);
   const v = {
@@ -22,7 +24,7 @@ export function Button({ variant = "primario", size = "md", disabled = false, ch
     fantasma: { background: h ? "var(--superficie)" : "transparent", color: "var(--testo)" },
   }[variant];
   return (
-    <button type={type} disabled={disabled} onClick={onClick} title={title} aria-label={title} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+    <button type={type} disabled={disabled} onClick={onClick} title={title} aria-label={title} aria-pressed={premuto} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
       style={{ ...BASE_PULSANTE, ...MISURE[size], ...v, ...(disabled ? { opacity: 0.45, cursor: "not-allowed" } : {}), ...style }}>
       {children}
     </button>

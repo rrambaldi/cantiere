@@ -6,10 +6,12 @@ import { eta, giorno, ora, quando } from "./formato.js";
 import { T } from "./testi.js";
 import { Avanzamento, Avviso, BottoneIcona, Etichetta, Pallino, Vuoto } from "./ui.js";
 const FILE_AMMESSI = ".md,.txt,text/markdown,text/plain";
-function Testata({ etichetta, titolo, sotto }) {
+/** `barra`: il percorso e il bottone della scheda, sopra l'etichetta. */
+function Testata({ etichetta, titolo, sotto, barra }) {
     return (React.createElement(React.Fragment, null,
         React.createElement(Nastro, { altezza: 6 }),
         React.createElement("header", { className: "testata griglia" },
+            barra,
             React.createElement(Etichetta, null, etichetta),
             React.createElement("h1", { className: "titolo-lavoro" }, titolo),
             React.createElement("span", { className: "sotto" }, sotto))));
@@ -148,7 +150,7 @@ export function ZonaFile({ onFile, testo = T.trascinaFile, conTesto = true }) {
             React.createElement("input", { ref: input, type: "file", multiple: true, accept: FILE_AMMESSI, hidden: true, onChange: (e) => { onFile([...(e.target.files ?? [])]); e.target.value = ""; } })),
         conTesto && React.createElement(CampoTesto, { scritto: scritto, setScritto: setScritto, nome: nome, setNome: setNome, azione: React.createElement(Button, { variant: "secondario", size: "sm", onClick: () => { onFile([fileDaTesto(nome, scritto)]); setScritto(""); } }, T.aggiungiTesto) })));
 }
-export function LavoroCantiere({ d, onFile, onSalvaFile, onTogliFile }) {
+export function LavoroCantiere({ d, onFile, onSalvaFile, onTogliFile, barra }) {
     const c = d.cantiere;
     const idea = c.stato === "idea";
     const daFare = d.task_aperti.length > 0;
@@ -174,7 +176,7 @@ export function LavoroCantiere({ d, onFile, onSalvaFile, onTogliFile }) {
         ...(idea ? [] : [d.turni.length ? T.turniSu(d.turni.length, macchine) : T.nessunTurno]),
     ].join(" · ");
     return (React.createElement("main", { className: "lavori" },
-        React.createElement(Testata, { etichetta: idea ? T.stato.idea : T.giornaleLavori, titolo: c.percorso, sotto: sotto }),
+        React.createElement(Testata, { etichetta: idea ? T.stato.idea : T.giornaleLavori, titolo: c.percorso, sotto: sotto, barra: barra }),
         React.createElement("div", { className: "corpo-lavoro" },
             c.descrizione && React.createElement("p", { className: "descrizione" }, c.descrizione),
             React.createElement(DomandeInAttesa, { domande: c.domande }),
@@ -262,10 +264,10 @@ function RigaNonCensita({ s }) {
                 React.createElement(RigaResoconto, { k: T.rDopo, v: u.prossimo }),
                 u.bloccato_da && React.createElement(RigaResoconto, { k: T.rBlocca, v: u.bloccato_da }))) : React.createElement("span", { className: "secondario" }, T.nessunoStato))))));
 }
-export function LavoroProgetto({ p, committente, nonCensite, onScegli }) {
+export function LavoroProgetto({ p, committente, nonCensite, onScegli, barra }) {
     const attivi = p.cantieri.filter((c) => c.stato === "aperto" || c.stato === "sospeso" || c.stato === "idea");
     return (React.createElement("main", { className: "lavori" },
-        React.createElement(Testata, { etichetta: T.progetto, titolo: p.nome, sotto: T.progettoSotto(committente, p.cantieri.length, giorno(p.creato_il)) }),
+        React.createElement(Testata, { etichetta: T.progetto, titolo: p.nome, sotto: T.progettoSotto(committente, p.cantieri.length, giorno(p.creato_il)), barra: barra }),
         React.createElement("div", { className: "corpo-lavoro" },
             React.createElement("section", { className: "sezione" },
                 React.createElement(Etichetta, null, T.cantieriApertiIdee),
@@ -287,9 +289,9 @@ export function LavoroProgetto({ p, committente, nonCensite, onScegli }) {
                                     React.createElement("th", null, T.colStato))),
                             React.createElement("tbody", null, nonCensite.map((s) => React.createElement(RigaNonCensita, { key: s.session_id, s: s }))))))))));
 }
-export function LavoroCommittente({ cm, onScegli }) {
+export function LavoroCommittente({ cm, onScegli, barra }) {
     return (React.createElement("main", { className: "lavori" },
-        React.createElement(Testata, { etichetta: T.committente, titolo: cm.nome, sotto: T.committenteSotto(cm.progetti.length, giorno(cm.creato_il)) }),
+        React.createElement(Testata, { etichetta: T.committente, titolo: cm.nome, sotto: T.committenteSotto(cm.progetti.length, giorno(cm.creato_il)), barra: barra }),
         React.createElement("div", { className: "corpo-lavoro" },
             React.createElement("section", { className: "sezione" },
                 React.createElement(Etichetta, null, T.progetti),
