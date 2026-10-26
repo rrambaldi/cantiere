@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { TUTTI } from "../src/ambito.ts";
-import { cambiaEsito } from "../src/dominio.ts";
+import { cambiaEsito, creaProgetto } from "../src/dominio.ts";
 import { creaIdea } from "../src/idee.ts";
 import { apri, avvia, cantiere, changeAttivo, copia, evento, invia, richiesta, type Banco } from "./aiuto.ts";
 
@@ -9,7 +9,7 @@ let b: Banco;
 before(async () => (b = await avvia()));
 after(() => b.chiudi());
 beforeEach(async () => {
-  for (const t of ["eventi", "sessioni", "cantieri", "esiti", "change_copie", "change_file", "idee_file"] as const) await b.db.deleteFrom(t).execute();
+  for (const t of ["eventi", "sessioni", "cantieri", "esiti", "change_copie", "change_file", "idee_file", "legami"] as const) await b.db.deleteFrom(t).execute();
   await b.db.updateTable("progetti").set({ openspec_il: null }).execute();
 });
 const vuota = { attivi: [], archiviati: [] };
@@ -117,6 +117,100 @@ test("un'idea il cui change compare nel repo passa ad aperto", async () => {
   await creaIdea(b, TUTTI, b.progetto.id, { nome: "iDOC converter" });
   await copia(b, { attivi: [changeAttivo("idoc-converter")], archiviati: [] });
   assert.equal((await cantiere(b, "idoc-converter")).stato, "aperto");
+});
+
+test("legami citati: il cantiere più vecchio è la partenza, il task è la riga del suo tasks.md", async () => {
+  await apri(b, "s1", "multi-instrument-simulations");
+  await apri(b, "s2", "basket-mix");
+  await copia(b, {
+    attivi: [
+      changeAttivo("multi-instrument-simulations", { "tasks.md": "## 1. Push\n\n- [ ] 1.1 Togliere `single()` (i mix con panieri dipendono da `basket-mix`)\n" }),
+      changeAttivo("basket-mix", { "proposal.md": "Il mix è separato da `multi-instrument-simulations`; serve `basket-live`." }),
+    ],
+    archiviati: [],
+  });
+  const multi = await cantiere(b, "multi-instrument-simulations");
+  assert.deepEqual((await letto("basket-mix")).nato_da, [{ id: multi.id, progetto: "app", percorso: "multi-instrument-simulations", task: "1.1", tipo: "citato" }]);
+  assert.deepEqual((await letto("multi-instrument-simulations")).nato_da, []);
+});
+
+test("legami citati: tra padre e figlio basta il padre; una citazione tolta dal file se ne va", async () => {
+  await apri(b, "s1", "piano/fase-1");
+  await apri(b, "s2", "altro");
+  const proposta = (testo: string, quando: string) => ({ attivi: [changeAttivo("piano-fase-1", { "proposal.md": testo }, quando)], archiviati: [] });
+  await copia(b, proposta("Fase di `piano`, usa `altro`.", "2026-10-20T10:00:00Z"));
+  assert.deepEqual((await letto("piano/fase-1")).nato_da, []);
+  assert.deepEqual((await letto("altro")).nato_da.map((n: any) => n.percorso), ["piano/fase-1"]);
+  await copia(b, proposta("Fase di `piano`.", "2026-10-21T10:00:00Z"));
+  assert.deepEqual((await letto("altro")).nato_da, []);
+});
+
+test("un legame registrato vince su quello citato e resta alle copie dopo", async () => {
+  await apri(b, "s1", "a");
+  await apri(b, "s2", "b");
+  await copia(b, { attivi: [changeAttivo("b", { "proposal.md": "Parte da `a`." })], archiviati: [] });
+  assert.equal((await letto("b")).nato_da[0].tipo, "citato");
+  await invia(b, evento("apri_cantiere", { nome: "b", descrizione: null, origine: "utente", nato_da: "a", task: "2.1" }, { session_id: "s3" }));
+  await copia(b, { attivi: [changeAttivo("b", { "proposal.md": "Parte ancora da `a`." })], archiviati: [] });
+  assert.deepEqual((await letto("b")).nato_da.map((n: any) => [n.percorso, n.tipo, n.task]), [["a", "registrato", "2.1"]]);
+});
+
+test("legami citati di change visti nella stessa copia: parte quello con la data created più vecchia; task anche dalle righe che continuano", async () => {
+  const yaml = (data: string) => `schema: spec-driven\ncreated: ${data}\n`;
+  await copia(b, {
+    attivi: [
+      changeAttivo("basket-mix", { ".openspec.yaml": yaml("2026-10-20"), "proposal.md": "Separato da `multi-instrument-simulations`." }),
+      changeAttivo("multi-instrument-simulations", {
+        ".openspec.yaml": yaml("2026-10-15"),
+        "tasks.md": "- [ ] 1.1 Togliere single() dal push\n  i mix con panieri dipendono da `basket-mix`\n\n- [ ] 1.2 Altro",
+      }),
+    ],
+    archiviati: [],
+  });
+  assert.deepEqual((await letto("basket-mix")).nato_da.map((n: any) => [n.percorso, n.task, n.tipo]), [["multi-instrument-simulations", "1.1", "citato"]]);
+  assert.deepEqual((await letto("multi-instrument-simulations")).nato_da, []);
+});
+
+test("legami citati: niente tra figlio e padre neanche se il figlio è più vecchio", async () => {
+  await apri(b, "s1", "piano/fase-1");
+  const yaml = (data: string) => `schema: spec-driven\ncreated: ${data}\n`;
+  await copia(b, {
+    attivi: [
+      changeAttivo("piano", { ".openspec.yaml": yaml("2026-10-25"), "proposal.md": "Fasi: `piano-fase-1`." }),
+      changeAttivo("piano-fase-1", { ".openspec.yaml": yaml("2026-10-20"), "proposal.md": "Fase di `piano`." }),
+    ],
+    archiviati: [],
+  });
+  assert.deepEqual([(await letto("piano")).nato_da, (await letto("piano/fase-1")).nato_da], [[], []]);
+});
+
+test("un citato non chiude giri, anche passando da un altro progetto; registrare toglie i citati che chiudono un giro", async () => {
+  await creaProgetto(b.db, b.committente.id, "web");
+  await apri(b, "s1", "a");
+  await apri(b, "s2", "b");
+  await apri(b, "s3", "c");
+  await invia(b, evento("apri_cantiere", { nome: "x", descrizione: null, origine: "utente" }, { session_id: "s2", progetto: "web" }));
+  await invia(b, evento("apri_cantiere", { nome: "a", descrizione: null, origine: "utente", nato_da: "x", nato_da_progetto: "web" }, { session_id: "s4" }));
+  // a → b chiuderebbe a → b → web/x → a.
+  await copia(b, { attivi: [changeAttivo("a", { "tasks.md": "- [ ] 1.1 Serve `b`" }, "2026-10-20T10:00:00Z")], archiviati: [] });
+  assert.deepEqual((await letto("b")).nato_da, []);
+  // a → c citato; poi c → x e x → a registrati: il citato va via, i registrati restano.
+  await copia(b, { attivi: [changeAttivo("a", { "tasks.md": "- [ ] 1.1 Serve `c`" }, "2026-10-21T10:00:00Z")], archiviati: [] });
+  assert.equal((await letto("c")).nato_da[0].tipo, "citato");
+  await invia(b, evento("apri_cantiere", { nome: "x", descrizione: null, origine: "utente", nato_da: "c", nato_da_progetto: "app" }, { session_id: "s5", progetto: "web" }));
+  assert.deepEqual((await letto("c")).nato_da, []);
+});
+
+test("un citato non rovescia un registrato: registrare al contrario toglie il citato, e la copia dopo non lo rimette", async () => {
+  await apri(b, "s1", "a");
+  await apri(b, "s2", "b");
+  const proposta = (quando: string) => ({ attivi: [changeAttivo("a", { "proposal.md": "Usa `b`." }, quando)], archiviati: [] });
+  await copia(b, proposta("2026-10-20T10:00:00Z"));
+  assert.equal((await letto("b")).nato_da[0].percorso, "a");
+  await invia(b, evento("apri_cantiere", { nome: "a", descrizione: null, origine: "utente", nato_da: "b" }, { session_id: "s3" }));
+  await copia(b, proposta("2026-10-21T10:00:00Z"));
+  assert.deepEqual((await letto("b")).nato_da, []);
+  assert.deepEqual((await letto("a")).nato_da.map((n: any) => [n.percorso, n.tipo]), [["b", "registrato"]]);
 });
 
 test("progetto inesistente o di un altro committente: 404", async () => {

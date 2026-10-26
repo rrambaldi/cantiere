@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import Database from "better-sqlite3";
 import { Kysely, PostgresDialect, SqliteDialect, type Generated } from "kysely";
 import { Migrator, type Migration, type MigrationProvider } from "kysely/migration";
-import type { Origine, OrigineCantiere, StatoCantiere, StatoSessione } from "./modelli.ts";
+import type { Origine, OrigineCantiere, StatoCantiere, StatoSessione, TipoLegame } from "./modelli.ts";
 
 export interface DB {
   committenti: {
@@ -49,6 +49,17 @@ export interface DB {
     ts: string;
     da: string;
   };
+  legami: {
+    id: Generated<number>;
+    /** Il cantiere da cui è nato `a_id`, anche di un altro progetto dello stesso committente. */
+    da_id: number;
+    a_id: number;
+    tipo: TipoLegame;
+    /** Il task di partenza nel tasks.md di `da_id` (es. "1.1"). */
+    task: string | null;
+    session_id: string | null;
+    creato_il: string;
+  };
   sessioni: {
     session_id: string;
     committente_id: number;
@@ -69,6 +80,8 @@ export interface DB {
     chiusa_il: string | null;
     ultimo_ts_stato: string | null;
     ultimo_ts_todo: string | null;
+    /** Subagenti lanciati, contati per tipo: JSON come {"Explore": 2}. */
+    subagenti: Generated<string>;
   };
   eventi: {
     id: Generated<number>;

@@ -38,7 +38,7 @@ describe("riconosci /cantiere", () => {
     assert.deepEqual(riconosci("/forgia:cantiere idoc-converter/preprod"), { op: "apri", nome: "idoc-converter/preprod", padre: null, descrizione: null }));
   test("forme gestite dal comando, compresi chiudi e server di v1", () => {
     for (const p of ["/cantiere", "/cantiere stato", "/cantiere server", "/cantiere server https://x.example nome",
-      "/cantiere permessi", "/cantiere on", "/forgia:cantiere off", "/cantiere prendi idoc-converter",
+      "/cantiere permessi", "/cantiere on", "/forgia:cantiere off", "/cantiere prendi idoc-converter", "/cantiere dirama mercurius/info-extra --task 3.2",
       "/cantiere collega poker https://priv.progettazionisoftware.it/cantiere", "/cantiere chiudi -f sospeso", "/cantiere chiudi finito"]) {
       assert.deepEqual(riconosci(p), { op: null }, p);
     }

@@ -50,6 +50,17 @@ describe("eventi", () => {
     );
   });
 
+  test("subagenti: contati per tipo nella sessione e mostrati con le sessioni del cantiere; nessun altro testo", async () => {
+    await apri(b, "s1", "pdfconverter");
+    for (const tipo of ["Explore", "Explore", "general-purpose"]) assert.equal((await invia(b, evento("subagente", { tipo }))).status, 200);
+    assert.deepEqual(JSON.parse((await sessione(b)).subagenti), { Explore: 2, "general-purpose": 1 });
+    const [c] = (await richiesta(b, "/api/v1/cantieri")).corpo.cantieri;
+    assert.deepEqual(c.sessioni[0].subagenti, { Explore: 2, "general-purpose": 1 });
+    assert.equal((await invia(b, evento("subagente", { tipo: "Explore", prompt: "segreto" }))).status, 422);
+    for (const tipo of ["constructor", "constructor", "toString"]) await invia(b, evento("subagente", { tipo }));
+    assert.deepEqual(JSON.parse((await sessione(b)).subagenti), { Explore: 2, "general-purpose": 1, constructor: 2, toString: 1 });
+  });
+
   test("idempotenza: stesso evento_id, un evento, stessa risposta, un turno", async () => {
     const ev = evento("prompt", {});
     const prima = await invia(b, ev);

@@ -272,3 +272,37 @@ describe("prendi", () => {
     assert.deepEqual(readdirSync(join(amb.progetto, "openspec", "changes")), []);
   });
 });
+
+describe("dirama", () => {
+  const RAMO = {
+    cantiere: {
+      ...RISPOSTA.cantiere, nome: "info-extra", percorso: "info-extra", stato: "idea", change: "info-extra", progetto: "mercurius",
+      nato_da: [{ id: 7, progetto: "parity-deriva", percorso: "analisi", task: "3.2", tipo: "registrato" }],
+    },
+  };
+
+  test("crea l'idea nell'altro progetto con session_id e task, conferma da dove nasce", async (t) => {
+    const { srv, amb, opz } = await preparato(t, (r) => (r.percorso.endsWith("/rami") ? { corpo: RAMO } : undefined));
+    amb.configura({ url: srv.url });
+    const sid = randomUUID();
+    const r = await esegui(["dirama", "mercurius/info-extra", "--task", "3.2", "--session-id", sid], opz);
+    assert.equal(r.codice, 0, r.stderr);
+    assert.match(r.stdout, /Idea "mercurius\/info-extra" creata, nata da "parity-deriva\/analisi" \(task 3\.2\)\./);
+    const [ramo] = srv.richieste;
+    assert.deepEqual([ramo.metodo, ramo.percorso, ramo.corpo], ["POST", "/api/v1/progetti/mercurius/rami", { session_id: sid, nome: "info-extra", task: "3.2" }]);
+  });
+
+  test("forma sbagliata: errore d'uso senza chiamare il server; rifiuto del server con il motivo", async (t) => {
+    const errore = "Questa sessione non è in un cantiere: un ramo parte da un cantiere.";
+    const { srv, amb, opz } = await preparato(t, (r) => (r.percorso.endsWith("/rami") ? { codice: 409, corpo: { errore } } : undefined));
+    amb.configura({ url: srv.url });
+    for (const forma of ["mercurius", "/x", "mercurius/"]) {
+      const r = await esegui(["dirama", forma, "--session-id", randomUUID()], opz);
+      assert.match(r.stderr, /forma: forgia dirama <progetto>\/<nome>/, forma);
+    }
+    assert.equal(srv.richieste.length, 0);
+    const r = await esegui(["dirama", "mercurius/x", "--session-id", randomUUID()], opz);
+    assert.notEqual(r.codice, 0);
+    assert.ok(r.stderr.includes(errore), r.stderr);
+  });
+});

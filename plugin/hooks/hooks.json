@@ -5,7 +5,10 @@
       {"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook prompt", "timeout": 5},
       {"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook prompt_invio", "async": true}
     ]}],
-    "PreToolUse": [{"matcher": "AskUserQuestion", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook domanda", "async": true}]}],
+    "PreToolUse": [
+      {"matcher": "AskUserQuestion", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook domanda", "async": true}]},
+      {"matcher": "Agent|Task", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook subagente", "async": true}]}
+    ],
     "PostToolUse": [
       {"matcher": "TodoWrite|TaskCreate|TaskUpdate", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook todo", "async": true}]},
       {"matcher": "AskUserQuestion", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/forgia\" hook risposta", "async": true}]}

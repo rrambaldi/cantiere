@@ -1,9 +1,11 @@
+import * as z from "zod";
 import { adesso, type Committente } from "./accesso.ts";
 import { cantieriDi, di, progettiDi, type Ambito } from "./ambito.ts";
 import type { CantiereRisposta } from "./contesto.ts";
 import {
   associa,
   cambiaStato,
+  cantiereDellaSessione,
   cantieriDelProgetto,
   changeOccupato,
   creaCantiere,
@@ -12,6 +14,7 @@ import {
   percorsoDi,
   progettoPerNome,
   risali,
+  scriviLegame,
   sessione,
   type Ambiente,
 } from "./dominio.ts";
@@ -152,4 +155,30 @@ export async function prendi(amb: Ambiente, committente: Committente, nomeProget
   const file = await amb.db.selectFrom("idee_file").select(["nome", "contenuto"]).where("cantiere_id", "=", c.id).orderBy("nome").execute();
   const cantiere: CantiereRisposta = { id: c.id, nome: c.nome, percorso, origine: "utente", stato: "aperto", change: c.change };
   return { cantiere, change: c.change, file };
+}
+
+const corpoRamo = z.strictObject({ session_id: campi.sessionId, nome: campi.nomeSemplice, task: campi.task.nullish() });
+
+/**
+ * POST /api/v1/progetti/<progetto>/rami: un'idea nel progetto, legata al cantiere in cui sta la
+ * sessione, anche di un altro progetto dello stesso committente. Chi la prende trova il legame già scritto.
+ */
+export async function dirama(amb: Ambiente, committente: Committente, nomeProgetto: string, corpo: unknown) {
+  const ambito = di(committente.id);
+  const progetto = await progettoPerNome(amb.db, ambito, nomeProgetto);
+  if (!progetto) throw new Rifiuto(404, `Il progetto "${nomeProgetto}" non esiste.`);
+  const valido = corpoRamo.safeParse(corpo);
+  if (!valido.success) throw errore422(valido.error);
+  const { session_id, nome, task } = valido.data;
+  const da = await cantiereDellaSessione(amb.db, committente.id, session_id);
+  if (da === null) throw new Rifiuto(409, "Questa sessione non è in un cantiere: un ramo parte da un cantiere.");
+  const slugPercorso = [slugifica(nome)];
+  await nomeLibero(amb, progetto.id, slugPercorso);
+  const c = await amb.db.transaction().execute(async (trx) => {
+    const ora = adesso();
+    const idea = await creaCantiere(trx, { progetto_id: progetto.id, padre_id: null, nome, slugPercorso, descrizione: null, stato: "idea", origine: "utente" }, ora);
+    await scriviLegame(trx, da, idea.id, task ?? null, session_id, ora);
+    return idea;
+  });
+  return unoLetto(amb, ambito, c.id);
 }

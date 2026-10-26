@@ -49,6 +49,8 @@ export const nonApribile = (percorso: string, stato: StatoCantiere) =>
   stato === "sospeso"
     ? `Il cantiere "${percorso}" è sospeso: si riattiva dalla dashboard.`
     : `Il cantiere "${percorso}" è ${stato}: un cantiere chiuso non si riapre. Scegli un altro nome.`;
+const TASK_SENZA_PARTENZA =
+  "task è il task da cui nasce il cantiere: serve un legame da scrivere, cioè nato_da, oppure una sessione che sta in un cantiere e ne apre uno nuovo che non ne è una fase.";
 const changePreso = (change: string, percorso: string) => `Il change "${change}" è già del cantiere "${percorso}": scegli un altro nome.`;
 
 // Sessione creata da un client senza hook (MCP): host e cwd non si conoscono.
@@ -134,7 +136,7 @@ export async function riceviEvento(amb: Ambiente, committente: Committente, ev: 
     });
   } catch (errore) {
     // Un rifiuto annulla la transazione: l'evento non resta salvato.
-    if (errore instanceof Rifiuto) return { codice: 422, risposta: { errore: errore.message } };
+    if (errore instanceof Rifiuto) return { codice: errore.codice === 409 ? 409 : 422, risposta: { errore: errore.message } };
     if (!violaUnicita(errore)) throw errore;
     const salvato = await amb.db
       .selectFrom("eventi")
@@ -156,6 +158,8 @@ async function applica(
   luogo: Luogo | null,
   ora: string,
 ): Promise<[Esito, number | null]> {
+  // Il cantiere in cui stava la sessione: sessione() lo azzera se l'evento la sposta di progetto.
+  const prima = ev.tipo === "apri_cantiere" ? await cantiereDellaSessione(trx, committente.id, ev.session_id) : null;
   let s = await sessione(trx, committente.id, ev.session_id, progetto.id, luogo, ora);
   let contesto: string | null = null;
   const rifiuto = (errore: string): [Esito, number | null] => [{ codice: 409, risposta: { errore } }, s.cantiere_id];
@@ -163,9 +167,17 @@ async function applica(
   switch (ev.tipo) {
     case "apri_cantiere": {
       if (s.cantiere_id !== null && s.origine_associazione === "utente" && ev.dati.origine === "claude") return rifiuto(RIFIUTO_PRECEDENZA);
+      const dichiarata = await partenzaDichiarata(trx, committente.id, progetto.id, ev.dati);
+      if (typeof dichiarata === "string") return rifiuto(dichiarata);
       const nomi = [...(ev.dati.padre ? segmenti(ev.dati.padre) : []), ...segmenti(ev.dati.nome)];
-      const c = await apriPercorso(trx, progetto.id, nomi, ev.dati.descrizione ?? null, ev.dati.origine, ora);
-      if (typeof c === "string") return rifiuto(c);
+      const aperto = await apriPercorso(trx, progetto.id, nomi, ev.dati.descrizione ?? null, ev.dati.origine, ora);
+      if (typeof aperto === "string") return rifiuto(aperto);
+      const c = aperto.cantiere;
+      // Senza nato_da il ramo parte dal cantiere della sessione, e solo se questo è appena nato (design D2).
+      const da = dichiarata ?? (aperto.creato ? prima : null);
+      const legato = da !== null && (await scriviLegame(trx, da, c.id, ev.dati.task ?? null, s.session_id, ora));
+      // Un task senza un legame scritto non va perso in silenzio: il rifiuto annulla anche la creazione.
+      if (ev.dati.task && !legato) throw new Rifiuto(409, TASK_SENZA_PARTENZA);
       s = await associa(trx, s.session_id, c.id, ev.dati.origine);
       contesto = testi.confermaApertura(await percorsoDi(trx, c.id), c.change);
       break;
@@ -190,6 +202,13 @@ async function applica(
     case "risposta":
       await rispondiDomanda(trx, s.session_id, ev.dati.id, ev.ts);
       break;
+    case "subagente": {
+      // Una Map: un tipo come "constructor" non deve leggere le proprietà di Object.
+      const conti = new Map<string, number>(Object.entries(JSON.parse(s.subagenti)));
+      conti.set(ev.dati.tipo, (conti.get(ev.dati.tipo) ?? 0) + 1);
+      await trx.updateTable("sessioni").set({ subagenti: JSON.stringify(Object.fromEntries(conti)) }).where("session_id", "=", s.session_id).execute();
+      break;
+    }
     case "todo":
       await applicaTodo(trx, s, ev.ts, ev.dati.completo, ev.dati.todos);
       break;
@@ -253,6 +272,9 @@ export async function sessione(trx: Db, committenteId: number, sessionId: string
     .returningAll()
     .executeTakeFirstOrThrow();
 }
+
+export const cantiereDellaSessione = async (trx: Db, committenteId: number, sessionId: string) =>
+  (await sessioniDi(trx, di(committenteId)).select("cantiere_id").where("session_id", "=", sessionId).executeTakeFirst())?.cantiere_id ?? null;
 
 export function associa(trx: Db, sessionId: string, cantiereId: number, origine: Origine) {
   return trx
@@ -366,7 +388,7 @@ async function apriPercorso(
   descrizione: string | null,
   origine: Origine,
   ora: string,
-): Promise<Cantiere | string> {
+): Promise<{ cantiere: Cantiere; creato: boolean } | string> {
   const slug = nomi.map(slugifica);
   const passi: { nome: string; esistente: Cantiere | undefined }[] = [];
   for (const [i, nome] of nomi.entries()) {
@@ -404,7 +426,90 @@ async function apriPercorso(
       ));
     padreId = c.id;
   }
-  return c!;
+  return { cantiere: c!, creato: !passi[passi.length - 1].esistente };
+}
+
+// --- Legami -------------------------------------------------------------------------------------
+
+/** Il cantiere di partenza dato con nato_da, anche in un altro progetto del committente (design D3, D4), o il motivo del rifiuto. */
+async function partenzaDichiarata(trx: Db, committenteId: number, progettoId: number, d: { nato_da?: string | null; nato_da_progetto?: string | null }) {
+  if (!d.nato_da) return d.nato_da_progetto ? "nato_da_progetto va con nato_da." : null;
+  const p = d.nato_da_progetto ? await progettoPerNome(trx, di(committenteId), d.nato_da_progetto) : { id: progettoId };
+  if (!p) return `Il progetto "${d.nato_da_progetto}" non esiste.`;
+  const c = await cantieriDelProgetto(trx, p.id).where("cantieri.percorso_slug", "=", segmenti(d.nato_da).map(slugifica).join("/")).executeTakeFirst();
+  return c ? c.id : `Il cantiere di partenza "${d.nato_da}" non esiste.`;
+}
+
+/** Un cantiere e i suoi antenati, o i suoi discendenti: tra loro basta il padre. */
+const stessaLinea = async (db: Db, x: number, y: number) =>
+  (await risali(db, y)).some((c) => c.id === x) || (await risali(db, x)).some((c) => c.id === y);
+
+/** Il legame da `da` ad `a` chiuderebbe un giro di registrati: da `a` si arriva già a `da`. I citati si rifanno a ogni copia senza giri. */
+async function chiudeGiro(db: Db, da: number, a: number) {
+  const visti = new Set([a]);
+  for (let fronte = [a]; fronte.length; ) {
+    if (fronte.includes(da)) return true;
+    const dopo = await db.selectFrom("legami").select("a_id").where("da_id", "in", fronte).where("tipo", "=", "registrato").execute();
+    fronte = dopo.map((r) => r.a_id).filter((id) => !visti.has(id));
+    for (const id of fronte) visti.add(id);
+  }
+  return false;
+}
+
+/** Toglie i citati che con il registrato da `da` ad `a` chiudono un giro: il registrato vince (D7). */
+async function togliCitatiNeiGiri(trx: Db, da: number, a: number) {
+  for (;;) {
+    // Un cammino da `a` a `da` su tutti i legami: con da → a è un giro. Si ricorda l'arco che arriva a ogni cantiere.
+    const arrivo = new Map<number, { da_id: number; tipo: string }>();
+    for (let fronte = [a]; fronte.length && !arrivo.has(da); ) {
+      const archi = await trx.selectFrom("legami").select(["da_id", "a_id", "tipo"]).where("da_id", "in", fronte).execute();
+      fronte = [];
+      for (const l of archi) {
+        if (l.a_id === a || arrivo.has(l.a_id)) continue;
+        arrivo.set(l.a_id, l);
+        fronte.push(l.a_id);
+      }
+    }
+    const citati: [number, number][] = [];
+    for (let x = da; arrivo.has(x) && x !== a; x = arrivo.get(x)!.da_id) if (arrivo.get(x)!.tipo === "citato") citati.push([arrivo.get(x)!.da_id, x]);
+    if (!citati.length) return;
+    for (const [d, x] of citati) await trx.deleteFrom("legami").where("da_id", "=", d).where("a_id", "=", x).where("tipo", "=", "citato").execute();
+  }
+}
+
+/**
+ * Il ramo da `da` ad `a`, una volta sola: tra padre e figlio basta il padre (design D2) e non si
+ * scrive niente; un giro di registrati si rifiuta. Vince sui citati che chiuderebbero un giro (D7).
+ * Restituisce se il legame c'è.
+ */
+export async function scriviLegame(trx: Db, da: number, a: number, task: string | null, sessionId: string, ora: string) {
+  if (await stessaLinea(trx, da, a)) return false;
+  if (await chiudeGiro(trx, da, a)) throw new Rifiuto(409, `Il legame da "${await percorsoDi(trx, da)}" a "${await percorsoDi(trx, a)}" chiuderebbe un giro.`);
+  await trx
+    .insertInto("legami")
+    .values({ da_id: da, a_id: a, tipo: "registrato", task, session_id: sessionId, creato_il: ora })
+    .onConflict((oc) =>
+      oc
+        .columns(["da_id", "a_id"])
+        .doUpdateSet({ tipo: "registrato", session_id: sessionId, ...(task ? { task } : {}) })
+        .where("legami.tipo", "=", "citato"),
+    )
+    .execute();
+  await togliCitatiNeiGiri(trx, da, a);
+  return true;
+}
+
+/** I cantieri dell'ambito da cui sono nati quelli in `ids`, con progetto e percorso (design D6). */
+async function legamiVerso(db: Db, ambito: Ambito, ids: number[], percorsi: Map<number, string>) {
+  if (!ids.length) return [];
+  const righe = await cantieriDi(db, ambito)
+    .innerJoin("legami", "legami.da_id", "cantieri.id")
+    .select(["legami.a_id", "legami.da_id as id", "progetti.nome as progetto", "legami.task", "legami.tipo"])
+    .where("legami.a_id", "in", ids)
+    .orderBy("legami.id")
+    .execute();
+  // Un cantiere di partenza in un altro progetto non è tra le righe lette: il suo percorso si risale.
+  return Promise.all(righe.map(async ({ a_id, ...n }) => ({ a_id, nato: { ...n, percorso: percorsi.get(n.id) ?? (await percorsoDi(db, n.id)) } })));
 }
 
 /**
@@ -633,6 +738,7 @@ export async function elencaSessioni(db: Db, config: Config, ambito: Ambito, fil
       "sessioni.titolo",
       "sessioni.avviata_il",
       "sessioni.ultimo_evento_il",
+      "sessioni.subagenti",
     ])
     .orderBy("sessioni.ultimo_evento_il", "desc");
   if (filtro.progetto !== undefined) q = q.where("progetti.slug", "=", slugifica(filtro.progetto));
@@ -649,6 +755,7 @@ export async function elencaSessioni(db: Db, config: Config, ambito: Ambito, fil
       ...r,
       cantiere_id,
       cantiere: cantiere_id === null ? null : (percorsi.get(cantiere_id) ?? null),
+      subagenti: JSON.parse(r.subagenti) as Record<string, number>,
       stato: statoVisibile(r, config.inattivita_minuti, ora),
       eta_secondi: etaSecondi(r.ultimo_evento_il, ora),
     }))
@@ -686,6 +793,7 @@ export async function leggiCantieri(db: Db, config: Config, ambito: Ambito, filt
   );
   const scelti = righe.filter((r) => (!filtro.stati || filtro.stati.includes(r.stato)) && (!filtro.ids || filtro.ids.includes(r.id)));
   const sessioni = filtro.sessioni === false ? [] : await sessioniAttive(db, config, ambito, scelti.map((r) => r.id));
+  const nati = await legamiVerso(db, ambito, scelti.map((r) => r.id), percorsi);
   // Le domande contano per il cantiere e per ogni suo antenato; l'elenco è solo quello proprio.
   const padri = new Map(righe.map((r) => [r.id, r.padre_id]));
   const domande = await domandeInAttesa(db, ambito);
@@ -709,6 +817,7 @@ export async function leggiCantieri(db: Db, config: Config, ambito: Ambito, filt
       file_idea: fileIdea.get(c.id) ?? 0,
       domande_in_attesa: sotto.get(c.id) ?? 0,
       domande: domande.filter((d) => d.cantiere_id === c.id).map((d) => d.domanda),
+      nato_da: nati.filter((n) => n.a_id === c.id).map((n) => n.nato),
       ...(filtro.sessioni === false ? {} : { sessioni: sessioni.filter((s) => s.cantiere_id === c.id).map(({ cantiere_id, ...s }) => s) }),
     };
   });
@@ -739,6 +848,7 @@ async function sessioniAttive(db: Db, config: Config, ambito: Ambito, cantieri: 
     fatto: ultimi.get(s.session_id)?.fatto ?? null,
     prossimo: ultimi.get(s.session_id)?.prossimo ?? null,
     eta_secondi: s.eta_secondi,
+    subagenti: s.subagenti,
   }));
 }
 

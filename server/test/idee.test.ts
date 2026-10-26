@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { di, TUTTI } from "../src/ambito.ts";
-import { cambiaEsito } from "../src/dominio.ts";
+import { cambiaEsito, creaProgetto } from "../src/dominio.ts";
 import { aggiungiFile, creaIdea, eliminaFile, modificaIdea } from "../src/idee.ts";
 import { Rifiuto } from "../src/modelli.ts";
-import { avvia, cantiere, richiesta, sessione, type Banco } from "./aiuto.ts";
+import { apri, avvia, cantiere, evento, invia, richiesta, sessione, type Banco } from "./aiuto.ts";
 
 let b: Banco;
 before(async () => (b = await avvia({ max_file: 1000, max_file_idea: 12 })));
 after(() => b.chiudi());
 beforeEach(async () => {
-  for (const t of ["eventi", "sessioni", "cantieri", "esiti", "idee_file"] as const) await b.db.deleteFrom(t).execute();
+  for (const t of ["eventi", "sessioni", "cantieri", "esiti", "idee_file", "legami"] as const) await b.db.deleteFrom(t).execute();
 });
 const rifiutato = (f: () => Promise<unknown>, codice: number, messaggio?: RegExp) =>
   assert.rejects(f, (e) => e instanceof Rifiuto && e.codice === codice && (!messaggio || messaggio.test(e.message)));
@@ -91,4 +91,32 @@ test("cantiere chiuso o sospeso: 409 con lo stato; inesistente o di un altro com
   await idea("riservata");
   assert.equal((await prendi("riservata", "s9", priv.token)).status, 404);
   await rifiutato(() => aggiungiFile(b, di(priv.committente.id), c.id, { nome: "x.md", contenuto: "x" }), 404);
+});
+
+test("ramo verso un altro progetto: idea legata al cantiere della sessione, che la presa conserva", async () => {
+  const mercurius = await creaProgetto(b.db, b.committente.id, "mercurius");
+  const partenza = (await apri(b, "s1", "analisi")).corpo.cantiere;
+  const ramo = (corpo: object, progetto = "mercurius") => richiesta(b, `/api/v1/progetti/${progetto}/rami`, { method: "POST", body: JSON.stringify(corpo) });
+  const r = await ramo({ session_id: "s1", nome: "info-extra", task: "3.2" });
+  assert.equal(r.status, 200);
+  assert.deepEqual([r.corpo.cantiere.progetto, r.corpo.cantiere.percorso, r.corpo.cantiere.stato, r.corpo.cantiere.origine], ["mercurius", "info-extra", "idea", "utente"]);
+  assert.deepEqual(r.corpo.cantiere.nato_da, [{ id: partenza.id, progetto: "app", percorso: "analisi", task: "3.2", tipo: "registrato" }]);
+  const presa = await richiesta(b, "/api/v1/progetti/mercurius/cantieri/info-extra/prendi", {
+    method: "POST", body: JSON.stringify({ session_id: "s2", host: "h", cwd: "/m", repo: null, branch: null }),
+  });
+  assert.equal(presa.status, 200);
+  const letto = ((await richiesta(b, "/api/v1/cantieri?progetto=mercurius")).corpo.cantieri as any[]).find((c) => c.percorso === "info-extra");
+  assert.deepEqual([letto.stato, letto.nato_da.map((n: any) => n.percorso)], ["aperto", ["analisi"]]);
+  assert.equal((await cantiere(b, "info-extra", mercurius.id)).id, r.corpo.cantiere.id);
+});
+
+test("ramo: senza cantiere nella sessione 409, nome preso 409, progetto altrui 404, corpo con campi in più 422", async () => {
+  const ramo = (corpo: object, progetto = "app") => richiesta(b, `/api/v1/progetti/${progetto}/rami`, { method: "POST", body: JSON.stringify(corpo) });
+  await invia(b, evento("session_start", { source: "startup" }, { session_id: "s9" }));
+  const senza = await ramo({ session_id: "s9", nome: "x" });
+  assert.deepEqual([senza.status, senza.corpo.errore], [409, "Questa sessione non è in un cantiere: un ramo parte da un cantiere."]);
+  await apri(b, "s1", "partenza");
+  assert.equal((await ramo({ session_id: "s1", nome: "partenza" })).status, 409);
+  assert.equal((await ramo({ session_id: "s1", nome: "x" }, "non-mio")).status, 404);
+  assert.equal((await ramo({ session_id: "s1", nome: "x", prompt: "no" })).status, 422);
 });

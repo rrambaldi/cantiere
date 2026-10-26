@@ -91,6 +91,12 @@ for (const [era, versionNegotiation] of [
       assert.equal(senza.structuredContent?.ok, false);
     });
 
+    test("ramo via MCP: task nel tool, il risultato dice da dove è nato", async () => {
+      await apri(b, "r1", "partenza");
+      const r = await chiama("apri_cantiere", { session_id: "r1", nome: "ramo-mcp", origine: "utente", task: "2.1" });
+      assert.match(r.content[0].text, /Nato da "app\/partenza" \(task 2\.1\)\./);
+    });
+
     test("un'idea aperta via MCP: rifiuto che dice di prenderla", async () => {
       await creaIdea(b, TUTTI, b.progetto.id, { nome: "idoc-converter" });
       const r = await chiama("apri_cantiere", { session_id: "i1", nome: "idoc-converter", progetto: "app" });
@@ -134,6 +140,7 @@ for (const [era, versionNegotiation] of [
       assert.match(descrizione("apri_cantiere"), /primo livello del progetto/);
       assert.match(descrizione("apri_cantiere"), /openspec new change <change>/);
       assert.match(descrizione("apri_cantiere"), /non insistere/);
+      assert.match(descrizione("apri_cantiere"), /il legame con quello di partenza si registra da solo/);
     });
   });
 }

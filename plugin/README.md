@@ -38,6 +38,7 @@ della radice; in una cartella senza git, da una sottocartella si rilancia `/cant
 | `/cantiere <nome> [— descrizione]` | apre il cantiere nel progetto della cartella, o entra in quello aperto con lo stesso nome |
 | `/cantiere padre/figlio` o `/cantiere figlio --padre padre` | apre `figlio` sotto `padre` (creato se non c'è); il percorso parte dal primo livello del progetto |
 | `/cantiere prendi <percorso>` | prende un'idea della dashboard: crea il change OpenSpec e scrive i suoi file in `openspec/changes/<change>/idee/` |
+| `/cantiere dirama <progetto>/<nome> [--task N]` | fa partire un ramo senza lasciare il cantiere: un'idea in quel progetto, legata al cantiere della sessione e al suo task |
 | `/cantiere collega <progetto> [url]` | collega la cartella (o cambia URL e token di un'area già collegata) |
 | `/cantiere` o `/cantiere stato` | area della cartella, server, ultima sessione |
 | `/cantiere permessi` | aggiunge `mcp__forgia` ai permessi consentiti, con un backup di `settings.json` |

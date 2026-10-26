@@ -10,6 +10,8 @@ export const STATI_CANTIERE = ["idea", "aperto", "sospeso", "completato", "abban
 export type StatoCantiere = (typeof STATI_CANTIERE)[number];
 export const STATI_FINALI: readonly StatoCantiere[] = ["completato", "abbandonato"];
 export const STATI_TODO = ["pending", "in_progress", "completed", "deleted"] as const;
+/** Un legame registrato viene da apri_cantiere o dalla dashboard; uno citato dai file del change (design D7). */
+export type TipoLegame = "registrato" | "citato";
 export type StatoSessione = "attiva" | "lavorando" | "in_attesa" | "chiusa";
 
 export const LIMITI = {
@@ -26,6 +28,7 @@ export const LIMITI = {
   domanda: 4000,
   opzione: 200,
   opzioniDomanda: 10,
+  task: 32,
 } as const;
 
 /** Errore di dominio con il codice HTTP da restituire e un messaggio per l'utente. */
@@ -73,6 +76,9 @@ export const campi = {
   origineDichiarata: z.enum(ORIGINI),
   resoconto: z.string().min(1).max(LIMITI.resoconto),
   titolo: z.string().max(LIMITI.titolo).nullable(),
+  progetto: z.string().min(1).max(LIMITI.breve),
+  /** Il numero di un task in tasks.md, es. "1.1". */
+  task: z.string().trim().min(1).max(LIMITI.task),
 };
 
 /** Errore zod in una riga, per le risposte 422 delle API. */
@@ -86,7 +92,7 @@ const base = {
   cwd: z.string().max(LIMITI.cwd),
   repo: z.string().min(1).max(LIMITI.breve).nullable(),
   branch: z.string().min(1).max(LIMITI.breve).nullable(),
-  progetto: z.string().min(1).max(LIMITI.breve),
+  progetto: campi.progetto,
 };
 
 const todo = z.strictObject({
@@ -136,6 +142,9 @@ export const schemaEvento = z.discriminatedUnion("tipo", [
       descrizione: campi.descrizione,
       origine: campi.origineDichiarata,
       padre: campi.nome.nullish(),
+      nato_da: campi.nome.nullish(),
+      nato_da_progetto: campi.progetto.nullish(),
+      task: campi.task.nullish(),
     }),
   }),
   z.strictObject({
@@ -149,6 +158,8 @@ export const schemaEvento = z.discriminatedUnion("tipo", [
     }),
   }),
   z.strictObject({ ...base, tipo: z.literal("risposta"), dati: z.strictObject({ id: idDomanda }) }),
+  // Solo il tipo del subagente: mai prompt né descrizione.
+  z.strictObject({ ...base, tipo: z.literal("subagente"), dati: z.strictObject({ tipo: z.string().min(1).max(LIMITI.etichetta) }) }),
 ]);
 
 export type EventoRest = z.infer<typeof schemaEvento>;

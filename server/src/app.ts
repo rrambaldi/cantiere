@@ -4,7 +4,7 @@ import { hostHeaderValidation, originValidation, toNodeHandler } from "@modelcon
 import { autentica, CorpoTroppoGrande, creaRateLimit, leggiCorpo, type Committente } from "./accesso.ts";
 import { di } from "./ambito.ts";
 import { creaProgetto, elencaProgetti, elencaSessioni, formaProgetto, leggiCantieri, riceviEvento, type Ambiente } from "./dominio.ts";
-import { prendi } from "./idee.ts";
+import { dirama, prendi } from "./idee.ts";
 import { errore422, Rifiuto, schemaEvento, segmenti, separaLuogo } from "./modelli.ts";
 import { ROTTE, VERSIONE_CONTRATTO } from "./nome.ts";
 import { riceviCopia } from "./openspec.ts";
@@ -33,9 +33,10 @@ function json(testo: string): unknown {
   }
 }
 
-// Rotte con il progetto nell'URL: la copia dei change e la presa di un'idea.
+// Rotte con il progetto nell'URL: la copia dei change, la presa di un'idea e un ramo verso il progetto.
 const ROTTA_COPIA = /^\/api\/v1\/progetti\/([^/]+)\/openspec$/;
 const ROTTA_PRESA = /^\/api\/v1\/progetti\/([^/]+)\/cantieri\/(.+)\/prendi$/;
+const ROTTA_RAMI = /^\/api\/v1\/progetti\/([^/]+)\/rami$/;
 const decodifica = (s: string) => {
   try {
     return decodeURIComponent(s);
@@ -92,6 +93,11 @@ export function creaApp(amb: Ambiente, log: Log = logJson, cartellaUi = CARTELLA
       const corpoPresa = json(corpo);
       const risposta = await prendi(amb, committente, decodifica(presa[1]), nomi, corpoPresa);
       return [200, risposta, "POST prendi", (corpoPresa as { session_id?: string } | undefined)?.session_id];
+    }
+    const rami = ROTTA_RAMI.exec(url.pathname);
+    if (rami && metodo === "POST") {
+      const corpoRamo = json(corpo);
+      return [200, { cantiere: await dirama(amb, committente, decodifica(rami[1]), corpoRamo) }, "POST rami", (corpoRamo as { session_id?: string } | undefined)?.session_id];
     }
     return [404, null, percorso];
   }

@@ -52,6 +52,16 @@ describe("domande: hook", () => {
     assert.deepEqual([e.tipo, e.dati], ["domanda", { id: "toolu_AB", tipo: "scelta", testo: "Quale branch?", opzioni: ["main", "dev"] }]);
   });
 
+  test("subagente: evento con il solo tipo, mai prompt o descrizione; senza tipo è general-purpose", async (t) => {
+    const { ev, base, opz } = await preparato(t);
+    const agente = (tool_input: object) => ({ ...base, hook_event_name: "PreToolUse", tool_name: "Agent", tool_input, tool_use_id: "toolu_AG" });
+    const r = await hook("subagente", agente({ subagent_type: "Explore", description: "Cerca i test", prompt: "segreto del prompt" }), opz);
+    assert.deepEqual([r.codice, r.stdout], [0, ""]);
+    await hook("subagente", agente({ description: "x", prompt: "y" }), opz);
+    assert.deepEqual(ev().map((e) => [e.tipo, e.dati]), [["subagente", { tipo: "Explore" }], ["subagente", { tipo: "general-purpose" }]]);
+    assert.ok(!JSON.stringify(ev()).includes("segreto"));
+  });
+
   test("risposta: evento con lo stesso id", async (t) => {
     const { srv, ev, post, opz } = await preparato(t);
     await hook("risposta", post("toolu_AB"), opz);

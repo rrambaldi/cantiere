@@ -47,6 +47,12 @@ export function contestoAvvio(d: DatiAvvio): string {
       '- Al primo messaggio dell\'utente, prima di rispondere, chiedi con una domanda a scelta dove va questa sessione: un cantiere aperto, un\'idea (si prende con /cantiere prendi <percorso>), un cantiere nuovo (apri_cantiere con origine "utente"), oppure lavoro diretto sul progetto.',
     );
   }
+  // Con il resoconto spento, in un cantiere non resta nessuna regola: anche questa è tracciamento.
+  if (d.cantiere && d.conResoconto) {
+    regole.push(
+      '- Se l\'utente fa partire da un task di questo cantiere un\'attività a sé: se la sessione passa a lavorarci, apri_cantiere con origine "utente" e task (il numero in tasks.md) registra il legame da solo; per farne partire una o più senza lasciare questo cantiere, proponi /cantiere dirama <progetto>/<nome> --task <numero>.',
+    );
+  }
   for (const change of d.daArchiviare) {
     regole.push(`- Proponi all'utente di archiviare ${change} con: openspec archive ${change} --skip-specs --yes`);
   }

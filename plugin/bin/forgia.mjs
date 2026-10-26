@@ -30,7 +30,7 @@ const OSCURATI = new Set(["prompt", "last_assistant_message", "token"]);
 export const RE_CANTIERE = /^\/(\S+:)?cantiere(\s|$)/;
 // Prime parole di /cantiere che gestisce il comando, non l'hook. `chiudi` e `server` erano di v1:
 // il comando spiega cosa usare adesso.
-const RISERVATE = ["prendi", "collega", "chiudi", "server", "stato", "permessi", "on", "off"];
+const RISERVATE = ["prendi", "dirama", "collega", "chiudi", "server", "stato", "permessi", "on", "off"];
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), NOME);
 const NON_COLLEGATA = `questa cartella non è collegata a ${NOME_VISIBILE}: lancia /cantiere collega <progetto> <url>`;
 class Errore extends Error {
@@ -482,6 +482,7 @@ function titoloCantiere(c) {
 // ---- domande in attesa
 const NOTIFICHE_ATTESA = ["permission_prompt", "idle_prompt"];
 const MAX_TESTO_DOMANDA = 4000;
+const MAX_TIPO_SUBAGENTE = 64;
 const MAX_OPZIONI = 10;
 const MAX_OPZIONE = 200;
 // Testo e opzioni dalla chiamata di AskUserQuestion. Con più domande il testo le riporta tutte, ciascuna
@@ -575,6 +576,12 @@ const HOOK = {
         await preliminari(c);
         aggiornaSessione(c.sid, (s) => s.domanda_aperta === input.tool_use_id && delete s.domanda_aperta);
         await invia(c, evento(c, "risposta", { id: input.tool_use_id }));
+    },
+    // Asincrono, prima del tool Agent: al server va solo il tipo del subagente, mai prompt o descrizione.
+    async subagente(c, input) {
+        const tipo = input.tool_input?.subagent_type;
+        await preliminari(c);
+        await invia(c, evento(c, "subagente", { tipo: typeof tipo === "string" && tipo ? tipo.slice(0, MAX_TIPO_SUBAGENTE) : "general-purpose" }));
     },
     // Asincrono: permesso richiesto o sessione ferma. Non ripete se la sessione ha già una domanda aperta
     // (anche AskUserQuestion può far scattare la notifica).
@@ -916,6 +923,22 @@ async function prendi(args) {
         `${scritti.length} file scritti in idee/${presenti.length ? `; già presenti, lasciati com'erano: ${presenti.join(", ")}` : ""}.`,
     ].join("\n"));
 }
+// Un ramo in un altro progetto dello stesso committente: un'idea legata al cantiere della sessione,
+// che chi la prende con /cantiere prendi trova già legata.
+async function dirama(args) {
+    const { values, positionals } = parseArgs({ args, allowPositionals: true, options: { task: { type: "string" }, "session-id": { type: "string" } } });
+    const destinazione = positionals.join(" ").trim();
+    const barra = destinazione.indexOf("/");
+    if (barra < 1 || barra === destinazione.length - 1)
+        errore("forma: forgia dirama <progetto>/<nome> [--task N]");
+    const [progetto, nome] = [destinazione.slice(0, barra).trim(), destinazione.slice(barra + 1).trim()];
+    const cfg = areaCorrente();
+    const sid = values["session-id"] ?? process.env.CLAUDE_CODE_SESSION_ID ?? ultimaSessione(process.cwd())?.session_id
+        ?? errore("nessuna sessione di Claude Code vista in questa cartella: lancia /cantiere dirama da Claude Code");
+    const r = await chiamaApi(cfg, "POST", `/api/v1/progetti/${encodeURIComponent(progetto)}/rami`, { session_id: sid, nome, task: values.task ?? null });
+    const [da] = r.cantiere.nato_da;
+    console.log(`Idea "${r.cantiere.progetto}/${r.cantiere.percorso}" creata, nata da "${da.progetto}/${da.percorso}"${da.task ? ` (task ${da.task})` : ""}.`);
+}
 function permettiMcp() {
     const regola = `mcp__${leggiGenerale().nome_server_mcp}`;
     const p = join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"), "settings.json");
@@ -938,7 +961,7 @@ function permettiMcp() {
     console.log(`Aggiunto ${regola} ai permessi consentiti di ${p}${existsSync(backup) ? ` (backup: ${backup})` : ""}.`);
 }
 const COMANDI = {
-    collega, prendi, status, apri, on: () => imposta(true), off: () => imposta(false), "permetti-mcp": permettiMcp,
+    collega, prendi, dirama, status, apri, on: () => imposta(true), off: () => imposta(false), "permetti-mcp": permettiMcp,
 };
 export async function principale(argv) {
     const [comando = "", ...args] = argv;

@@ -42,6 +42,9 @@ export function creaServerMcp(amb: Ambiente, committente: Committente): McpServe
         "Usalo quando l'utente sceglie dove va la sessione o quando il lavoro diventa chiaramente un'attività a sé; non per piccole variazioni dello stesso lavoro. " +
         'Nome breve e specifico (es. "pdfconverter"), mai generico (es. "refactoring"). ' +
         'Il percorso parte dal primo livello del progetto: per una fase di un cantiere più grande usa padre o un nome a percorso ("idoc-converter/prototipo"). ' +
+        "Se la sessione sta in un cantiere e ne apri uno nuovo, il legame con quello di partenza si registra da solo: " +
+        'passa task con il numero del task di partenza in tasks.md (es. "1.1"). ' +
+        "nato_da serve per legarlo a un altro cantiere, per esempio per un secondo ramo dallo stesso cantiere dopo che la sessione è passata al primo. " +
         'origine "utente" solo se l\'utente ha scelto o nominato il cantiere nel turno corrente, altrimenti "claude". ' +
         "Se il change del cantiere non esiste ancora nel repo, crealo con: openspec new change <change>. " +
         "Un'idea si prende con /cantiere prendi, non con questo tool. Se il cambio viene rifiutato (scelta dell'utente, cantiere sospeso o chiuso), non insistere.",
@@ -53,6 +56,11 @@ export function creaServerMcp(amb: Ambiente, committente: Committente): McpServe
           .default("claude")
           .describe('"utente" solo se l\'utente ha scelto o nominato il cantiere in questo turno, altrimenti "claude".'),
         padre: campi.nome.optional().describe("Cantiere padre (anche un percorso), se questo cantiere è una fase di uno più grande."),
+        task: campi.task.optional().describe('Il numero del task di partenza nel tasks.md del cantiere da cui nasce (es. "1.1").'),
+        nato_da: campi.nome
+          .optional()
+          .describe("Percorso del cantiere da cui nasce, solo se non è quello in cui sta la sessione; può essere un cantiere già esistente."),
+        nato_da_progetto: campi.progetto.optional().describe("Il progetto di nato_da, se è un altro progetto dello stesso committente."),
         progetto,
       }),
       outputSchema: esitoCantiere,
@@ -69,14 +77,24 @@ export function creaServerMcp(amb: Ambiente, committente: Committente): McpServe
           session_id: a.session_id,
           progetto: nomeProgetto,
           tipo: "apri_cantiere",
-          dati: { nome: a.nome, descrizione: a.descrizione ?? null, origine: a.origine, padre: a.padre ?? null },
+          dati: {
+            nome: a.nome,
+            descrizione: a.descrizione ?? null,
+            origine: a.origine,
+            padre: a.padre ?? null,
+            task: a.task ?? null,
+            nato_da: a.nato_da ?? null,
+            nato_da_progetto: a.nato_da_progetto ?? null,
+          },
         },
         null,
       );
       if (esito.codice !== 200) return rifiuto(esito.risposta.errore);
       const cantiere = esito.risposta.cantiere!;
       const nelRepo = await amb.db.selectFrom("change_copie").select("cantiere_id").where("cantiere_id", "=", cantiere.id).executeTakeFirst();
-      const testo = `Cantiere "${cantiere.percorso}" associato alla sessione (change ${cantiere.change}).`;
+      const [letto] = await leggiCantieri(amb.db, amb.config, di(committente.id), { ids: [cantiere.id], sessioni: false });
+      const nato = letto.nato_da.map((n) => `"${n.progetto}/${n.percorso}"${n.task ? ` (task ${n.task})` : ""}`).join(", ");
+      const testo = `Cantiere "${cantiere.percorso}" associato alla sessione (change ${cantiere.change}).${nato ? ` Nato da ${nato}.` : ""}`;
       return risultato(nelRepo ? testo : `${testo} Il change non è ancora nel repo: crealo con openspec new change ${cantiere.change}.`, {
         ok: true,
         cantiere,

@@ -41,7 +41,7 @@ Corpo (massimo `max_body`, default 64 KB):
 {
   "evento_id": "<uuid4 generato dal client>",
   "ts": "<ISO 8601 UTC del momento in cui è avvenuto l'evento>",
-  "tipo": "session_start | prompt | todo | stop | session_end | apri_cantiere | domanda | risposta",
+  "tipo": "session_start | prompt | todo | stop | session_end | apri_cantiere | domanda | risposta | subagente",
   "session_id": "<session_id di Claude Code>",
   "host": "<hostname>",
   "cwd": "<directory di lavoro>",
@@ -61,9 +61,10 @@ Corpo (massimo `max_body`, default 64 KB):
 | `todo` | `{"strumento": "<nome del tool>", "completo": true \| false, "todos": [{"id": "<id> \| null", "testo": "...", "stato": "pending \| in_progress \| completed \| deleted"}]}` |
 | `stop` | `{"strumenti_nel_turno": <int>, "resoconto_inviato": <bool>, "bloccato": <bool>, "titolo": "... \| null"}` |
 | `session_end` | `{"reason": "<motivo fornito da Claude Code>", "titolo": "... \| null"}` |
-| `apri_cantiere` | `{"nome": "...", "descrizione": "... \| null", "origine": "utente" \| "claude", "padre": "... \| null"}` — `nome` e `padre` possono essere percorsi `a/b`; `padre` può mancare |
+| `apri_cantiere` | `{"nome": "...", "descrizione": "... \| null", "origine": "utente" \| "claude", "padre": "... \| null", "task": "... \| null", "nato_da": "... \| null", "nato_da_progetto": "... \| null"}` — `nome`, `padre` e `nato_da` possono essere percorsi `a/b`; `padre`, `task`, `nato_da` e `nato_da_progetto` possono mancare; `task` al più 32 caratteri |
 | `domanda` | `{"id": "<id della domanda>", "tipo": "scelta" \| "attesa", "testo": "...", "opzioni": ["..."]}` — al più 4000 caratteri di testo e 10 opzioni da 200 |
 | `risposta` | `{"id": "<id della domanda>"}` |
+| `subagente` | `{"tipo": "<tipo del subagente, es. Explore>"}` — al più 64 caratteri; mai prompt né descrizione. Il server conta i subagenti della sessione per tipo |
 
 `domanda` dice che la sessione aspetta l'utente. `scelta` viene da `AskUserQuestion` (`id` è l'id della
 chiamata del tool); `attesa` da una notifica di permesso richiesto o di sessione ferma, senza opzioni.
@@ -162,6 +163,22 @@ se serve). Su un cantiere già `aperto` associa la sessione e risponde allo stes
 404 progetto o cantiere inesistente; 409 (`{"errore": "..."}`) se il cantiere è `sospeso`,
 `completato` o `abbandonato`.
 
+## Ramo in un altro progetto
+
+### `POST /api/v1/progetti/<progetto>/rami`
+
+```json
+{"session_id": "...", "nome": "info-extra", "task": "3.2 | null"}
+```
+
+Crea nel progetto (dello stesso committente) un'idea di primo livello, origine `utente`, legata al
+cantiere in cui sta la sessione con il `task` se c'è. Chi la prende con `prendi` trova il legame.
+
+200 → `{"cantiere": {...come in GET /api/v1/cantieri, con nato_da}}`
+
+404 progetto inesistente; 409 se la sessione non è in un cantiere o il nome è già preso; 422 corpo
+non valido.
+
 ## Letture
 
 ### `GET /api/v1/cantieri`
@@ -179,28 +196,35 @@ Filtri: `progetto=<nome>`, `aperti=1` (solo `aperto`). Senza filtri, tutti gli s
   "fasi": {"completate": 2, "totali": 3},
   "change_mancante": false, "da_archiviare": false, "file_idea": 0,
   "domande_in_attesa": 1,
+  "nato_da": [{"id": 3, "progetto": "poker", "percorso": "idoc-converter", "task": "1.1 | null", "tipo": "registrato | citato"}],
   "domande": [{"id": "toolu_01", "session_id": "...", "tipo": "scelta | attesa", "testo": "...", "opzioni": ["..."], "host": "...", "ts": "...", "eta_secondi": 300}],
-  "sessioni": [{"session_id": "...", "host": "...", "branch": "... | null", "stato": "...", "titolo": "... | null", "fatto": "... | null", "prossimo": "... | null", "eta_secondi": 42}]
+  "sessioni": [{"session_id": "...", "host": "...", "branch": "... | null", "stato": "...", "titolo": "... | null", "fatto": "... | null", "prossimo": "... | null", "eta_secondi": 42, "subagenti": {"Explore": 2}}]
 }]}
 ```
 
 `artefatti` e `task` sono `null` senza una copia del change; `fasi` è `null` senza figli; `sessioni`
 elenca le sessioni attive. `domande_in_attesa` conta le domande aperte e non scadute del cantiere e dei
-suoi discendenti; `domande` elenca solo quelle del cantiere stesso.
+suoi discendenti; `domande` elenca solo quelle del cantiere stesso. `nato_da` elenca i cantieri da cui
+questo è nato, anche di altri progetti dello stesso committente; è vuoto se non ce ne sono. `tipo` è
+`registrato` (da `apri_cantiere`) o `citato` (ricavato a ogni copia dei change: un `proposal.md` o un
+`tasks.md` che nomina tra apici inversi il change di un altro cantiere del progetto; parte il più vecchio
+per la data `created` del change, e il task si legge anche dalle righe che continuano un task). Un
+registrato vince su un citato, anche al contrario.
 
 ### `GET /api/v1/sessioni`
 
 Filtri: `progetto=<nome>`, `attive=1` (non chiuse). Ogni sessione ha `session_id`, `progetto`,
 `cantiere` (percorso o `null` per il lavoro diretto), `host`, `cwd`, `repo`, `branch`, `stato`
 (`attiva`, `lavorando`, `in_attesa`, `chiusa`, oppure `inattiva` calcolato in lettura),
-`origine_associazione`, `turni`, `titolo`, `avviata_il`, `ultimo_evento_il`, `eta_secondi`.
+`origine_associazione`, `turni`, `titolo`, `avviata_il`, `ultimo_evento_il`, `eta_secondi`,
+`subagenti` (quanti subagenti ha lanciato, per tipo).
 
 ## Tool MCP (Streamable HTTP su `/mcp`)
 
 Il server viene registrato in Claude Code con il nome `forgia`, quindi i tool si chiamano
 `mcp__forgia__<tool>`.
 
-- `apri_cantiere(session_id, nome, descrizione?, origine="claude", padre?, progetto?)`
+- `apri_cantiere(session_id, nome, descrizione?, origine="claude", padre?, task?, nato_da?, nato_da_progetto?, progetto?)`
 - `aggiorna_stato(session_id, fatto, prossimo, bloccato_da?, percentuale?, progetto?)`
 - `elenca_cantieri(progetto?, stati?)` — default stati `idea`, `aperto`, `sospeso`
 - `stato_sessione(session_id)`
@@ -218,6 +242,12 @@ restituisce JSON strutturato e una riga di testo.
 - `apri_cantiere` legge `padre` seguito da `nome` come percorso dal primo livello del progetto: entra
   nel cantiere `aperto` indicato, oppure lo crea `aperto` insieme agli antenati che mancano. Un
   antenato in stato `idea` passa ad `aperto`. Un cantiere esistente non cambia mai padre.
+- Legami (separati dal padre): se `apri_cantiere` crea un cantiere mentre la sessione sta in un altro
+  cantiere che non ne è un antenato, si registra il legame da quello al nuovo, con `task` se c'è.
+  `nato_da` (con `nato_da_progetto` per un altro progetto dello stesso committente) lo registra anche
+  verso un cantiere che esiste già; una partenza che non esiste dà 409. Lo stesso legame resta uno.
+  Un `task` senza un legame da scrivere dà 409; tra un cantiere e un suo antenato o discendente non
+  nascono legami (basta il padre); un legame dichiarato che chiude un giro di registrati dà 409.
 - Sospendere, riattivare e abbandonare si fanno solo dalla dashboard; completato arriva solo dal repo
   (`openspec archive`). Abbandonare un padre abbandona anche i discendenti non finali.
 - Quando un cantiere smette di essere `aperto`, le sue sessioni tornano al lavoro diretto al loro

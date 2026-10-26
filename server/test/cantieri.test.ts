@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, test } from "node:test";
 import { TUTTI } from "../src/ambito.ts";
-import { cambiaEsito, RIFIUTO_PRECEDENZA } from "../src/dominio.ts";
+import { cambiaEsito, creaProgetto, RIFIUTO_PRECEDENZA } from "../src/dominio.ts";
 import { creaIdea } from "../src/idee.ts";
 import { Rifiuto } from "../src/modelli.ts";
-import { apri, avvia, cantiere, evento, invia, sessione, type Banco } from "./aiuto.ts";
+import { apertura, apri, avvia, cantiere, evento, invia, richiesta, sessione, type Banco } from "./aiuto.ts";
 
 let b: Banco;
 before(async () => (b = await avvia()));
 after(() => b.chiudi());
 beforeEach(async () => {
-  for (const t of ["eventi", "sessioni", "cantieri", "esiti", "idee_file"] as const) await b.db.deleteFrom(t).execute();
+  for (const t of ["eventi", "sessioni", "cantieri", "esiti", "idee_file", "legami"] as const) await b.db.deleteFrom(t).execute();
 });
 const quanti = async () => (await b.db.selectFrom("cantieri").select("id").execute()).length;
 const esito = (id: number, azione: "sospendi" | "riattiva" | "abbandona") => cambiaEsito(b, TUTTI, id, azione);
@@ -103,6 +103,104 @@ describe("apertura per percorso dentro il progetto", () => {
     assert.match(sospeso.corpo.errore, /sospeso: si riattiva dalla dashboard/);
     await esito(r.corpo.cantiere.id, "abbandona");
     assert.match((await apri(b, "s1", "export-pdf")).corpo.errore, /abbandonato: un cantiere chiuso non si riapre/);
+  });
+});
+
+describe("legami tra cantieri", () => {
+  before(() => creaProgetto(b.db, b.committente.id, "web"));
+  const ramo = (session_id: string, nome: string, dati: object = {}, extra: object = {}) =>
+    invia(b, evento("apri_cantiere", apertura(nome, "utente", dati), { session_id, ...extra }));
+  const natoDa = async (percorso: string, progetto = "app") =>
+    ((await richiesta(b, `/api/v1/cantieri?progetto=${progetto}`)).corpo.cantieri as any[]).find((c) => c.percorso === percorso).nato_da;
+
+  test("ramo nato da un task: legato al cantiere della sessione, con il change suo", async () => {
+    const partenza = (await apri(b, "s1", "multi-instrument-simulations")).corpo.cantiere;
+    const r = await ramo("s1", "basket-mix", { task: "1.1" });
+    assert.equal(r.corpo.cantiere.change, "basket-mix");
+    assert.deepEqual(await natoDa("basket-mix"), [{ id: partenza.id, progetto: "app", percorso: "multi-instrument-simulations", task: "1.1", tipo: "registrato" }]);
+    assert.deepEqual(await natoDa("multi-instrument-simulations"), []);
+  });
+
+  test("una fase non è un ramo, e nemmeno entrare in un cantiere che c'è già", async () => {
+    await apri(b, "s1", "idoc-converter");
+    await apri(b, "s1", "idoc-converter/prototipo");
+    assert.deepEqual(await natoDa("idoc-converter/prototipo"), []);
+    await apri(b, "s2", "esistente");
+    await apri(b, "s1", "esistente");
+    assert.deepEqual(await natoDa("esistente"), []);
+  });
+
+  test("dichiarato: anche verso un cantiere che c'è già, una volta sola", async () => {
+    const a = (await apri(b, "s1", "a")).corpo.cantiere;
+    await apri(b, "s2", "b");
+    await ramo("s3", "b", { nato_da: "a", task: "2.1" });
+    await ramo("s3", "b", { nato_da: "a", task: "9.9" });
+    assert.deepEqual(await natoDa("b"), [{ id: a.id, progetto: "app", percorso: "a", task: "2.1", tipo: "registrato" }]);
+  });
+
+  test("partenza che non c'è: 409 che la nomina, nessun cantiere nasce", async () => {
+    const r = await ramo("s1", "nuovo", { nato_da: "non-esiste" });
+    assert.equal(r.status, 409);
+    assert.match(r.corpo.errore, /cantiere di partenza "non-esiste" non esiste/);
+    assert.equal(await quanti(), 0);
+  });
+
+  test("due rami dallo stesso cantiere: il secondo con nato_da; senza, parte da dove sta la sessione", async () => {
+    await apri(b, "s1", "a");
+    await ramo("s1", "b", { task: "1.1" });
+    const c = (await ramo("s1", "c", { nato_da: "a", task: "1.2" })).corpo.cantiere;
+    await ramo("s1", "d");
+    assert.deepEqual((await natoDa("b")).map((n: any) => [n.percorso, n.task]), [["a", "1.1"]]);
+    assert.deepEqual((await natoDa("c")).map((n: any) => [n.percorso, n.task]), [["a", "1.2"]]);
+    assert.deepEqual((await natoDa("d")).map((n: any) => n.id), [c.id]);
+  });
+
+  test("task senza un legame da scrivere: 409 e niente creato", async () => {
+    const senza = await ramo("s1", "nuovo", { task: "1.1" });
+    assert.equal(senza.status, 409);
+    assert.match(senza.corpo.errore, /task è il task da cui nasce il cantiere/);
+    assert.equal(await quanti(), 0);
+    await apri(b, "s2", "esistente");
+    await apri(b, "s1", "a");
+    assert.equal((await ramo("s1", "esistente", { task: "1.1" })).status, 409);
+    assert.equal((await sessione(b)).cantiere_id, (await cantiere(b, "a")).id);
+    // Una fase, o nato_da uguale al cantiere stesso: niente legame, quindi il task è rifiutato e la fase non nasce.
+    const fase = await ramo("s1", "a/fase", { task: "1.1" });
+    assert.match(fase.corpo.errore, /task è il task da cui nasce il cantiere/);
+    assert.equal(await quanti(), 2);
+    assert.equal((await ramo("s1", "a", { nato_da: "a", task: "1.1" })).status, 409);
+    assert.match((await ramo("s1", "c", { nato_da_progetto: "web" })).corpo.errore, /nato_da_progetto va con nato_da/);
+    // Un'idea o un sospeso con il task: vince il loro motivo.
+    await creaIdea(b, TUTTI, b.progetto.id, { nome: "piano" });
+    assert.match((await ramo("s1", "piano", { task: "1.1" })).corpo.errore, /\/cantiere prendi piano/);
+  });
+
+  test("un giro dichiarato si rifiuta; tra padre e figlio, in tutti e due i versi, basta il padre", async () => {
+    await apri(b, "s1", "a");
+    await ramo("s1", "b");
+    const giro = await ramo("s2", "a", { nato_da: "b" });
+    assert.equal(giro.status, 409);
+    assert.match(giro.corpo.errore, /da "b" a "a" chiuderebbe un giro/);
+    assert.deepEqual(await natoDa("a"), []);
+    await apri(b, "s3", "x/y");
+    assert.equal((await ramo("s4", "x", { nato_da: "x/y" })).status, 200);
+    assert.deepEqual(await natoDa("x"), []);
+  });
+
+  test("partenza in un progetto di un altro committente: come se non esistesse", async () => {
+    const altro = await b.altroCommittente("ESTRANEO", ["segreto"]);
+    assert.equal((await invia(b, evento("apri_cantiere", apertura("riservato"), { session_id: "e1", progetto: "segreto" }), altro.token)).status, 200);
+    const r = await ramo("s1", "x", { nato_da: "riservato", nato_da_progetto: "segreto" });
+    assert.deepEqual([r.status, r.corpo.errore], [409, 'Il progetto "segreto" non esiste.']);
+  });
+
+  test("tra progetti dello stesso committente: dalla sessione che cambia progetto o dichiarato", async () => {
+    const a = (await apri(b, "s1", "a")).corpo.cantiere;
+    await ramo("s1", "x", {}, { progetto: "web" });
+    assert.deepEqual(await natoDa("x", "web"), [{ id: a.id, progetto: "app", percorso: "a", task: null, tipo: "registrato" }]);
+    await ramo("s2", "y", { nato_da: "a", nato_da_progetto: "app", task: "3" }, { progetto: "web" });
+    assert.deepEqual(await natoDa("y", "web"), [{ id: a.id, progetto: "app", percorso: "a", task: "3", tipo: "registrato" }]);
+    assert.match((await ramo("s3", "z", { nato_da: "a", nato_da_progetto: "altrove" })).corpo.errore, /progetto "altrove" non esiste/);
   });
 });
 
