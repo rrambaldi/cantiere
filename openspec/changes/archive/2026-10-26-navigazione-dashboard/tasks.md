@@ -14,4 +14,4 @@
 
 ## 3. Telefono
 
-- [ ] 3.1 A ≤720 px un livello per schermata e scheda come foglio dal basso
+- [x] 3.1 A ≤720 px un livello per schermata e scheda come foglio dal basso

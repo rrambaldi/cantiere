@@ -151,8 +151,12 @@ export function Indice({ committenti, selezione, onScegli, posizione, onPosizion
   const fuoco = React.useRef<"titolo" | "sfoglia" | null>(null);
   const titolo = React.useRef<HTMLHeadingElement>(null);
   const sfoglia = React.useRef<HTMLButtonElement>(null);
+  const aperta = React.useRef(colonne.colonna);
   React.useEffect(() => {
-    const el = fuoco.current === "titolo" ? titolo.current : fuoco.current === "sfoglia" ? sfoglia.current : null;
+    // Aperta da fuori (un segmento del percorso, che al telefono la colonna copre), prende il fuoco rimasto nel vuoto.
+    if (colonne.colonna && !aperta.current && document.activeElement === document.body) fuoco.current = "titolo";
+    aperta.current = colonne.colonna;
+    const el =fuoco.current === "titolo" ? titolo.current : fuoco.current === "sfoglia" ? sfoglia.current : null;
     if (!el) return;
     el.focus();
     fuoco.current = null;
@@ -272,7 +276,7 @@ export function Indice({ committenti, selezione, onScegli, posizione, onPosizion
             <Button key={l} variant={l === lingua ? "secondario" : "fantasma"} size="sm" onClick={() => onLingua(l)}>{l.toUpperCase()}</Button>
           ))}
         </span>
-        <BottoneIcona icona="puntina" titolo={T.tieniAperta} premuto={colonne.fissata} onClick={() => onColonne({ fissata: !colonne.fissata })} />
+        <span className="puntina"><BottoneIcona icona="puntina" titolo={T.tieniAperta} premuto={colonne.fissata} onClick={() => onColonne({ fissata: !colonne.fissata })} /></span>
         <BottoneIcona icona="chiudiColonna" titolo={T.chiudiColonna} onClick={chiudi} />
       </div>
       <section key={chiave} className={"livello" + (entrata.current.daSinistra ? " da-sinistra" : "")}>{contenuto}</section>
@@ -300,11 +304,12 @@ export function Percorso({ segmenti, onScegli }: { segmenti: Segmento[]; onScegl
     <nav className="percorso" aria-label={T.percorso}>
       <ol>
         {segmenti.map((s, i) => (
+          // Il separatore chiude il segmento: andando a capo resta a fine riga, non in testa alla riga dopo.
           <li key={i}>
-            {i > 0 && <span className="sep" aria-hidden="true">/</span>}
             {s.scelta
               ? <button onClick={() => { fuocoAlPercorso = true; onScegli(s.scelta!); }}>{s.testo}</button>
               : <span ref={corrente} tabIndex={-1} aria-current="page">{s.testo}</span>}
+            {i < segmenti.length - 1 && <span className="sep" aria-hidden="true">/</span>}
           </li>
         ))}
       </ol>

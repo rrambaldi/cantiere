@@ -5,12 +5,15 @@ import { Toast } from "./ds/feedback.js";
 import { VISTA_DI } from "./formato.js";
 import { hashDi, Indice, Percorso, posizioneDi, segmentiDi, selezioneDaHash, stessa, trova } from "./indice.js";
 import { LavoroCantiere, LavoroCommittente, LavoroProgetto } from "./lavori.js";
-import { SchedaCantiere, SchedaCommittente, SchedaProgetto } from "./scheda.js";
+import { Foglio, SchedaCantiere, SchedaCommittente, SchedaProgetto } from "./scheda.js";
 import { impostaLingua, lingua as linguaCorrente, salvaLingua, T } from "./testi.js";
 import { BottoneIcona, Vuoto } from "./ui.js";
 const CHIAVE_SELEZIONE = "forgia-selezione";
 const CHIAVE_COLONNE = "forgia-colonne";
 const COLONNE_PREDEFINITE = { colonna: true, fissata: false, scheda: true };
+const CHIUSE = { colonna: false, fissata: false, scheda: false };
+// La stessa soglia di forgia.css: sotto, la colonna aperta e la scheda coprono il centro.
+const TELEFONO = matchMedia("(max-width:720px)");
 const AGGIORNA_OGNI_MS = 30_000;
 const FILE_AMMESSO = /\.(md|txt)$/i;
 // Quel che il browser ricorda (scelta, colonne) è una comodità: senza storage si riparte dal valore predefinito.
@@ -50,7 +53,12 @@ function App() {
     const [release, setRelease] = React.useState(null);
     const [selezione, setSelezione] = React.useState(() => ricordato(CHIAVE_SELEZIONE, null));
     const [vista, setVista] = React.useState("aperti");
-    const [colonne, setColonne] = React.useState(() => ({ ...COLONNE_PREDEFINITE, ...ricordato(CHIAVE_COLONNE, {}) }));
+    // Al desktop colonna e scheda restano come le si lascia, anche al ricaricamento. Al telefono coprono il centro: ogni volta
+    // che si entra (all'apertura, stringendo la finestra) si parte chiuse, senza puntina, e lì non si ricorda niente.
+    const [telefono, setTelefono] = React.useState(TELEFONO.matches);
+    const [alDesktop, setAlDesktop] = React.useState(() => ({ ...COLONNE_PREDEFINITE, ...ricordato(CHIAVE_COLONNE, {}) }));
+    const [alTelefono, setAlTelefono] = React.useState(CHIUSE);
+    const colonne = telefono ? alTelefono : alDesktop;
     // «‹» nella colonna torna su senza cambiare la scelta; a ogni scelta nuova la colonna segue di nuovo la scelta.
     const [tornatoSu, setTornatoSu] = React.useState(null);
     const [dettaglio, setDettaglio] = React.useState(null);
@@ -124,8 +132,31 @@ function App() {
         setTornatoSu(null);
         void caricaSelezione(selezione);
     }, [selezione, caricaSelezione]);
-    React.useEffect(() => ricorda(CHIAVE_COLONNE, colonne), [colonne]);
-    const cambiaColonne = (c) => setColonne((v) => ({ ...v, ...c }));
+    React.useEffect(() => {
+        const segui = () => {
+            setTelefono(TELEFONO.matches);
+            setAlTelefono(CHIUSE);
+        };
+        TELEFONO.addEventListener("change", segui);
+        return () => TELEFONO.removeEventListener("change", segui);
+    }, []);
+    React.useEffect(() => ricorda(CHIAVE_COLONNE, alDesktop), [alDesktop]);
+    const cambiaColonne = (c) => (telefono ? setAlTelefono : setAlDesktop)((v) => ({ ...v, ...c }));
+    const foglio = telefono && colonne.scheda;
+    // Chiuso dalla X, dal velo o con Esc, il foglio rende il fuoco al bottone della testata com'è adesso (la pagina può
+    // essere cambiata intanto); non quando si chiude perché la finestra si allarga, magari con un dialogo aperto.
+    const interruttore = React.useRef(null);
+    const riprendiFuoco = React.useRef(false);
+    const chiudiFoglio = () => {
+        riprendiFuoco.current = true;
+        cambiaColonne({ scheda: false });
+    };
+    React.useEffect(() => {
+        if (foglio || !riprendiFuoco.current)
+            return;
+        riprendiFuoco.current = false;
+        interruttore.current?.querySelector("button")?.focus();
+    }, [foglio]);
     const trovato = albero ? trova(albero, selezione) : null;
     // Selezione sparita (o mai fatta): si sceglie quella predefinita.
     React.useEffect(() => {
@@ -268,7 +299,8 @@ function App() {
     const dettaglioDi = (c) => (dettaglio?.cantiere.id === c.id ? dettaglio : null);
     const barra = trovato && (React.createElement("div", { className: "barra-testata" },
         React.createElement(Percorso, { segmenti: segmentiDi(trovato), onScegli: daPercorso }),
-        React.createElement(BottoneIcona, { icona: colonne.scheda ? "chiudiScheda" : "apriScheda", titolo: colonne.scheda ? T.chiudiScheda : T.apriScheda, onClick: () => cambiaColonne({ scheda: !colonne.scheda }) })));
+        React.createElement("span", { ref: interruttore },
+            React.createElement(BottoneIcona, { icona: colonne.scheda ? "chiudiScheda" : "apriScheda", titolo: colonne.scheda ? T.chiudiScheda : T.apriScheda, onClick: () => cambiaColonne({ scheda: !colonne.scheda }) }))));
     let centro = React.createElement("main", { className: "lavori" },
         React.createElement(Vuoto, null, albero ? T.scegliQualcosa : errore ?? T.caricamento));
     let destra = React.createElement("aside", { className: "scheda" });
@@ -287,10 +319,14 @@ function App() {
         centro = React.createElement(LavoroCommittente, { cm: trovato.cm, onScegli: scegli, barra: barra });
         destra = React.createElement(SchedaCommittente, { cm: trovato.cm, onNuovoProgetto: () => setRichiesta({ tipo: "progetto", committente: trovato.cm }), onRigenera: () => setRichiesta({ tipo: "rigenera", committente: trovato.cm }) });
     }
-    return (React.createElement("div", { className: "dashboard" },
-        React.createElement(Indice, { committenti: albero ?? [], selezione: selezione, onScegli: scegli, vista: vista, onVista: setVista, posizione: tornatoSu ?? posizioneDi(trovato), onPosizione: setTornatoSu, colonne: colonne, onColonne: cambiaColonne, ristretta: Boolean(ristretta), onNuovoCommittente: () => setRichiesta({ tipo: "committente" }), aggiornato: aggiornato, release: release, errore: errore, onLingua: (l) => { salvaLingua(l); setLingua(l); } }),
-        centro,
-        colonne.scheda && destra,
+    // Con il foglio aperto la pagina sotto il velo è inerte: il fuoco e i lettori di schermo restano nel foglio. Dialoghi e
+    // avvisi stanno fuori, così un dialogo aperto dal foglio funziona.
+    return (React.createElement(React.Fragment, null,
+        React.createElement("div", { className: "dashboard", ...(foglio ? { inert: "" } : {}) },
+            React.createElement(Indice, { committenti: albero ?? [], selezione: selezione, onScegli: scegli, vista: vista, onVista: setVista, posizione: tornatoSu ?? posizioneDi(trovato), onPosizione: setTornatoSu, colonne: colonne, onColonne: cambiaColonne, ristretta: Boolean(ristretta), onNuovoCommittente: () => setRichiesta({ tipo: "committente" }), aggiornato: aggiornato, release: release, errore: errore, onLingua: (l) => { salvaLingua(l); setLingua(l); } }),
+            centro,
+            !telefono && colonne.scheda && destra),
+        foglio && React.createElement(Foglio, { onChiudi: chiudiFoglio, esc: !richiesta }, destra),
         richiesta && React.createElement(Dialoghi, { r: richiesta, esecutori: esecutori, onChiudi: chiudi(richiesta) }),
         messaggio && (React.createElement("div", { className: "posto-toast" },
             React.createElement(Toast, { tono: messaggio.tono, titolo: messaggio.titolo, onChiudi: () => setMessaggio(null) }, messaggio.testo)))));

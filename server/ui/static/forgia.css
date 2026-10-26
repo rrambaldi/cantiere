@@ -20,7 +20,7 @@
   --t-codice:400 13px/1.65 var(--font-mono); --t-etichetta:500 11px/1.2 var(--font-mono); --t-etichetta-spaziatura:.06em;
 
   --r-1:2px; --r-2:4px; --r-3:8px;
-  --ombra-dialogo:0 16px 40px rgba(14,32,65,.5);
+  --ombra-dialogo:0 16px 40px rgba(14,32,65,.5); --velo:rgba(14,32,65,.6);
   --durata-1:120ms; --durata-2:200ms; --curva:cubic-bezier(.2,0,0,1);
   color-scheme:dark;
 }
@@ -45,7 +45,8 @@ button{font:inherit;color:inherit}
 .avviso code{color:var(--segnale)}
 .numero{font-variant-numeric:tabular-nums;text-align:right}
 
-/* layout: colonna di navigazione, lavori, scheda tecnica; colonna e scheda si chiudono */
+/* layout: colonna di navigazione, lavori, scheda tecnica; colonna e scheda si chiudono. Al telefono una schermata
+   alla volta: la colonna aperta prende lo schermo (chiusa è una barra in cima), la scheda è un foglio dal basso. */
 .dashboard{display:grid;grid-template-columns:auto minmax(0,1fr) auto;height:100vh}
 .dashboard > .indice,.dashboard > .lavori,.dashboard > .scheda{min-height:0;overflow-y:auto}
 .dashboard > .indice{width:304px}
@@ -58,13 +59,14 @@ button{font:inherit;color:inherit}
   .dashboard > .scheda{width:auto;grid-column:2;border-left:0;border-top:1px solid var(--linea)}
 }
 @media (max-width:720px){
-  .dashboard{grid-template-columns:minmax(0,1fr)}
-  .dashboard > .indice{width:auto;grid-row:auto;position:static;height:auto;max-height:55vh;border-right:0;border-bottom:1px solid var(--linea)}
-  .dashboard > .rotaia{flex-direction:row;padding:6px 16px}
+  .dashboard{grid-template-columns:minmax(0,1fr);align-content:start} /* lo spazio libero non allunga la barra in cima */
+  .dashboard > .indice{width:auto;grid-row:auto;position:static;height:100vh;height:100dvh;border-right:0;border-bottom:1px solid var(--linea)}
+  .dashboard:has(> .indice:not(.rotaia)) > .lavori{display:none}
+  .puntina{display:none} /* la colonna copre il centro: si chiude a ogni scelta */
+  .dashboard > .rotaia{height:auto;flex-direction:row;padding:6px 16px}
   .rotaia .sfoglia{flex-direction:row;width:auto;height:44px;padding:0 12px}
   .rotaia .verticale{writing-mode:horizontal-tb}
   .rotaia .connessione{margin:0 0 0 auto}
-  .dashboard > .scheda{grid-column:auto}
 }
 
 /* colonna di navigazione: un livello alla volta */
@@ -119,17 +121,17 @@ button{font:inherit;color:inherit}
 .lavori{display:flex;flex-direction:column;min-width:0}
 .barra-testata{display:flex;align-items:center;gap:12px;min-height:28px}
 .barra-testata > :last-child{margin-left:auto;flex:none}
-.percorso ol{display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;margin:0;padding:0;list-style:none;font:500 12.5px/1.4 var(--font-mono)}
+.percorso ol{display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;margin:0;padding:0;list-style:none;font:500 12.5px/1.4 var(--font-mono);overflow-wrap:anywhere}
 .percorso li{display:inline-flex;align-items:center;gap:6px;min-width:0}
 .percorso li:first-child > button{margin-left:-4px}
 .percorso .sep{color:var(--testo-2)}
-.percorso button{padding:4px;border:0;border-radius:var(--r-1);background:transparent;color:var(--testo-2);cursor:pointer;font:inherit;text-decoration:underline;text-decoration-color:var(--linea-forte);text-underline-offset:3px}
+.percorso button{padding:4px;border:0;border-radius:var(--r-1);background:transparent;color:var(--testo-2);cursor:pointer;font:inherit;text-align:left;text-decoration:underline;text-decoration-color:var(--linea-forte);text-underline-offset:3px}
 .percorso button:hover{background:var(--superficie);color:var(--testo);text-decoration-color:var(--segnale)}
-.percorso [aria-current]{color:var(--testo);font-weight:600;overflow-wrap:anywhere}
+.percorso [aria-current]{color:var(--testo);font-weight:600}
 .testata{display:flex;flex-direction:column;gap:6px;padding:18px 28px 16px;border-bottom:1px solid var(--linea)}
 .griglia{background-image:linear-gradient(var(--griglia) 1px,transparent 1px),linear-gradient(90deg,var(--griglia) 1px,transparent 1px);background-size:16px 16px}
 .titolo-lavoro{margin:0;font:600 26px/1.1 var(--font-mono);letter-spacing:-.03em;overflow-wrap:anywhere}
-.sotto{font:var(--t-piccolo);color:var(--testo-2)}
+.sotto{font:var(--t-piccolo);color:var(--testo-2);overflow-wrap:anywhere}
 .corpo-lavoro{display:flex;flex-direction:column;gap:14px;padding:16px 28px 32px;min-width:0}
 .lavori > .vuoto{padding:28px}
 .descrizione{margin:0;max-width:70ch;color:var(--testo)}
@@ -234,6 +236,11 @@ button{font:inherit;color:inherit}
 .sessioni li{display:flex;flex-direction:column;gap:2px}
 .storico li{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .file-scelti li{display:flex;align-items:center;justify-content:space-between;gap:8px}
+/* al telefono la scheda è un foglio dal basso, sopra un velo; la X resta in vista scorrendo */
+.velo{position:fixed;inset:0;z-index:50;background:var(--velo)}
+.foglio{position:fixed;inset:auto 0 0;z-index:51;max-height:78vh;max-height:78dvh;overflow-y:auto;overscroll-behavior:contain;background:var(--superficie);border-top:1px solid var(--linea-forte);border-radius:var(--r-3) var(--r-3) 0 0;box-shadow:var(--ombra-dialogo)}
+.foglio > .scheda{border-left:0;padding-top:4px}
+.chiudi-foglio{position:sticky;top:0;z-index:1;display:flex;justify-content:flex-end;padding:8px 10px 0;background:var(--superficie)}
 
 /* dialoghi e notifiche */
 .errore-dialogo{margin:0;color:var(--errore);font:var(--t-piccolo)}

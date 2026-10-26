@@ -137,6 +137,22 @@ test("colonna chiusa: rotaia «sfoglia» con il pallino di tutte le domande; chi
   await smonta();
 });
 
+test("aperta da fuori la colonna prende il fuoco rimasto nel vuoto, non quello che sta altrove", async () => {
+  const chiusa = { colonne: { colonna: false, fissata: false, scheda: true } };
+  const { mostra, smonta } = await monta(chiusa);
+  (window.document.activeElement as HTMLElement | null)?.blur();
+  await mostra({ colonne: { colonna: true, fissata: false, scheda: true } });
+  assert.ok(window.document.activeElement?.matches(".livello-titolo"), "il fuoco è sul titolo del livello");
+  await mostra(chiusa);
+  const altrove = window.document.createElement("button");
+  window.document.body.append(altrove);
+  altrove.focus();
+  await mostra({ colonne: { colonna: true, fissata: false, scheda: true } });
+  assert.ok(window.document.activeElement === altrove, "il fuoco resta dov'era");
+  altrove.remove();
+  await smonta();
+});
+
 test("percorso: committente, progetto, padri dal più alto e cantiere; un bottone per ogni livello sopra", async () => {
   const [cm] = ALBERO;
   const p = progetto(10, "cantiere", [cantiere(1, "a", "aperto"), cantiere(2, "b", "aperto", { padre_id: 1 }), cantiere(3, "c", "aperto", { padre_id: 2 })]);
@@ -152,6 +168,8 @@ test("percorso: committente, progetto, padri dal più alto e cantiere; un botton
   const radice = createRoot($("#radice"));
   await React.act(async () => radice.render(React.createElement(Percorso, { segmenti, onScegli: (s: unknown) => scelte.push(s) })));
   assert.deepEqual(testi(".percorso button"), ["PRIV", "cantiere", "a", "b"]);
+  // La «/» chiude ogni segmento tranne l'ultimo: andando a capo resta a fine riga.
+  assert.deepEqual([...window.document.querySelectorAll(".percorso li")].map((li) => li.lastElementChild!.className), ["sep", "sep", "sep", "sep", ""]);
   assert.equal($('[aria-current="page"]')!.textContent, "c");
   await clic(".percorso li:nth-child(2) button");
   assert.deepEqual(scelte, [{ tipo: "progetto", id: 10 }]);

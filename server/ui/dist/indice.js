@@ -117,7 +117,12 @@ export function Indice({ committenti, selezione, onScegli, posizione, onPosizion
     const fuoco = React.useRef(null);
     const titolo = React.useRef(null);
     const sfoglia = React.useRef(null);
+    const aperta = React.useRef(colonne.colonna);
     React.useEffect(() => {
+        // Aperta da fuori (un segmento del percorso, che al telefono la colonna copre), prende il fuoco rimasto nel vuoto.
+        if (colonne.colonna && !aperta.current && document.activeElement === document.body)
+            fuoco.current = "titolo";
+        aperta.current = colonne.colonna;
         const el = fuoco.current === "titolo" ? titolo.current : fuoco.current === "sfoglia" ? sfoglia.current : null;
         if (!el)
             return;
@@ -207,7 +212,8 @@ export function Indice({ committenti, selezione, onScegli, posizione, onPosizion
         React.createElement("div", { className: "indice-testa" },
             logo,
             React.createElement("span", { role: "group", "aria-label": T.lingua, className: "lingue" }, ["it", "en"].map((l) => (React.createElement(Button, { key: l, variant: l === lingua ? "secondario" : "fantasma", size: "sm", onClick: () => onLingua(l) }, l.toUpperCase())))),
-            React.createElement(BottoneIcona, { icona: "puntina", titolo: T.tieniAperta, premuto: colonne.fissata, onClick: () => onColonne({ fissata: !colonne.fissata }) }),
+            React.createElement("span", { className: "puntina" },
+                React.createElement(BottoneIcona, { icona: "puntina", titolo: T.tieniAperta, premuto: colonne.fissata, onClick: () => onColonne({ fissata: !colonne.fissata }) })),
             React.createElement(BottoneIcona, { icona: "chiudiColonna", titolo: T.chiudiColonna, onClick: chiudi })),
         React.createElement("section", { key: chiave, className: "livello" + (entrata.current.daSinistra ? " da-sinistra" : "") }, contenuto),
         React.createElement("div", { className: "indice-piede" },
@@ -228,8 +234,8 @@ export function Percorso({ segmenti, onScegli }) {
     }, [ultimo]);
     return (React.createElement("nav", { className: "percorso", "aria-label": T.percorso },
         React.createElement("ol", null, segmenti.map((s, i) => (React.createElement("li", { key: i },
-            i > 0 && React.createElement("span", { className: "sep", "aria-hidden": "true" }, "/"),
             s.scelta
                 ? React.createElement("button", { onClick: () => { fuocoAlPercorso = true; onScegli(s.scelta); } }, s.testo)
-                : React.createElement("span", { ref: corrente, tabIndex: -1, "aria-current": "page" }, s.testo)))))));
+                : React.createElement("span", { ref: corrente, tabIndex: -1, "aria-current": "page" }, s.testo),
+            i < segmenti.length - 1 && React.createElement("span", { className: "sep", "aria-hidden": "true" }, "/")))))));
 }

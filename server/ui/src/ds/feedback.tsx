@@ -58,7 +58,7 @@ export function Dialog({ titolo, children, azioni, onChiudi, soloPulsanti = fals
     return () => document.removeEventListener("keydown", esc);
   }, [onChiudi, soloPulsanti]);
   return (
-    <div onClick={(e) => !soloPulsanti && e.target === e.currentTarget && onChiudi()} style={{ position: "fixed", inset: 0, background: "rgba(14,32,65,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 100 }}>
+    <div onClick={(e) => !soloPulsanti && e.target === e.currentTarget && onChiudi()} style={{ position: "fixed", inset: 0, background: "var(--velo)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 100 }}>
       <div role="dialog" aria-modal="true" aria-label={titolo} style={{ width: 480, maxWidth: "100%", maxHeight: "100%", overflowY: "auto", background: "var(--superficie)", color: "var(--testo)", border: "1px solid var(--linea-forte)", borderRadius: "var(--r-3)", boxShadow: "var(--ombra-dialogo)", display: "flex", flexDirection: "column" }}>
         <div style={{ padding: "18px 20px 0", font: "var(--t-h2)", fontSize: 18 }}>{titolo}</div>
         <div style={{ padding: "10px 20px 18px", font: "var(--t-corpo)", fontSize: 14, color: "var(--testo-2)", display: "flex", flexDirection: "column", gap: 12 }}>{children}</div>

@@ -25,3 +25,14 @@ La scelta corrente MUST stare nell'indirizzo della pagina (`#/committente/proget
 #### Scenario: Link
 - **WHEN** si apre `#/PRIV/parity-deriva/multi-instrument-simulations/basket-mix` con un'altra scelta ricordata
 - **THEN** la pagina mostra `basket-mix` con il suo percorso
+
+### Requirement: Telefono
+A 720 px o meno la dashboard MUST mostrare una schermata alla volta: la colonna aperta prende tutto lo schermo e nasconde il centro, chiusa è una barra in cima con «sfoglia». La scheda tecnica MUST aprirsi come un foglio dal basso sopra un velo, con la pagina sotto inerte, e MUST chiudersi con il suo bottone, con un tocco sul velo o con Esc (salvo un dialogo aperto sopra). All'apertura, e stringendo la finestra sotto quella soglia, la colonna e la scheda MUST essere chiuse; quello che si apre al telefono MUST NOT cambiare lo stato ricordato per il desktop, che torna allargando la finestra.
+
+#### Scenario: Dal cantiere a un'idea
+- **WHEN** a 390×844 si tocca «sfoglia», poi «‹ PRIV», `mercurius`, «Idee» e un'idea
+- **THEN** ogni tocco mostra un livello a tutto schermo, e l'idea si apre al centro con la colonna chiusa
+
+#### Scenario: Foglio della scheda
+- **WHEN** a 390×844 si apre la scheda tecnica dalla testata
+- **THEN** la scheda sale dal basso sopra un velo, il fuoco va al suo bottone di chiusura e resta nel foglio; un tocco sul velo la chiude e il fuoco torna al bottone della testata

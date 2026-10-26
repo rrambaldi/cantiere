@@ -2,8 +2,28 @@ import { Button, Checkbox } from "./ds/core.js";
 import { StatoBadge } from "./ds/feedback.js";
 import { eta, finale, giorno, quando } from "./formato.js";
 import { T } from "./testi.js";
-import { Avanzamento, Campi, Etichetta, Vuoto } from "./ui.js";
+import { Avanzamento, BottoneIcona, Campi, Etichetta, Vuoto } from "./ui.js";
 const ARTEFATTI = ["proposal", "design", "specs", "tasks"];
+/** Al telefono la scheda è un foglio dal basso, sopra un velo; chi lo apre rende inerte il resto della pagina. */
+export function Foglio({ onChiudi, esc, children }) {
+    const chiudi = React.useRef(null);
+    // Aperto, il fuoco entra nel foglio; dove torna alla chiusura lo decide chi lo apre.
+    React.useEffect(() => chiudi.current?.querySelector("button")?.focus(), []);
+    // Esc lo chiude, salvo con un dialogo aperto sopra: Esc è suo, o di nessuno per quelli che si chiudono coi bottoni.
+    React.useEffect(() => {
+        if (!esc)
+            return;
+        const tasto = (e) => e.key === "Escape" && onChiudi();
+        document.addEventListener("keydown", tasto);
+        return () => document.removeEventListener("keydown", tasto);
+    }, [esc, onChiudi]);
+    return (React.createElement(React.Fragment, null,
+        React.createElement("div", { className: "velo", "aria-hidden": "true", onClick: onChiudi }),
+        React.createElement("div", { className: "foglio", role: "dialog", "aria-modal": "true", "aria-label": T.schedaTecnica },
+            React.createElement("div", { ref: chiudi, className: "chiudi-foglio" },
+                React.createElement(BottoneIcona, { icona: "chiudi", titolo: T.chiudiScheda, onClick: onChiudi })),
+            children)));
+}
 function Blocco({ titolo, children }) {
     return React.createElement("div", { className: "blocco" },
         React.createElement(Etichetta, null, titolo),
