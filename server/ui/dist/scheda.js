@@ -4,6 +4,11 @@ import { eta, finale, giorno, quando } from "./formato.js";
 import { T } from "./testi.js";
 import { Avanzamento, BottoneIcona, Campi, Etichetta, Vuoto } from "./ui.js";
 const ARTEFATTI = ["proposal", "design", "specs", "tasks"];
+/** «3 subagenti · 2 Explore · 1 general-purpose»: i più usati per primi. */
+const subagenti = (conti) => {
+    const tipi = Object.entries(conti).sort((a, b) => b[1] - a[1]);
+    return T.subagentiN(tipi.reduce((n, [, k]) => n + k, 0), tipi.map(([tipo, k]) => `${k} ${tipo}`).join(" · "));
+};
 /** Al telefono la scheda è un foglio dal basso, sopra un velo; chi lo apre rende inerte il resto della pagina. */
 export function Foglio({ onChiudi, esc, children }) {
     const chiudi = React.useRef(null);
@@ -56,7 +61,8 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea }) {
                 React.createElement("span", { className: "secondario" },
                     s.titolo ?? T.statoSessione[s.stato],
                     " \u00B7 ",
-                    eta(s.eta_secondi)))))))),
+                    eta(s.eta_secondi)),
+                Object.keys(s.subagenti).length > 0 && React.createElement("span", { className: "secondario" }, subagenti(s.subagenti)))))))),
         d.todo.length > 0 && (React.createElement(Blocco, { titolo: T.todoSessioni }, d.todo.map((t, i) => (React.createElement(Checkbox, { key: i, checked: t.stato === "completed", label: React.createElement("span", { style: { color: t.stato === "completed" ? "var(--testo-2)" : "var(--testo)" } },
                 t.testo,
                 t.stato === "in_progress" ? T.inCorsoTodo : "") }))))),

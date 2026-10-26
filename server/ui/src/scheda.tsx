@@ -8,6 +8,12 @@ import { Avanzamento, BottoneIcona, Campi, Etichetta, Vuoto } from "./ui.tsx";
 
 const ARTEFATTI = ["proposal", "design", "specs", "tasks"] as const;
 
+/** «3 subagenti · 2 Explore · 1 general-purpose»: i più usati per primi. */
+const subagenti = (conti: Record<string, number>) => {
+  const tipi = Object.entries(conti).sort((a, b) => b[1] - a[1]);
+  return T.subagentiN(tipi.reduce((n, [, k]) => n + k, 0), tipi.map(([tipo, k]) => `${k} ${tipo}`).join(" · "));
+};
+
 /** Al telefono la scheda è un foglio dal basso, sopra un velo; chi lo apre rende inerte il resto della pagina. */
 export function Foglio({ onChiudi, esc, children }: { onChiudi: () => void; esc: boolean; children: React.ReactNode }) {
   const chiudi = React.useRef<HTMLDivElement>(null);
@@ -71,6 +77,7 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea }: {
               <li key={s.session_id}>
                 <span>{s.host}{s.branch ? ` · ${s.branch}` : ""}</span>
                 <span className="secondario">{s.titolo ?? T.statoSessione[s.stato]} · {eta(s.eta_secondi)}</span>
+                {Object.keys(s.subagenti).length > 0 && <span className="secondario">{subagenti(s.subagenti)}</span>}
               </li>
             ))}
           </ul>

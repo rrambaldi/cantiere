@@ -166,6 +166,7 @@ function App() {
   }, [foglio]);
 
   const trovato = albero ? trova(albero, selezione) : null;
+  const tuttiICantieri = React.useMemo(() => (albero ?? []).flatMap((cm) => cm.progetti.flatMap((p) => p.cantieri)), [albero]);
   // Selezione sparita (o mai fatta): si sceglie quella predefinita.
   React.useEffect(() => {
     if (albero && !trovato) setSelezione(predefinita(albero));
@@ -316,7 +317,7 @@ function App() {
   if (trovato?.tipo === "cantiere") {
     const d = dettaglioDi(trovato.c);
     if (d) {
-      centro = <LavoroCantiere d={d} barra={barra} onFile={(f) => void caricaFile(d.cantiere.id, f).then(aggiorna)}
+      centro = <LavoroCantiere d={d} barra={barra} cantieri={tuttiICantieri} onScegli={scegli} onFile={(f) => void caricaFile(d.cantiere.id, f).then(aggiorna)}
         onSalvaFile={(nome, testo) => salvaFile(d.cantiere.id, nome, testo)}
         onTogliFile={(nome) => setRichiesta({ tipo: "togli", cantiere: d.cantiere, nome })} />;
       destra = <SchedaCantiere d={d}

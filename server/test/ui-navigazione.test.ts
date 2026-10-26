@@ -19,7 +19,7 @@ const ORA = "2026-10-22T08:00:00Z";
 const cantiere = (id: number, nome: string, stato: string, extra: object = {}) => ({
   id, progetto: "cantiere", nome, percorso: nome, padre_id: null, stato, origine: "repo", change: nome, descrizione: null,
   creato_il: ORA, aggiornato_il: ORA, artefatti: null, task: null, fasi: null, change_mancante: false, da_archiviare: false,
-  file_idea: 0, domande_in_attesa: 0, domande: [], sessioni: [], ...extra,
+  file_idea: 0, domande_in_attesa: 0, domande: [], sessioni: [], nato_da: [], ...extra,
 });
 const progetto = (id: number, nome: string, cantieri: object[], extra: object = {}) =>
   ({ id, nome, slug: nome, creato_il: ORA, non_censite: 0, domande_in_attesa: 0, cantieri, ...extra });

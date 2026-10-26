@@ -18,6 +18,8 @@ export interface SessioneAttiva {
   fatto: string | null;
   prossimo: string | null;
   eta_secondi: number;
+  /** Subagenti lanciati, per tipo. */
+  subagenti: Record<string, number>;
 }
 
 export interface Domanda {
@@ -54,6 +56,8 @@ export interface Cantiere {
   /** Solo quelle del cantiere stesso. */
   domande: Domanda[];
   sessioni: SessioneAttiva[];
+  /** I cantieri da cui è nato, anche di altri progetti dello stesso committente. */
+  nato_da: { id: number; progetto: string; percorso: string; task: string | null; tipo: "registrato" | "citato" }[];
 }
 
 export interface Progetto {

@@ -3,6 +3,7 @@ import { Nastro } from "./ds/cantiere.js";
 import { Button, Checkbox, Input, Tabs } from "./ds/core.js";
 import { SessioneBadge, StatoBadge } from "./ds/feedback.js";
 import { eta, giorno, ora, quando } from "./formato.js";
+import { TaskERami } from "./rami.js";
 import { T } from "./testi.js";
 import { Avanzamento, Avviso, BottoneIcona, Etichetta, Pallino, Vuoto } from "./ui.js";
 const FILE_AMMESSI = ".md,.txt,text/markdown,text/plain";
@@ -150,7 +151,7 @@ export function ZonaFile({ onFile, testo = T.trascinaFile, conTesto = true }) {
             React.createElement("input", { ref: input, type: "file", multiple: true, accept: FILE_AMMESSI, hidden: true, onChange: (e) => { onFile([...(e.target.files ?? [])]); e.target.value = ""; } })),
         conTesto && React.createElement(CampoTesto, { scritto: scritto, setScritto: setScritto, nome: nome, setNome: setNome, azione: React.createElement(Button, { variant: "secondario", size: "sm", onClick: () => { onFile([fileDaTesto(nome, scritto)]); setScritto(""); } }, T.aggiungiTesto) })));
 }
-export function LavoroCantiere({ d, onFile, onSalvaFile, onTogliFile, barra }) {
+export function LavoroCantiere({ d, cantieri, onScegli, onFile, onSalvaFile, onTogliFile, barra }) {
     const c = d.cantiere;
     const idea = c.stato === "idea";
     const daFare = d.task_aperti.length > 0;
@@ -160,6 +161,7 @@ export function LavoroCantiere({ d, onFile, onSalvaFile, onTogliFile, barra }) {
     // Spuntato l'ultimo task, la scheda «Da fare» sparisce: si torna al giornale.
     const vista = scheda === "daFare" && !daFare ? "giornale" : scheda;
     const macchine = new Set(d.turni.map((t) => t.host)).size;
+    const legati = c.nato_da.length + cantieri.filter((x) => x.nato_da.some((l) => l.id === c.id)).length;
     // Un'idea con la copia di un change archiviato con lo stesso nome mostra quella: si modificano e si tolgono solo i file dell'idea.
     const fileIdea = d.file.every((f) => f.percorso.startsWith(PREFISSO_IDEA));
     // Una bozza vive finché il suo file si può modificare: con l'idea abbandonata o presa, o il file tolto altrove, il
@@ -201,15 +203,18 @@ export function LavoroCantiere({ d, onFile, onSalvaFile, onTogliFile, barra }) {
                 React.createElement(Documenti, { key: c.id, file: d.file, vuoto: T.nessunFileIdea, modifica: fileIdea ? { cantiere: c.id, salva: (f, testo) => onSalvaFile(nomeIdea(f), testo) } : undefined, azioni: fileIdea ? (f) => React.createElement(BottoneIcona, { icona: "cestino", titolo: T.togli, onClick: () => onTogliFile(nomeIdea(f)) }) : undefined }))) : (React.createElement(React.Fragment, null,
                 React.createElement(Tabs, { value: vista, onChange: setScheda, items: [
                         ...(daFare ? [{ id: "daFare", label: T.daFareScheda, count: d.task_aperti.length }] : []),
+                        { id: "rami", label: T.taskERami, count: legati },
                         { id: "giornale", label: T.giornale, count: d.turni.length },
                         { id: "change", label: T.changeScheda, count: d.file.length },
                     ] }),
                 vista === "daFare"
                     ? React.createElement("ul", { className: "task-aperti" }, d.task_aperti.map((t, i) => React.createElement("li", { key: i },
                         React.createElement(Checkbox, { checked: false, label: React.createElement(RigaMarkdown, { testo: t }) }))))
-                    : vista === "giornale"
-                        ? React.createElement(Turni, { turni: d.turni, vuoto: c.origine === "repo" ? T.nessunResocontoRepo(quando(c.creato_il)) : T.nessunResoconto })
-                        : React.createElement(Documenti, { file: d.file, vuoto: T.nessunaCopiaChange }))))));
+                    : vista === "rami"
+                        ? React.createElement(TaskERami, { c: c, tasks: d.file.find((f) => f.percorso === "tasks.md")?.contenuto ?? null, cantieri: cantieri, onScegli: onScegli })
+                        : vista === "giornale"
+                            ? React.createElement(Turni, { turni: d.turni, vuoto: c.origine === "repo" ? T.nessunResocontoRepo(quando(c.creato_il)) : T.nessunResoconto })
+                            : React.createElement(Documenti, { file: d.file, vuoto: T.nessunaCopiaChange }))))));
 }
 /** Le domande che le sessioni del cantiere hanno fatto e che aspettano risposta (solo lettura). */
 function DomandeInAttesa({ domande }) {

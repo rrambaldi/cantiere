@@ -250,3 +250,26 @@ button{font:inherit;color:inherit}
 [role="dialog"] p{margin:0}
 .posto-toast{position:fixed;right:20px;bottom:20px;left:20px;display:flex;justify-content:flex-end;z-index:200;pointer-events:none}
 .posto-toast > *{pointer-events:auto}
+
+/* «Task e rami»: da chi è nato il cantiere, i task di tasks.md e accanto a ciascuno i cantieri nati da lì.
+   Sul fondo --superficie il testo secondario è --prussia-200: --testo-2 lì non arriva a 4.5:1. */
+.task-rami{display:flex;flex-direction:column;gap:16px}
+.testa-rami{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.testa-rami > section{display:flex;flex-direction:column;gap:8px;min-width:0;padding:12px 14px;border:1px solid var(--linea);border-radius:var(--r-3)}
+.testa-rami ul,.rami-del-task{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.righe-task{list-style:none;margin:0;padding:0;border:1px solid var(--linea);border-radius:var(--r-3);overflow-wrap:anywhere}
+.titolo-task{padding:14px 14px 6px;font:var(--t-h3)}
+.riga-task{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,340px);gap:8px 16px;align-items:center;padding:8px 14px;border-top:1px solid var(--linea)}
+.titolo-task + .riga-task,.righe-task > .riga-task:first-child{border-top:0}
+.numero-task{font:500 12px/1 var(--font-mono)}
+.cartellino{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;width:100%;padding:8px 10px;border:1px solid var(--linea);border-radius:var(--r-2);background:var(--superficie);color:var(--testo);text-align:left;cursor:pointer;font:var(--t-piccolo)}
+.cartellino:hover:not(:disabled){background:var(--superficie-alta)}
+.cartellino:disabled{cursor:default}
+.cartellino.citato{border-style:dashed;border-color:var(--linea-forte)}
+.cartellino .nome{flex:1 1 160px;min-width:0;font:500 13px/1.3 var(--font-mono);overflow-wrap:anywhere}
+.cartellino .secondario{color:var(--prussia-200)}
+.cartellino .tag{padding:0 5px;border:1px solid var(--linea-forte);border-radius:var(--r-1);font:400 11px/1.5 var(--font-mono);color:var(--prussia-200)}
+@media (max-width:720px){
+  .testa-rami,.riga-task{grid-template-columns:minmax(0,1fr)}
+  .rami-del-task:not(:empty){padding-left:24px}
+}

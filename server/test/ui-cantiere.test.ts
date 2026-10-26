@@ -19,6 +19,7 @@ const dist = (nome: string) => import(new URL(`../ui/dist/${nome}`, import.meta.
 const { impostaLingua } = await dist("testi.js");
 const { SchedaCantiere } = await dist("scheda.js");
 const { LavoroCantiere } = await dist("lavori.js");
+const { TaskERami, righeTask } = await dist("rami.js");
 impostaLingua("it");
 
 const niente = () => {};
@@ -27,7 +28,7 @@ const dettaglio = (cantiere: object, task_aperti: string[] = []) => ({
   cantiere: {
     id: 1, progetto: "mercurius", nome: "crescita", percorso: "crescita", padre_id: null, stato: "aperto", origine: "repo", change: "crescita",
     descrizione: null, creato_il: "2026-10-15T17:32:56Z", aggiornato_il: "2026-10-15T17:32:56Z", artefatti: null, task: { fatti: 0, totali: 6 },
-    fasi: null, change_mancante: false, da_archiviare: false, file_idea: 0, domande_in_attesa: 0, domande: [], sessioni: [], ...cantiere,
+    fasi: null, change_mancante: false, da_archiviare: false, file_idea: 0, domande_in_attesa: 0, domande: [], sessioni: [], nato_da: [], ...cantiere,
   },
   turni: [], file: [], task_aperti, todo: [], esiti: [], discendenti_attivi: [],
 });
@@ -35,9 +36,9 @@ const dettaglio = (cantiere: object, task_aperti: string[] = []) => ({
 test("lavoro: con task aperti la prima scheda è «Da fare», con tutti i task formattati; la scheda a destra non li ripete", () => {
   const aperti = ["1.1 cancellare `a.json`", "1.2 b", "1.3 c", "1.4 d", "1.5 e", "1.6 f"];
   const d = dettaglio({}, aperti);
-  const lavoro = html(LavoroCantiere, { d, onFile: niente, onTogliFile: niente });
+  const lavoro = html(LavoroCantiere, { d, cantieri: [], onScegli: niente, onFile: niente, onTogliFile: niente });
   const schede = [...lavoro.matchAll(/role="tab"[^>]*>([^<]+)/g)].map((m) => m[1]);
-  assert.deepEqual(schede, ["Da fare", "Giornale", "Change"]);
+  assert.deepEqual(schede, ["Da fare", "Task e rami", "Giornale", "Change"]);
   assert.match(lavoro, /aria-selected="true"[^>]*>Da fare/);
   assert.match(lavoro, /1\.1 cancellare <code>a\.json<\/code>/);
   assert.match(lavoro, /1\.6 f/);
@@ -47,13 +48,13 @@ test("lavoro: con task aperti la prima scheda è «Da fare», con tutti i task f
 });
 
 test("lavoro: senza task aperti niente scheda «Da fare», si apre il giornale", () => {
-  const lavoro = html(LavoroCantiere, { d: dettaglio({}), onFile: niente, onTogliFile: niente });
+  const lavoro = html(LavoroCantiere, { d: dettaglio({}), cantieri: [], onScegli: niente, onFile: niente, onTogliFile: niente });
   assert.doesNotMatch(lavoro, />Da fare/);
   assert.match(lavoro, /aria-selected="true"[^>]*>Giornale/);
 });
 
 test("scheda: storico e sessioni attive senza valori grezzi", () => {
-  const d = { ...dettaglio({ sessioni: [{ session_id: "s1", host: "mine", branch: null, stato: "attiva", titolo: null, fatto: null, prossimo: null, eta_secondi: 0 }] }),
+  const d = { ...dettaglio({ sessioni: [{ session_id: "s1", host: "mine", branch: null, stato: "attiva", titolo: null, fatto: null, prossimo: null, eta_secondi: 0, subagenti: {} }] }),
     esiti: [{ stato: "aperto", ts: "2026-10-15T17:32:56Z", da: "presa" }] };
   const scheda = html(SchedaCantiere, { d, onEsito: niente, onModifica: niente, onNuovaIdea: niente });
   assert.match(scheda, /presa con \/cantiere prendi/);
@@ -61,14 +62,14 @@ test("scheda: storico e sessioni attive senza valori grezzi", () => {
 });
 
 test("giornale vuoto: un cantiere nato dal repo dice da dove viene, le altre origini restano come prima", () => {
-  const lavoro = (origine: string) => html(LavoroCantiere, { d: dettaglio({ origine }), onFile: niente, onTogliFile: niente });
+  const lavoro = (origine: string) => html(LavoroCantiere, { d: dettaglio({ origine }), cantieri: [], onScegli: niente, onFile: niente, onTogliFile: niente });
   assert.match(lavoro("repo"), /Cantiere creato dalla copia di openspec\/changes\/ del repo/);
   assert.match(lavoro("utente"), /Nessun resoconto ancora/);
 });
 
 test("documento di un'idea: azioni a icone con il testo come tooltip, Modifica e Togli solo sui file dell'idea", () => {
   const file = [{ percorso: "idee/appunti.md", contenuto: "# Appunti" }];
-  const azioni = (d: object) => [...html(LavoroCantiere, { d, onFile: niente, onTogliFile: niente })
+  const azioni = (d: object) => [...html(LavoroCantiere, { d, cantieri: [], onScegli: niente, onFile: niente, onTogliFile: niente })
     .matchAll(/<button[^>]*title="([^"]+)"[^>]*aria-label="\1"[^>]*><svg/g)].map((m) => m[1]);
   assert.deepEqual(azioni({ ...dettaglio({ stato: "idea" }), file }), ["Modifica", "Copia negli appunti", "Salva sul computer", "Togli"]);
   // Un'idea con la copia di un change archiviato con lo stesso nome mostra i file del change: niente Modifica né Togli.
@@ -92,7 +93,7 @@ const idea = (id: number) => ({
 /** Monta la pagina di un'idea; `salva` decide l'esito di ogni salvataggio. */
 async function monta(salva: (nome: string, testo: string) => Promise<boolean>) {
   const radice = createRoot($("#radice"));
-  const mostra = (d: object) => React.act(async () => radice.render(React.createElement(LavoroCantiere, { d, onFile: niente, onTogliFile: niente, onSalvaFile: salva })));
+  const mostra = (d: object) => React.act(async () => radice.render(React.createElement(LavoroCantiere, { d, cantieri: [], onScegli: niente, onFile: niente, onTogliFile: niente, onSalvaFile: salva })));
   return { mostra, smonta: () => React.act(async () => radice.unmount()) };
 }
 const chiudendo = () => {
@@ -246,4 +247,53 @@ test("editor: anteprima col nostro Markdown anche dopo l'anteprima piena, pulsan
     }
     await clic('button[aria-label="Annulla"]');
   });
+});
+
+// «Task e rami»: da chi è nato il cantiere, i task di tasks.md e accanto a ciascuno i rami, anche verso altri progetti.
+const cantiereDi = (id: number, progetto: string, percorso: string, extra: object = {}) => ({ ...dettaglio({ id, progetto, nome: percorso, percorso, change: percorso, ...extra }).cantiere });
+const TASKS = "# Tasks\n\n## 1. Push al trade server\n\n- [ ] 1.1 Togliere `single()` dal push\n  (i mix dipendono da basket-mix)\n- [x] 1.2 Formato di push_record\n- [ ] Senza numero\n";
+const multi = cantiereDi(3, "parity-deriva", "multi-instrument-simulations");
+const basket = cantiereDi(45, "parity-deriva", "basket-mix", { task: { fatti: 7, totali: 8 }, nato_da: [{ id: 3, progetto: "parity-deriva", percorso: "multi-instrument-simulations", task: "1.1", tipo: "citato" }] });
+const fuori = cantiereDi(49, "mercurius", "info-extra", { stato: "idea", task: null, nato_da: [{ id: 3, progetto: "parity-deriva", percorso: "multi-instrument-simulations", task: null, tipo: "registrato" }] });
+
+test("task e rami: righe di tasks.md con titoli, numeri, caselle e righe che continuano", () => {
+  assert.deepEqual(righeTask(TASKS), [
+    { tipo: "titolo", testo: "1. Push al trade server" },
+    { tipo: "task", fatto: false, numero: "1.1", testo: "Togliere `single()` dal push (i mix dipendono da basket-mix)" },
+    { tipo: "task", fatto: true, numero: "1.2", testo: "Formato di push_record" },
+    { tipo: "task", fatto: false, numero: null, testo: "Senza numero" },
+  ]);
+});
+
+test("task e rami: il ramo citato accanto al suo task con l'avanzamento; quello senza task in testa, col progetto se è un altro", () => {
+  const pagina = html(TaskERami, { c: multi, tasks: TASKS, cantieri: [multi, basket, fuori], onScegli: niente });
+  const riga11 = pagina.slice(pagina.indexOf(">1.1<"), pagina.indexOf(">1.2<"));
+  assert.match(riga11, /class="cartellino citato"[\s\S]*basket-mix[\s\S]*7\/8[\s\S]*citato/);
+  const testa = pagina.slice(0, pagina.indexOf("righe-task"));
+  assert.match(testa, /Nessuno: non è nato da un altro cantiere/);
+  assert.match(testa, /2 rami/);
+  assert.match(testa, /mercurius \/ info-extra/);
+  assert.match(testa, /1 ramo accanto al suo task/);
+  assert.doesNotMatch(testa, /basket-mix/);
+  const ramo = html(TaskERami, { c: basket, tasks: null, cantieri: [multi, basket, fuori], onScegli: niente });
+  assert.match(ramo, /multi-instrument-simulations[\s\S]*dal task 1\.1[\s\S]*citato/);
+  assert.match(ramo, /Nessun tasks\.md/);
+});
+
+test("task e rami: un clic su un ramo lo apre", async () => {
+  const contenitore = window.document.createElement("div");
+  const radice = createRoot(contenitore);
+  const scelte: object[] = [];
+  await React.act(async () => radice.render(React.createElement(TaskERami, { c: multi, tasks: TASKS, cantieri: [multi, basket, fuori], onScegli: (s: object) => scelte.push(s) })));
+  const ramo = [...contenitore.querySelectorAll<HTMLElement>(".cartellino")].find((b) => b.textContent!.includes("basket-mix"))!;
+  await React.act(async () => ramo.click());
+  assert.deepEqual(scelte, [{ tipo: "cantiere", id: 45 }]);
+  await React.act(async () => radice.unmount());
+});
+
+test("scheda: subagenti accanto alla sessione, i più usati per primi; senza subagenti niente riga", () => {
+  const sessione = (subagenti: object) => ({ session_id: "s1", host: "mine", branch: null, stato: "lavorando", titolo: "Prova", fatto: null, prossimo: null, eta_secondi: 0, subagenti });
+  const scheda = (subagenti: object) => html(SchedaCantiere, { d: dettaglio({ sessioni: [sessione(subagenti)] }), onEsito: niente, onModifica: niente, onNuovaIdea: niente });
+  assert.match(scheda({ "general-purpose": 1, Explore: 2 }), /3 subagenti · 2 Explore · 1 general-purpose/);
+  assert.doesNotMatch(scheda({}), /subagent/);
 });

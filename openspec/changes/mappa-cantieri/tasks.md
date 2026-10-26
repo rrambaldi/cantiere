@@ -17,8 +17,8 @@
 
 ## 3. Dashboard
 
-- [ ] 3.1 Scheda «Task e rami» del cantiere
+- [x] 3.1 Scheda «Task e rami» del cantiere
 - [ ] 3.2 Scheda «Binari» del committente: fermi, idee prese, rami e monconi tra progetti; visite dei legami con i cantieri già visti, perché un giro resta possibile (design, rischi)
 - [ ] 3.3 Al telefono il quadro ad albero
-- [ ] 3.4 Subagenti contati accanto a ogni sessione del cantiere
+- [x] 3.4 Subagenti contati accanto a ogni sessione del cantiere
 - [ ] 3.5 Testi IT/EN, build della UI, verifica nel browser a 1440, 1100 e 390 px

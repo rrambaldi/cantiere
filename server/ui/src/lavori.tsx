@@ -7,6 +7,7 @@ import { Button, Checkbox, Input, Tabs } from "./ds/core.tsx";
 import { SessioneBadge, StatoBadge } from "./ds/feedback.tsx";
 import { eta, giorno, ora, quando } from "./formato.ts";
 import type { Selezione } from "./indice.tsx";
+import { TaskERami } from "./rami.tsx";
 import { T } from "./testi.ts";
 import { Avanzamento, Avviso, BottoneIcona, Etichetta, Pallino, Vuoto } from "./ui.tsx";
 
@@ -217,10 +218,13 @@ export function ZonaFile({ onFile, testo = T.trascinaFile, conTesto = true }: {
   );
 }
 
-type Scheda = "daFare" | "giornale" | "change";
+type Scheda = "daFare" | "rami" | "giornale" | "change";
 
-export function LavoroCantiere({ d, onFile, onSalvaFile, onTogliFile, barra }: {
+export function LavoroCantiere({ d, cantieri, onScegli, onFile, onSalvaFile, onTogliFile, barra }: {
   d: Dettaglio; onFile: (f: File[]) => void; onTogliFile: (nome: string) => void; barra?: ReactNode;
+  /** Tutti i cantieri dell'albero: servono per i rami in uscita e per lo stato di quelli legati. */
+  cantieri: Cantiere[];
+  onScegli: (s: Selezione) => void;
   /** Salva il testo modificato di un file dell'idea; dice se è riuscito. */
   onSalvaFile: (nome: string, testo: string) => Promise<boolean>;
 }) {
@@ -233,6 +237,7 @@ export function LavoroCantiere({ d, onFile, onSalvaFile, onTogliFile, barra }: {
   // Spuntato l'ultimo task, la scheda «Da fare» sparisce: si torna al giornale.
   const vista = scheda === "daFare" && !daFare ? "giornale" : scheda;
   const macchine = new Set(d.turni.map((t) => t.host)).size;
+  const legati = c.nato_da.length + cantieri.filter((x) => x.nato_da.some((l) => l.id === c.id)).length;
   // Un'idea con la copia di un change archiviato con lo stesso nome mostra quella: si modificano e si tolgono solo i file dell'idea.
   const fileIdea = d.file.every((f) => f.percorso.startsWith(PREFISSO_IDEA));
   // Una bozza vive finché il suo file si può modificare: con l'idea abbandonata o presa, o il file tolto altrove, il
@@ -272,11 +277,14 @@ export function LavoroCantiere({ d, onFile, onSalvaFile, onTogliFile, barra }: {
           <>
             <Tabs value={vista} onChange={setScheda} items={[
               ...(daFare ? [{ id: "daFare" as const, label: T.daFareScheda, count: d.task_aperti.length }] : []),
+              { id: "rami", label: T.taskERami, count: legati },
               { id: "giornale", label: T.giornale, count: d.turni.length },
               { id: "change", label: T.changeScheda, count: d.file.length },
             ]} />
             {vista === "daFare"
               ? <ul className="task-aperti">{d.task_aperti.map((t, i) => <li key={i}><Checkbox checked={false} label={<RigaMarkdown testo={t} />} /></li>)}</ul>
+              : vista === "rami"
+              ? <TaskERami c={c} tasks={d.file.find((f) => f.percorso === "tasks.md")?.contenuto ?? null} cantieri={cantieri} onScegli={onScegli} />
               : vista === "giornale"
               ? <Turni turni={d.turni} vuoto={c.origine === "repo" ? T.nessunResocontoRepo(quando(c.creato_il)) : T.nessunResoconto} />
               : <Documenti file={d.file} vuoto={T.nessunaCopiaChange} />}
