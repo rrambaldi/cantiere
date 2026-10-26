@@ -1,6 +1,6 @@
 {
   "name": "forgia-server",
-  "version": "26.10.13",
+  "version": "26.10.14",
   "private": true,
   "license": "MIT",
   "type": "module",
