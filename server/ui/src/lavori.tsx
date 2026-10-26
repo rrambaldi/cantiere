@@ -1,6 +1,7 @@
 // Colonna centrale: task da fare, giornale e change di un cantiere, oppure il quadro di un progetto o di un committente.
 import type { ReactNode } from "react";
 import type { Cantiere, Committente, Dettaglio, Domanda, FileCopia, NonCensita, Progetto, Turno } from "./api.ts";
+import { Binari } from "./binari.tsx";
 import { Documento, EditorMarkdown, RigaMarkdown } from "./documento.tsx";
 import { Nastro } from "./ds/cantiere.tsx";
 import { Button, Checkbox, Input, Tabs } from "./ds/core.tsx";
@@ -389,12 +390,17 @@ export function LavoroProgetto({ p, committente, nonCensite, onScegli, barra }: 
 }
 
 export function LavoroCommittente({ cm, onScegli, barra }: { cm: Committente; onScegli: (s: Selezione) => void; barra?: ReactNode }) {
+  const [scheda, setScheda] = React.useState<"progetti" | "binari">("progetti");
   return (
     <main className="lavori">
       <Testata etichetta={T.committente} titolo={cm.nome} sotto={T.committenteSotto(cm.progetti.length, giorno(cm.creato_il))} barra={barra} />
       <div className="corpo-lavoro">
+        <Tabs value={scheda} onChange={setScheda} items={[
+          { id: "progetti", label: T.progettiScheda, count: cm.progetti.length },
+          { id: "binari", label: T.binari },
+        ]} />
+        {scheda === "binari" ? <Binari cm={cm} /> : (
         <section className="sezione">
-          <Etichetta>{T.progetti}</Etichetta>
           {cm.progetti.length === 0 ? <Vuoto>{T.nessunProgetto}</Vuoto> : (
             <div className="righe">
               {cm.progetti.map((p) => {
@@ -410,6 +416,7 @@ export function LavoroCommittente({ cm, onScegli, barra }: { cm: Committente; on
             </div>
           )}
         </section>
+        )}
       </div>
     </main>
   );

@@ -45,6 +45,8 @@ export interface Cantiere {
   descrizione: string | null;
   creato_il: string;
   aggiornato_il: string;
+  /** Quando il cantiere è passato allo stato attuale (per un completato, solo il giorno). */
+  stato_il: string;
   artefatti: { proposal: boolean; design: boolean; specs: boolean; tasks: boolean } | null;
   task: { fatti: number; totali: number } | null;
   fasi: { completate: number; totali: number } | null;

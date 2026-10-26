@@ -1,3 +1,4 @@
+import { Binari } from "./binari.js";
 import { Documento, EditorMarkdown, RigaMarkdown } from "./documento.js";
 import { Nastro } from "./ds/cantiere.js";
 import { Button, Checkbox, Input, Tabs } from "./ds/core.js";
@@ -299,16 +300,19 @@ export function LavoroProgetto({ p, committente, nonCensite, onScegli, barra }) 
                             React.createElement("tbody", null, nonCensite.map((s) => React.createElement(RigaNonCensita, { key: s.session_id, s: s }))))))))));
 }
 export function LavoroCommittente({ cm, onScegli, barra }) {
+    const [scheda, setScheda] = React.useState("progetti");
     return (React.createElement("main", { className: "lavori" },
         React.createElement(Testata, { etichetta: T.committente, titolo: cm.nome, sotto: T.committenteSotto(cm.progetti.length, giorno(cm.creato_il)), barra: barra }),
         React.createElement("div", { className: "corpo-lavoro" },
-            React.createElement("section", { className: "sezione" },
-                React.createElement(Etichetta, null, T.progetti),
-                cm.progetti.length === 0 ? React.createElement(Vuoto, null, T.nessunProgetto) : (React.createElement("div", { className: "righe" }, cm.progetti.map((p) => {
-                    const n = (s) => p.cantieri.filter((c) => c.stato === s).length;
-                    return (React.createElement("button", { key: p.id, className: "riga-progetto", onClick: () => onScegli({ tipo: "progetto", id: p.id }) },
-                        React.createElement("span", { className: "nome" }, p.nome),
-                        React.createElement("span", { className: "secondario" }, T.riepilogoProgetto(n("aperto"), n("idea"), n("completato"))),
-                        React.createElement("span", { className: "secondario" }, T.nonCensiteN(p.non_censite))));
-                })))))));
+            React.createElement(Tabs, { value: scheda, onChange: setScheda, items: [
+                    { id: "progetti", label: T.progettiScheda, count: cm.progetti.length },
+                    { id: "binari", label: T.binari },
+                ] }),
+            scheda === "binari" ? React.createElement(Binari, { cm: cm }) : (React.createElement("section", { className: "sezione" }, cm.progetti.length === 0 ? React.createElement(Vuoto, null, T.nessunProgetto) : (React.createElement("div", { className: "righe" }, cm.progetti.map((p) => {
+                const n = (s) => p.cantieri.filter((c) => c.stato === s).length;
+                return (React.createElement("button", { key: p.id, className: "riga-progetto", onClick: () => onScegli({ tipo: "progetto", id: p.id }) },
+                    React.createElement("span", { className: "nome" }, p.nome),
+                    React.createElement("span", { className: "secondario" }, T.riepilogoProgetto(n("aperto"), n("idea"), n("completato"))),
+                    React.createElement("span", { className: "secondario" }, T.nonCensiteN(p.non_censite))));
+            }))))))));
 }
