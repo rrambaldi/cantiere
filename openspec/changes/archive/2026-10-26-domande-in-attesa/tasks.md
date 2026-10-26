@@ -23,4 +23,4 @@
 ## 4. Documentazione e verifica finale
 
 - [x] 4.1 Aggiornare `docs/contratto-v2.md` (eventi `domanda` e `risposta`), il README del server e quello del plugin, e verificare che i tre testi descrivano gli stessi campi
-- [ ] 4.2 Prova di insieme: in una sessione vera fare una domanda con `AskUserQuestion`, vedere il pallino rosso nella dashboard, rispondere e vederlo sparire
+- [x] 4.2 Prova di insieme: in una sessione vera fare una domanda con `AskUserQuestion`, vedere il pallino rosso nella dashboard, rispondere e vederlo sparire

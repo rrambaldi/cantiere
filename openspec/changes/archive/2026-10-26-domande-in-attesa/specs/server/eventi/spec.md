@@ -6,7 +6,7 @@
 Il server MUST accettare solo corpi conformi al Contratto v2: campi `evento_id` (uuid4), `ts` (ISO 8601
 UTC), `tipo`, `session_id`, `host`, `cwd`, `repo` (stringa o null), `branch` (stringa o null),
 `progetto`, `dati`. `tipo` MUST essere uno di `session_start`, `prompt`, `todo`, `stop`, `session_end`,
-`apri_cantiere`, `commit`, `issue`, `domanda`, `risposta`, e `dati` MUST rispettare la forma del suo tipo. Ogni campo di testo MUST avere una
+`apri_cantiere`, `domanda`, `risposta`, e `dati` MUST rispettare la forma del suo tipo. Ogni campo di testo MUST avere una
 lunghezza massima. Ogni violazione MUST dare 422.
 
 #### Scenario: Tipo sconosciuto
