@@ -113,6 +113,7 @@ export interface NonCensita {
   turni: number;
   stato: StatoSessione;
   ultimo_stato: { ts: string; fatto: string; prossimo: string; bloccato_da: string | null } | null;
+  domande: Domanda[];
 }
 
 export type Azione = "sospendi" | "riattiva" | "abbandona";

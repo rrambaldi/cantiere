@@ -3,11 +3,16 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { montaApp } from "./app-finta.ts";
 
+const ORA = "2026-10-22T08:00:00Z";
+const sciolta = (session_id: string, domande: object[]) =>
+  ({ session_id, titolo: null, host: "mine", avviata_il: ORA, ultimo_evento_il: ORA, turni: 1, stato: "in_attesa", ultimo_stato: null, domande });
+
 // Si apre da un link al figlio mentre il browser ricorda un'altra scelta, la cui risposta arriva per ultima.
 const { window, $, clic, naviga, titolo, hash } = await montaApp({
   url: "http://x/cantiere/#/PRIV/cantiere/navigazione-dashboard/figlio",
   ricordati: { "forgia-selezione": { tipo: "cantiere", id: 100 } },
   ritardi: { "cantieri/100": 200 },
+  nonCensite: [sciolta("s1", [{ id: "d", session_id: "s1", tipo: "scelta", testo: "Procedo con il push?", opzioni: ["sì", "no"], host: "mine", ts: ORA, eta_secondi: 60 }]), sciolta("s2", [])],
 });
 
 test("un link apre quella scelta anche se il browser ne ricorda un'altra, e una risposta in ritardo non la copre", () => {
@@ -51,4 +56,12 @@ test("al desktop Esc non chiude la scheda", async () => {
   assert.ok($(".scheda"));
   await naviga(() => window.document.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape" })));
   assert.ok($(".scheda"));
+});
+
+test("nella pagina del progetto la domanda di una sessione senza cantiere sta in cima, e la sua riga ha il pallino", async () => {
+  await naviga(() => (window.location.hash = "#/PRIV/cantiere"));
+  assert.equal(titolo(), "cantiere");
+  assert.equal($(".domande-attesa .testo-domanda")?.textContent, "Procedo con il push?");
+  const righe = [...window.document.querySelectorAll(".tabella tbody tr")].map((r) => r.querySelector(".pallino") !== null);
+  assert.deepEqual(righe, [true, false]);
 });

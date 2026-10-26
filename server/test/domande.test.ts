@@ -99,6 +99,16 @@ describe("domande in attesa", () => {
     assert.equal(albero.domande_in_attesa, 3);
   });
 
+  test("la domanda di una sessione senza cantiere sta nella sua riga delle non censite", async () => {
+    await apri(b, "s1", "nis2");
+    await invia(b, evento("domanda", domanda("a"), { session_id: "s1" }));
+    await invia(b, evento("domanda", domanda("c"), { session_id: "s3" }));
+    await invia(b, evento("prompt", {}, { session_id: "s4" }));
+    const progetto = (await ui(b, "/ui/api/albero")).corpo.committenti[0].progetti.find((p: any) => p.nome === "app");
+    const sciolte = (await ui(b, `/ui/api/progetti/${progetto.id}/non-censite`)).corpo.sessioni as any[];
+    assert.deepEqual(sciolte.map((s) => [s.session_id, s.domande.map((d: any) => d.testo)]).sort(), [["s3", ["Quale branch?"]], ["s4", []]]);
+  });
+
   test("le domande di un altro committente non si vedono", async () => {
     const altro = await b.altroCommittente("PRIV", ["app"]);
     await invia(b, evento("domanda", domanda("x"), { session_id: "p1" }), altro.token);

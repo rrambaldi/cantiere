@@ -333,7 +333,7 @@ function RigaNonCensita({ s }: { s: NonCensita }) {
       <tr className="apribile" tabIndex={0} title={T.apriUltimoStato} aria-expanded={aperta}
         onDoubleClick={() => setAperta(!aperta)} onKeyDown={(e) => e.key === "Enter" && setAperta(!aperta)}
         onMouseDown={(e) => e.detail > 1 && e.preventDefault()}>
-        <td>{s.titolo ?? <span className="secondario">{T.sessione} {s.session_id.slice(0, 8)}</span>}</td>
+        <td>{s.titolo ?? <span className="secondario">{T.sessione} {s.session_id.slice(0, 8)}</span>} <Pallino n={s.domande.length} /></td>
         <td>{s.host}</td><td>{quando(s.avviata_il)}</td><td>{quando(s.ultimo_evento_il)}</td>
         <td className="numero">{s.turni}</td><td><SessioneBadge stato={s.stato} /></td>
       </tr>
@@ -363,6 +363,8 @@ export function LavoroProgetto({ p, committente, nonCensite, onScegli, barra }: 
     <main className="lavori">
       <Testata etichetta={T.progetto} titolo={p.nome} sotto={T.progettoSotto(committente, p.cantieri.length, giorno(p.creato_il))} barra={barra} />
       <div className="corpo-lavoro">
+        {/* Le domande del lavoro fatto senza cantiere: quelle dei cantieri stanno nelle loro schede. */}
+        {nonCensite && <DomandeInAttesa domande={nonCensite.flatMap((s) => s.domande)} />}
         <section className="sezione">
           <Etichetta>{T.cantieriApertiIdee}</Etichetta>
           {attivi.length ? <div className="righe">{attivi.map((c) => <RigaCantiere key={c.id} c={c} onScegli={onScegli} />)}</div>

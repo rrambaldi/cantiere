@@ -27,9 +27,10 @@ const CANTIERI = ALBERO.flatMap((cm) => cm.progetti.flatMap((p) => p.cantieri));
 /**
  * Monta l'App all'indirizzo dato, con quel che il browser ricorda e le risposte da ritardare (per fine dell'URL, in ms).
  * `telefono` dice se la pagina è stretta come un telefono (la media query di app.tsx); `cambiaLarghezza` la stringe o allarga.
+ * `nonCensite` sono le sessioni senza cantiere di ogni progetto.
  */
-export async function montaApp({ url, ricordati = {}, ritardi = {}, telefono = false }: {
-  url: string; ricordati?: Record<string, unknown>; ritardi?: Record<string, number>; telefono?: boolean;
+export async function montaApp({ url, ricordati = {}, ritardi = {}, telefono = false, nonCensite = [] }: {
+  url: string; ricordati?: Record<string, unknown>; ritardi?: Record<string, number>; telefono?: boolean; nonCensite?: object[];
 }) {
   const { window } = new JSDOM('<!doctype html><meta name="forgia-committente" content="{{COMMITTENTE}}"><div id=radice></div>',
     { url, pretendToBeVisual: true });
@@ -42,7 +43,7 @@ export async function montaApp({ url, ricordati = {}, ritardi = {}, telefono = f
     const id = /cantieri\/(\d+)$/.exec(u)?.[1];
     const dati = u.includes("albero") ? { release: "26.10.10", committenti: ALBERO }
       : id ? { cantiere: CANTIERI.find((c) => c.id === Number(id)), turni: [], file: [], task_aperti: [], todo: [], esiti: [], discendenti_attivi: [] }
-      : { sessioni: [] };
+      : { sessioni: nonCensite };
     return { ok: true, status: 200, json: async () => dati };
   }
 

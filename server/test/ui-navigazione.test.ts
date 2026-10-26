@@ -69,6 +69,20 @@ test("livello cantieri: filtri con i conteggi del progetto, avanzamento, «‹»
   await smonta();
 });
 
+test("pallino sul filtro che tiene la domanda, anche se non è quello scelto, e sul titolo per quella senza cantiere", async () => {
+  // Una domanda nel figlio chiuso di un padre aperto e una di una sessione senza cantiere.
+  const domanda = { id: "d", session_id: "s", tipo: "scelta", testo: "Procedo?", opzioni: [], host: "h", ts: ORA, eta_secondi: 60 };
+  const committenti = [{ ...ALBERO[0], progetti: [progetto(10, "cantiere", [
+    cantiere(100, "navigazione-dashboard", "aperto", { domande_in_attesa: 1 }),
+    cantiere(103, "figlio", "completato", { percorso: "navigazione-dashboard/figlio", padre_id: 100, domande_in_attesa: 1, domande: [domanda] }),
+  ], { domande_in_attesa: 2 })] }];
+  const { smonta } = await monta({ committenti });
+  const pallini = [...window.document.querySelectorAll('[role="tab"]')].map((t) => t.querySelector(".pallino")?.getAttribute("aria-label") ?? null);
+  assert.deepEqual(pallini, [null, null, "1 domanda in attesa di risposta"]);
+  assert.equal($(".livello-titolo .pallino")?.getAttribute("aria-label"), "1 domanda in attesa di risposta");
+  await smonta();
+});
+
 test("un figlio con il padre in un altro filtro mostra il percorso intero", async () => {
   const { smonta } = await monta({ vista: "idee" });
   assert.deepEqual(testi(".nome-cantiere"), ["avvisi telegram", "navigazione-dashboard/figlio"]);

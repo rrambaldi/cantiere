@@ -109,9 +109,12 @@ function Voce({ attiva, rientro = 0, onClick, children, titolo }: {
 
 const Freccia = () => <span className="freccia"><Icona nome="avanti" /></span>;
 
-/** Testa del livello: «‹» con il pallino delle domande rimaste fuori da questo livello, etichetta, titolo e conteggio. */
-function TestaLivello({ indietro, etichetta, titolo, n, rif, doppioClic }: {
-  indietro?: { testo: string; titolo: string; domande: number; onClick: () => void }; etichetta?: string; titolo: string; n: number;
+/**
+ * Testa del livello: «‹» con il pallino delle domande rimaste fuori da questo livello, etichetta, titolo con quello delle
+ * domande che le righe sotto non mostrano, e conteggio.
+ */
+function TestaLivello({ indietro, etichetta, titolo, domande = 0, n, rif, doppioClic }: {
+  indietro?: { testo: string; titolo: string; domande: number; onClick: () => void }; etichetta?: string; titolo: string; domande?: number; n: number;
   rif: React.Ref<HTMLHeadingElement>; doppioClic?: { titolo: string; onDoubleClick: () => void };
 }) {
   return (
@@ -123,7 +126,7 @@ function TestaLivello({ indietro, etichetta, titolo, n, rif, doppioClic }: {
       )}
       {etichetta && <Etichetta>{etichetta}</Etichetta>}
       <h2 ref={rif} tabIndex={-1} className="livello-titolo" title={doppioClic?.titolo} onDoubleClick={doppioClic?.onDoubleClick}>
-        {titolo}<span className="conta">{n}</span>
+        {titolo}<Pallino n={domande} /><span className="conta">{n}</span>
       </h2>
     </div>
   );
@@ -193,19 +196,21 @@ export function Indice({ committenti, selezione, onScegli, posizione, onPosizion
   };
   let contenuto: React.ReactNode;
   if (p && cm) {
-    const conta = (v: Vista) => p.cantieri.filter((c) => VISTA_DI[c.stato] === v).length;
+    // Il pallino conta le domande proprie dei cantieri del filtro: con quelle dei figli, un padre aperto conterebbe un figlio chiuso.
+    // Quelle delle sessioni senza cantiere vanno sul titolo.
+    const proprie = (cs: Cantiere[]) => cs.reduce((n, c) => n + c.domande.length, 0);
+    const filtro = (id: Vista, testo: string) => {
+      const dentro = p.cantieri.filter((c) => VISTA_DI[c.stato] === id);
+      return { id, label: <>{testo}<Pallino n={proprie(dentro)} /></>, count: dentro.length };
+    };
     const visibili = p.cantieri.filter((c) => VISTA_DI[c.stato] === vista).sort(perPercorso);
     const ids = new Set(visibili.map((c) => c.id));
     contenuto = (
       <>
-        <TestaLivello rif={titolo} etichetta={T.cantieriDi} titolo={p.nome} n={p.cantieri.length}
+        <TestaLivello rif={titolo} etichetta={T.cantieriDi} titolo={p.nome} domande={p.domande_in_attesa - proprie(p.cantieri)} n={p.cantieri.length}
           indietro={{ testo: cm.nome, titolo: T.tornaAProgettiDi(cm.nome), domande: domande - p.domande_in_attesa, onClick: () => sali({ livello: "progetti", cm: cm.id }) }} />
         <div className="filtri-livello">
-          <Tabs value={vista} onChange={onVista} items={[
-            { id: "aperti", label: T.aperti, count: conta("aperti") },
-            { id: "idee", label: T.idee, count: conta("idee") },
-            { id: "chiusi", label: T.chiusi, count: conta("chiusi") },
-          ]} />
+          <Tabs value={vista} onChange={onVista} items={[filtro("aperti", T.aperti), filtro("idee", T.idee), filtro("chiusi", T.chiusi)]} />
         </div>
         <nav className="lista-livello" aria-label={T.cantieriDi + " " + p.nome}>
           {visibili.length === 0 && <Vuoto>{T.nessunoInVista[vista]}</Vuoto>}

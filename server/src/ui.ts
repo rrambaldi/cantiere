@@ -120,6 +120,7 @@ async function nonCensite(amb: Ambiente, ambito: Ambito, progettoId: number) {
   if (!p) throw new Rifiuto(404, "Progetto inesistente.");
   const sessioni = await elencaSessioni(amb.db, amb.config, ambito, { progettoId, senzaCantiere: true });
   const ultimi = await ultimiStati(amb.db, sessioni.map((s) => s.session_id));
+  const domande = await domandeInAttesa(amb.db, ambito);
   return {
     sessioni: sessioni.map((s) => ({
       session_id: s.session_id,
@@ -130,6 +131,7 @@ async function nonCensite(amb: Ambiente, ambito: Ambito, progettoId: number) {
       turni: s.turni,
       stato: s.stato,
       ultimo_stato: ultimi.get(s.session_id) ?? null,
+      domande: domande.filter((d) => d.domanda.session_id === s.session_id).map((d) => d.domanda),
     })),
   };
 }

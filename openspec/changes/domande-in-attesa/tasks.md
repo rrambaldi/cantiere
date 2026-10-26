@@ -12,6 +12,7 @@
 
 - [x] 2.1 Pallino rosso con numero e alternativa testuale nell'indice, sul cantiere, sul padre e sul progetto, e verificare nel browser con `server/ui/dist` ricostruito
 - [x] 2.2 Riquadro "In attesa di risposta" nella scheda del cantiere, con la nota che si risponde dal terminale, in italiano e inglese in `testi.ts`; verificare nel browser con una domanda vera e una scaduta
+- [x] 2.3 Domande delle sessioni senza cantiere nella pagina del progetto (riquadro e pallino sulla riga delle non censite) e pallino sui filtri e sul titolo del progetto nell'indice, e verificare con test e nel browser
 
 ## 3. Plugin
 

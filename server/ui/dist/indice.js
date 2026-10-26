@@ -88,8 +88,11 @@ function Voce({ attiva, rientro = 0, onClick, children, titolo }) {
 }
 const Freccia = () => React.createElement("span", { className: "freccia" },
     React.createElement(Icona, { nome: "avanti" }));
-/** Testa del livello: «‹» con il pallino delle domande rimaste fuori da questo livello, etichetta, titolo e conteggio. */
-function TestaLivello({ indietro, etichetta, titolo, n, rif, doppioClic }) {
+/**
+ * Testa del livello: «‹» con il pallino delle domande rimaste fuori da questo livello, etichetta, titolo con quello delle
+ * domande che le righe sotto non mostrano, e conteggio.
+ */
+function TestaLivello({ indietro, etichetta, titolo, domande = 0, n, rif, doppioClic }) {
     return (React.createElement("div", { className: "livello-testa" },
         indietro && (React.createElement("button", { className: "indietro", onClick: indietro.onClick, title: indietro.titolo, "aria-label": indietro.titolo },
             React.createElement(Icona, { nome: "indietro" }),
@@ -98,6 +101,7 @@ function TestaLivello({ indietro, etichetta, titolo, n, rif, doppioClic }) {
         etichetta && React.createElement(Etichetta, null, etichetta),
         React.createElement("h2", { ref: rif, tabIndex: -1, className: "livello-titolo", title: doppioClic?.titolo, onDoubleClick: doppioClic?.onDoubleClick },
             titolo,
+            React.createElement(Pallino, { n: domande }),
             React.createElement("span", { className: "conta" }, n))));
 }
 export function Indice({ committenti, selezione, onScegli, posizione, onPosizione, vista, onVista, colonne, onColonne, ristretta, onNuovoCommittente, aggiornato, release, errore, onLingua }) {
@@ -153,17 +157,21 @@ export function Indice({ committenti, selezione, onScegli, posizione, onPosizion
     };
     let contenuto;
     if (p && cm) {
-        const conta = (v) => p.cantieri.filter((c) => VISTA_DI[c.stato] === v).length;
+        // Il pallino conta le domande proprie dei cantieri del filtro: con quelle dei figli, un padre aperto conterebbe un figlio chiuso.
+        // Quelle delle sessioni senza cantiere vanno sul titolo.
+        const proprie = (cs) => cs.reduce((n, c) => n + c.domande.length, 0);
+        const filtro = (id, testo) => {
+            const dentro = p.cantieri.filter((c) => VISTA_DI[c.stato] === id);
+            return { id, label: React.createElement(React.Fragment, null,
+                    testo,
+                    React.createElement(Pallino, { n: proprie(dentro) })), count: dentro.length };
+        };
         const visibili = p.cantieri.filter((c) => VISTA_DI[c.stato] === vista).sort(perPercorso);
         const ids = new Set(visibili.map((c) => c.id));
         contenuto = (React.createElement(React.Fragment, null,
-            React.createElement(TestaLivello, { rif: titolo, etichetta: T.cantieriDi, titolo: p.nome, n: p.cantieri.length, indietro: { testo: cm.nome, titolo: T.tornaAProgettiDi(cm.nome), domande: domande - p.domande_in_attesa, onClick: () => sali({ livello: "progetti", cm: cm.id }) } }),
+            React.createElement(TestaLivello, { rif: titolo, etichetta: T.cantieriDi, titolo: p.nome, domande: p.domande_in_attesa - proprie(p.cantieri), n: p.cantieri.length, indietro: { testo: cm.nome, titolo: T.tornaAProgettiDi(cm.nome), domande: domande - p.domande_in_attesa, onClick: () => sali({ livello: "progetti", cm: cm.id }) } }),
             React.createElement("div", { className: "filtri-livello" },
-                React.createElement(Tabs, { value: vista, onChange: onVista, items: [
-                        { id: "aperti", label: T.aperti, count: conta("aperti") },
-                        { id: "idee", label: T.idee, count: conta("idee") },
-                        { id: "chiusi", label: T.chiusi, count: conta("chiusi") },
-                    ] })),
+                React.createElement(Tabs, { value: vista, onChange: onVista, items: [filtro("aperti", T.aperti), filtro("idee", T.idee), filtro("chiusi", T.chiusi)] })),
             React.createElement("nav", { className: "lista-livello", "aria-label": T.cantieriDi + " " + p.nome },
                 visibili.length === 0 && React.createElement(Vuoto, null, T.nessunoInVista[vista]),
                 visibili.map((c) => {

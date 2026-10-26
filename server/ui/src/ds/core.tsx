@@ -48,7 +48,7 @@ export function Checkbox({ checked, label }: { checked: boolean; label: ReactNod
 }
 
 export function Tabs<T extends string>({ items, value, onChange }: {
-  items: { id: T; label: string; count?: number }[]; value: T; onChange: (id: T) => void;
+  items: { id: T; label: ReactNode; count?: number }[]; value: T; onChange: (id: T) => void;
 }) {
   return (
     <div role="tablist" style={{ display: "flex", flexWrap: "wrap", columnGap: 20, borderBottom: "1px solid var(--linea)" }}>
