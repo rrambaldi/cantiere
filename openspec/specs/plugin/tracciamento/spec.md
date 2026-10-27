@@ -189,3 +189,10 @@ transcript assente o di forma inattesa MUST dare `titolo: null`, senza altri eff
 #### Scenario: Transcript illeggibile
 - **WHEN** il transcript non esiste
 - **THEN** lo `stop` porta `titolo: null` e l'hook esce con 0
+
+### Requirement: Subagenti contati
+Il plugin MUST mandare un evento per ogni chiamata del tool `Agent`, con il solo tipo del subagente. MUST NOT mandare il prompt, la descrizione o il risultato. Il server MUST contare i subagenti per sessione e mostrarli con la sessione nel cantiere.
+
+#### Scenario: Tre subagenti
+- **WHEN** una sessione nel cantiere lancia due subagenti `Explore` e uno `general-purpose`
+- **THEN** la sessione nel cantiere mostra 3 subagenti (2 Explore, 1 general-purpose) e nel database non c'è testo dei prompt
