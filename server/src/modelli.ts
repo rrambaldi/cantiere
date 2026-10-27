@@ -93,6 +93,8 @@ const base = {
   repo: z.string().min(1).max(LIMITI.breve).nullable(),
   branch: z.string().min(1).max(LIMITI.breve).nullable(),
   progetto: campi.progetto,
+  /** Il plugin accetta comandi dalla dashboard nella risposta (design D3). */
+  comandi: z.boolean().optional(),
 };
 
 const todo = z.strictObject({

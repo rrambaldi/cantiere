@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import type { Cantiere, Committente, Dettaglio, Domanda, FileCopia, NonCensita, Progetto, Turno } from "./api.ts";
 import { Binari } from "./binari.tsx";
+import { ComandiSessione, EsitoDomanda, VerificaTask } from "./comandi.tsx";
 import { Documento, EditorMarkdown, RigaMarkdown } from "./documento.tsx";
 import { Nastro } from "./ds/cantiere.tsx";
 import { Button, Checkbox, Input, Tabs } from "./ds/core.tsx";
@@ -221,8 +222,10 @@ export function ZonaFile({ onFile, testo = T.trascinaFile, conTesto = true }: {
 
 type Scheda = "daFare" | "rami" | "giornale" | "change";
 
-export function LavoroCantiere({ d, cantieri, onScegli, onFile, onSalvaFile, onTogliFile, barra }: {
+export function LavoroCantiere({ d, cantieri, onScegli, onFile, onSalvaFile, onTogliFile, onAggiorna, barra }: {
   d: Dettaglio; onFile: (f: File[]) => void; onTogliFile: (nome: string) => void; barra?: ReactNode;
+  /** Ricarica i dati dopo un comando o un esito dato dalla dashboard. */
+  onAggiorna: () => Promise<unknown>;
   /** Tutti i cantieri dell'albero: servono per i rami in uscita e per lo stato di quelli legati. */
   cantieri: Cantiere[];
   onScegli: (s: Selezione) => void;
@@ -258,7 +261,7 @@ export function LavoroCantiere({ d, cantieri, onScegli, onFile, onSalvaFile, onT
       <Testata etichetta={idea ? T.stato.idea : T.giornaleLavori} titolo={c.percorso} sotto={sotto} barra={barra} />
       <div className="corpo-lavoro">
         {c.descrizione && <p className="descrizione">{c.descrizione}</p>}
-        <DomandeInAttesa domande={c.domande} />
+        <DomandeInAttesa domande={c.domande} onAggiorna={onAggiorna} />
         {c.change_mancante && c.stato === "aperto" && (
           <Avviso>{T.avvisoChangeMancante[0]}<code>{c.change}</code>{T.avvisoChangeMancante[1]}<code>openspec new change {c.change}</code>{T.avvisoChangeMancante[2]}</Avviso>
         )}
@@ -283,7 +286,18 @@ export function LavoroCantiere({ d, cantieri, onScegli, onFile, onSalvaFile, onT
               { id: "change", label: T.changeScheda, count: d.file.length },
             ]} />
             {vista === "daFare"
-              ? <ul className="task-aperti">{d.task_aperti.map((t, i) => <li key={i}><Checkbox checked={false} label={<RigaMarkdown testo={t} />} /></li>)}</ul>
+              ? (
+                <ul className="task-aperti">
+                  {d.task_aperti.map((t, i) => (
+                    <li key={i}>
+                      <Checkbox checked={false} label={<RigaMarkdown testo={t} />} />
+                      {/* Gli esiti sono dal più recente: il primo non annullato è quello che conta. */}
+                      {d.verifiche.includes(t) && <VerificaTask cantiere={c.id} task={t} onAggiorna={onAggiorna}
+                        esito={d.comandi.find((x) => x.task === t && x.stato !== "annullato")} />}
+                    </li>
+                  ))}
+                </ul>
+              )
               : vista === "rami"
               ? <TaskERami c={c} tasks={d.file.find((f) => f.percorso === "tasks.md")?.contenuto ?? null} cantieri={cantieri} onScegli={onScegli} />
               : vista === "giornale"
@@ -296,8 +310,8 @@ export function LavoroCantiere({ d, cantieri, onScegli, onFile, onSalvaFile, onT
   );
 }
 
-/** Le domande che le sessioni del cantiere hanno fatto e che aspettano risposta (solo lettura). */
-function DomandeInAttesa({ domande }: { domande: Domanda[] }) {
+/** Le domande che le sessioni hanno fatto e che aspettano risposta: dal web si confermano o si negano con un feedback. */
+function DomandeInAttesa({ domande, onAggiorna }: { domande: Domanda[]; onAggiorna: () => Promise<unknown> }) {
   if (!domande.length) return null;
   return (
     <section className="domande-attesa" aria-label={T.inAttesaTitolo}>
@@ -307,6 +321,7 @@ function DomandeInAttesa({ domande }: { domande: Domanda[] }) {
           <p className="testo-domanda">{d.tipo === "attesa" && !d.testo ? T.domandaAttesa : d.testo}</p>
           {d.opzioni.length > 0 && <ul className="opzioni-domanda">{d.opzioni.map((o, i) => <li key={i}>{o}</li>)}</ul>}
           <span className="secondario">{d.host} · <code>{d.session_id.slice(0, 8)}</code> · {T.inAttesaDa(eta(d.eta_secondi))}</span>
+          <EsitoDomanda d={d} onAggiorna={onAggiorna} />
         </article>
       ))}
       <span className="secondario">{T.inAttesaNota}</span>
@@ -326,7 +341,7 @@ function RigaCantiere({ c, onScegli }: { c: Cantiere; onScegli: (s: Selezione) =
 }
 
 /** Doppio click (o Invio) apre sotto la riga l'ultimo messaggio di stato della sessione. */
-function RigaNonCensita({ s }: { s: NonCensita }) {
+function RigaNonCensita({ s, onAggiorna }: { s: NonCensita; onAggiorna: () => Promise<unknown> }) {
   const [aperta, setAperta] = React.useState(false);
   const u = s.ultimo_stato;
   return (
@@ -349,6 +364,7 @@ function RigaNonCensita({ s }: { s: NonCensita }) {
                 {u.bloccato_da && <RigaResoconto k={T.rBlocca} v={u.bloccato_da} />}
               </div>
             ) : <span className="secondario">{T.nessunoStato}</span>}
+            {s.stato !== "chiusa" && <ComandiSessione sessionId={s.session_id} comandi={s.comandi} onAggiorna={onAggiorna} />}
           </td>
         </tr>
       )}
@@ -356,8 +372,8 @@ function RigaNonCensita({ s }: { s: NonCensita }) {
   );
 }
 
-export function LavoroProgetto({ p, committente, nonCensite, onScegli, barra }: {
-  p: Progetto; committente: string; nonCensite: NonCensita[] | null; onScegli: (s: Selezione) => void; barra?: ReactNode;
+export function LavoroProgetto({ p, committente, nonCensite, onScegli, onAggiorna, barra }: {
+  p: Progetto; committente: string; nonCensite: NonCensita[] | null; onScegli: (s: Selezione) => void; onAggiorna: () => Promise<unknown>; barra?: ReactNode;
 }) {
   const attivi = p.cantieri.filter((c) => c.stato === "aperto" || c.stato === "sospeso" || c.stato === "idea");
   return (
@@ -365,7 +381,7 @@ export function LavoroProgetto({ p, committente, nonCensite, onScegli, barra }: 
       <Testata etichetta={T.progetto} titolo={p.nome} sotto={T.progettoSotto(committente, p.cantieri.length, giorno(p.creato_il))} barra={barra} />
       <div className="corpo-lavoro">
         {/* Le domande del lavoro fatto senza cantiere: quelle dei cantieri stanno nelle loro schede. */}
-        {nonCensite && <DomandeInAttesa domande={nonCensite.flatMap((s) => s.domande)} />}
+        {nonCensite && <DomandeInAttesa domande={nonCensite.flatMap((s) => s.domande)} onAggiorna={onAggiorna} />}
         <section className="sezione">
           <Etichetta>{T.cantieriApertiIdee}</Etichetta>
           {attivi.length ? <div className="righe">{attivi.map((c) => <RigaCantiere key={c.id} c={c} onScegli={onScegli} />)}</div>
@@ -379,7 +395,7 @@ export function LavoroProgetto({ p, committente, nonCensite, onScegli, barra }: 
               <div className="tabella-scorre">
                 <table className="tabella">
                   <thead><tr><th>{T.colTitolo}</th><th>{T.colMacchina}</th><th>{T.colAvviata}</th><th>{T.colUltimoEvento}</th><th className="numero">{T.colTurni}</th><th>{T.colStato}</th></tr></thead>
-                  <tbody>{nonCensite.map((s) => <RigaNonCensita key={s.session_id} s={s} />)}</tbody>
+                  <tbody>{nonCensite.map((s) => <RigaNonCensita key={s.session_id} s={s} onAggiorna={onAggiorna} />)}</tbody>
                 </table>
               </div>
             )}

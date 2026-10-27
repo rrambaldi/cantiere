@@ -147,6 +147,24 @@ export interface DB {
     stato: "in_attesa" | "risposta" | "chiusa";
     chiusa_il: string | null;
   };
+  comandi: {
+    id: Generated<number>;
+    committente_id: number;
+    /** La sessione del comando, o quella che ha fatto la domanda; null per l'esito di un task. */
+    session_id: string | null;
+    /** Il cantiere di un esito: lo riceve la prima sessione del cantiere che accetta comandi (design D10). */
+    cantiere_id: number | null;
+    /** La domanda dell'esito (domande.id). */
+    domanda_id: number | null;
+    /** Il task di verifica dell'esito, con il testo del tasks.md. */
+    task: string | null;
+    esito: "confermato" | "negato" | null;
+    /** Quel che si è scritto nella dashboard: il comando, o il feedback di un rifiuto (vuoto per una conferma). */
+    testo: string;
+    stato: "in_attesa" | "consegnato" | "annullato" | "scaduto";
+    creato_il: string;
+    consegnato_il: string | null;
+  };
   idee_file: {
     cantiere_id: number;
     nome: string;

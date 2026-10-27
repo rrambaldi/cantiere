@@ -70,3 +70,17 @@ export const avvisoNonAperto = (percorso: string, stato: StatoCantiere, progetto
 
 export const confermaApertura = (percorso: string, change: string) =>
   `${CONFERMA}: cantiere "${percorso}" aperto (change ${change}). Rispondi all'utente con una sola riga di conferma.`;
+
+export type EsitoWeb = "confermato" | "negato";
+
+/** Il comando che porta alla sessione l'esito di una verifica dato dalla dashboard (design D9). */
+export const esitoTask = (task: string, esito: EsitoWeb, feedback: string) =>
+  esito === "confermato"
+    ? `Verifica del task "${task}" confermata dal web: smarca il task nel tasks.md.`
+    : `Verifica del task "${task}" negata dal web, il task resta aperto. Lavora su questo feedback: ${feedback}`;
+
+/** L'esito di una domanda; `chi` dice quale sessione l'ha fatta, perché può riceverlo un'altra del cantiere (design D10). */
+export const esitoDomanda = (domanda: string, chi: string, esito: EsitoWeb, feedback: string) =>
+  esito === "confermato"
+    ? `Alla domanda "${domanda}" (${chi}) dal web rispondono: confermo.`
+    : `Alla domanda "${domanda}" (${chi}) dal web rispondono: non va. Lavora su questo feedback: ${feedback}`;

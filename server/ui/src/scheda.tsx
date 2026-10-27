@@ -1,5 +1,6 @@
 // Colonna destra: scheda tecnica del cantiere, del progetto o del committente scelto, con le loro azioni.
 import type { Azione, Committente, Dettaglio, Progetto } from "./api.ts";
+import { ComandiSessione, ListaComandi } from "./comandi.tsx";
 import { Button, Checkbox } from "./ds/core.tsx";
 import { StatoBadge } from "./ds/feedback.tsx";
 import { eta, finale, giorno, quando } from "./formato.ts";
@@ -41,10 +42,14 @@ function Blocco({ titolo, children }: { titolo: string; children: React.ReactNod
   return <div className="blocco"><Etichetta>{titolo}</Etichetta>{children}</div>;
 }
 
-export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea }: {
-  d: Dettaglio; onEsito: (a: Azione) => void; onModifica: () => void; onNuovaIdea: () => void;
+export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea, onAggiorna }: {
+  d: Dettaglio; onEsito: (a: Azione) => void; onModifica: () => void; onNuovaIdea: () => void; onAggiorna: () => Promise<unknown>;
 }) {
   const c = d.cantiere;
+  // Gli esiti dei task stanno sui task; quelli delle sessioni attive sotto la loro sessione.
+  const attive = new Set(c.sessioni.map((s) => s.session_id));
+  const diSessione = d.comandi.filter((x) => x.task === null && x.session_id !== null);
+  const ferme = diSessione.filter((x) => !attive.has(x.session_id!));
   return (
     <aside className="scheda" aria-label={T.schedaTecnica}>
       <Blocco titolo={T.schedaTecnicaEt}>
@@ -78,9 +83,15 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea }: {
                 <span>{s.host}{s.branch ? ` · ${s.branch}` : ""}</span>
                 <span className="secondario">{s.titolo ?? T.statoSessione[s.stato]} · {eta(s.eta_secondi)}</span>
                 {Object.keys(s.subagenti).length > 0 && <span className="secondario">{subagenti(s.subagenti)}</span>}
+                <ComandiSessione sessionId={s.session_id} comandi={diSessione.filter((x) => x.session_id === s.session_id)} onAggiorna={onAggiorna} />
               </li>
             ))}
           </ul>
+        </Blocco>
+      )}
+      {ferme.length > 0 && (
+        <Blocco titolo={T.comandiSessioniFerme}>
+          <ListaComandi comandi={ferme} onAggiorna={onAggiorna} />
         </Blocco>
       )}
       {d.todo.length > 0 && (

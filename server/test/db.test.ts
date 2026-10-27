@@ -24,13 +24,13 @@ async function conDb(f: (db: Awaited<ReturnType<typeof apriDb>>) => Promise<void
 
 test("migrazioni: database vuoto, seconda esecuzione, WAL", () =>
   conDb(async (db) => {
-    assert.deepEqual(await migrazioniMancanti(db), ["0001_iniziale", "0002_committenti", "0003_domande", "0004_legami", "0005_subagenti"]);
-    assert.deepEqual(await migra(db), ["0001_iniziale", "0002_committenti", "0003_domande", "0004_legami", "0005_subagenti"]);
+    assert.deepEqual(await migrazioniMancanti(db), ["0001_iniziale", "0002_committenti", "0003_domande", "0004_legami", "0005_subagenti", "0006_comandi"]);
+    assert.deepEqual(await migra(db), ["0001_iniziale", "0002_committenti", "0003_domande", "0004_legami", "0005_subagenti", "0006_comandi"]);
     assert.deepEqual(await migrazioniMancanti(db), []);
     assert.deepEqual(await migra(db), []);
     const registrate = await sql<{ name: string }>`select name from kysely_migration order by name`.execute(db);
-    assert.deepEqual(registrate.rows.map((r) => r.name), ["0001_iniziale", "0002_committenti", "0003_domande", "0004_legami", "0005_subagenti"]);
-    assert.deepEqual(await tabelle(db), ["cantieri", "change_copie", "change_file", "committenti", "domande", "esiti", "eventi", "idee_file", "legami", "progetti", "sessioni", "stati", "todo"]);
+    assert.deepEqual(registrate.rows.map((r) => r.name), ["0001_iniziale", "0002_committenti", "0003_domande", "0004_legami", "0005_subagenti", "0006_comandi"]);
+    assert.deepEqual(await tabelle(db), ["cantieri", "change_copie", "change_file", "comandi", "committenti", "domande", "esiti", "eventi", "idee_file", "legami", "progetti", "sessioni", "stati", "todo"]);
     const { rows } = await sql<{ journal_mode: string }>`pragma journal_mode`.execute(db);
     assert.equal(rows[0].journal_mode, "wal");
   }));
@@ -42,7 +42,7 @@ test("database v1 con dati: la 0002 elimina le tabelle v1 e riparte da vuoto", (
     await soloV1.migrateToLatest();
     await sql`insert into clienti (nome, token_hash, creato_il) values ('portatile', 'h', 'ieri')`.execute(db);
     await sql`insert into cantieri (nome, slug, origine, stato, creato_il, aggiornato_il) values ('vecchio', 'vecchio', 'auto', 'aperto', 'ieri', 'ieri')`.execute(db);
-    assert.deepEqual(await migra(db), ["0002_committenti", "0003_domande", "0004_legami", "0005_subagenti"]);
+    assert.deepEqual(await migra(db), ["0002_committenti", "0003_domande", "0004_legami", "0005_subagenti", "0006_comandi"]);
     const nomi = await tabelle(db);
     assert.ok(!nomi.includes("clienti"));
     for (const t of ["cantieri", "committenti", "progetti", "sessioni"]) {

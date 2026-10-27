@@ -36,11 +36,11 @@ describe("eventi", () => {
     assert.equal(await quantiEventi(), 0);
   });
 
-  test("forma della risposta: progetto, cantiere null nel lavoro diretto, contesto, config", async () => {
+  test("forma della risposta: progetto, cantiere null nel lavoro diretto, contesto, config, comandi vuoti", async () => {
     const r = await invia(b, evento("session_start", { source: "startup" }));
     assert.equal(r.status, 200);
-    assert.deepEqual(Object.keys(r.corpo).sort(), ["cantiere", "config", "contesto", "progetto"]);
-    assert.deepEqual([r.corpo.progetto, r.corpo.cantiere], ["app", null]);
+    assert.deepEqual(Object.keys(r.corpo).sort(), ["cantiere", "comandi", "config", "contesto", "progetto"]);
+    assert.deepEqual([r.corpo.progetto, r.corpo.cantiere, r.corpo.comandi], ["app", null, []]);
     assert.deepEqual(r.corpo.config, { modalita_resoconto: "forzato", soglia_strumenti: 3 });
     const aperto = await apri(b, "s1", "pdfconverter");
     assert.deepEqual(Object.keys(aperto.corpo.cantiere).sort(), ["change", "id", "nome", "origine", "percorso", "stato"]);

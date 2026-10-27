@@ -1,6 +1,6 @@
 // Testi della dashboard in italiano e in inglese. `it` è la fonte del tipo: ogni chiave di `it` deve esistere in `en`.
 // I dati degli utenti (nomi, note, resoconti, file dei change) non passano di qui.
-import type { AutoreEsito, Stato, StatoSessione } from "./api.ts";
+import type { AutoreEsito, Comando, Stato, StatoSessione } from "./api.ts";
 
 export type Lingua = "it" | "en";
 /** Ogni lingua col suo nome, che non si traduce. */
@@ -63,9 +63,25 @@ const it = {
   subagentiN: (n: number, tipi: string) => `${n} ${n === 1 ? "subagente" : "subagenti"} · ${tipi}`,
   domandeInAttesaN: (n: number) => `${n} ${n === 1 ? "domanda in attesa di risposta" : "domande in attesa di risposta"}`,
   inAttesaTitolo: "In attesa di risposta",
-  inAttesaNota: "Rispondi dal terminale della sessione.",
+  inAttesaNota: "Conferma o nega da qui; una risposta libera si dà dal terminale della sessione.",
   domandaAttesa: "La sessione è ferma e aspetta l'utente",
   inAttesaDa: (quanto: string) => `chiesta ${quanto}`,
+
+  // comandi dalla dashboard
+  confermo: "Confermo",
+  nonVa: "Non va",
+  cosaNonVa: "Cosa non va",
+  invia: "Invia",
+  scriviComando: "Scrivi un comando",
+  comando: "Comando",
+  notaComando: "Consegnato al prossimo passo della sessione (fine turno o nuovo prompt), non a una sessione ferma.",
+  annullaComando: "Annulla il comando",
+  comandiSessioniFerme: "comandi di sessioni ferme",
+  statoComando: { in_attesa: "in attesa", consegnato: "consegnato", annullato: "annullato", scaduto: "scaduto" } as Record<Comando["stato"], string>,
+  scrittoIl: (q: string) => `scritto ${q}`,
+  consegnatoIl: (q: string) => `consegnato ${q}`,
+  esitoDomanda: { confermato: () => "Risposta dal web: confermo", negato: (f: string) => `Risposta dal web: non va. ${f}` },
+  esitoTask: { confermato: () => "Confermato dal web", negato: (f: string) => `Non va: ${f}` },
   nuovoCommittente: "Nuovo committente",
 
   // colonna di navigazione e percorso
@@ -292,9 +308,24 @@ const en: Testi = {
   subagentiN: (n, tipi) => `${n} ${n === 1 ? "subagent" : "subagents"} · ${tipi}`,
   domandeInAttesaN: (n) => `${n} ${n === 1 ? "question waiting for an answer" : "questions waiting for an answer"}`,
   inAttesaTitolo: "Waiting for an answer",
-  inAttesaNota: "Answer from the session's terminal.",
+  inAttesaNota: "Confirm or deny here; give a free answer from the session's terminal.",
   domandaAttesa: "The session is stopped and waiting for the user",
   inAttesaDa: (quanto) => `asked ${quanto}`,
+
+  confermo: "Confirm",
+  nonVa: "Not right",
+  cosaNonVa: "What's wrong",
+  invia: "Send",
+  scriviComando: "Write a command",
+  comando: "Command",
+  notaComando: "Delivered at the session's next step (end of turn or new prompt), not to a stopped session.",
+  annullaComando: "Cancel the command",
+  comandiSessioniFerme: "commands of idle sessions",
+  statoComando: { in_attesa: "waiting", consegnato: "delivered", annullato: "cancelled", scaduto: "expired" },
+  scrittoIl: (q) => `written ${q}`,
+  consegnatoIl: (q) => `delivered ${q}`,
+  esitoDomanda: { confermato: () => "Answer from the web: confirmed", negato: (f) => `Answer from the web: not right. ${f}` },
+  esitoTask: { confermato: () => "Confirmed from the web", negato: (f) => `Not right: ${f}` },
   nuovoCommittente: "New client",
 
   sfoglia: "browse",

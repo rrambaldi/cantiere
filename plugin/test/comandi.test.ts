@@ -154,6 +154,21 @@ describe("status, on/off, apri, permetti-mcp", () => {
     assert.equal(config(amb).aree.length, 1);
   });
 
+  test("comandi on|off: per l'area della cartella, spenti di default, e /cantiere stato lo dice", async (t) => {
+    const { srv, amb, opz } = await preparato(t);
+    amb.configura({ url: srv.url });
+    const stato = async () => JSON.parse((await esegui(["status", "--json"], opz)).stdout).area.comandi;
+    assert.equal(await stato(), false);
+    assert.match((await esegui(["comandi", "on"], opz)).stdout, /accesi per/);
+    assert.deepEqual([await stato(), config(amb).aree[0].comandi], [true, true]);
+    assert.match((await esegui(["status"], opz)).stdout, /comandi dalla dashboard: accesi/);
+    await esegui(["comandi", "off"], opz);
+    assert.equal(await stato(), false);
+    const uso = await esegui(["comandi", "forse"], opz);
+    assert.deepEqual([uso.codice, uso.stderr.trim()], [1, "uso: forgia comandi on|off"]);
+    assert.equal((await esegui(["comandi", "on"], { ...opz, cwd: amb.dir })).codice, 1);
+  });
+
   test("apri con il session_id di Claude Code parte subito, con il progetto dell'area; fuori area errore", async (t) => {
     const { srv, amb, opz } = await preparato(t);
     const fuori = await esegui(["apri", "x"], opz);

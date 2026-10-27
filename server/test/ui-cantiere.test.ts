@@ -30,7 +30,7 @@ const dettaglio = (cantiere: object, task_aperti: string[] = []) => ({
     descrizione: null, creato_il: "2026-10-15T17:32:56Z", aggiornato_il: "2026-10-15T17:32:56Z", artefatti: null, task: { fatti: 0, totali: 6 },
     fasi: null, change_mancante: false, da_archiviare: false, file_idea: 0, domande_in_attesa: 0, domande: [], sessioni: [], nato_da: [], ...cantiere,
   },
-  turni: [], file: [], task_aperti, todo: [], esiti: [], discendenti_attivi: [],
+  turni: [], file: [], task_aperti, verifiche: [], comandi: [], todo: [], esiti: [], discendenti_attivi: [],
 });
 
 test("lavoro: con task aperti la prima scheda è «Da fare», con tutti i task formattati; la scheda a destra non li ripete", () => {

@@ -48,9 +48,13 @@ Corpo (massimo `max_body`, default 64 KB):
   "repo": "<remote origin normalizzato senza credenziali, es. github.com/org/repo> | null",
   "branch": "<branch corrente> | null",
   "progetto": "<nome del progetto dell'area, confrontato sullo slug>",
+  "comandi": true,
   "dati": {}
 }
 ```
+
+`comandi` è opzionale (boolean): `true` dice che il plugin accetta i comandi della dashboard nella
+risposta. Il plugin lo manda solo se l'area ha i comandi accesi; senza, il server non consegna nulla.
 
 `dati` per tipo:
 
@@ -83,13 +87,21 @@ Risposta 200:
   "progetto": "poker",
   "cantiere": {"id": 12, "nome": "preprod", "percorso": "idoc-converter/preprod", "origine": "utente | claude", "stato": "aperto", "change": "idoc-converter-preprod"},
   "contesto": "<testo da iniettare nel contesto di Claude> | null",
-  "config": {"modalita_resoconto": "forzato | leggero | off", "soglia_strumenti": 3}
+  "config": {"modalita_resoconto": "forzato | leggero | off", "soglia_strumenti": 3},
+  "comandi": [{"id": 7, "testo": "continua con i test"}]
 }
 ```
 
 - `cantiere` è `null` per il lavoro diretto. `origine` dice chi ha associato **questa sessione** al
   cantiere.
 - Stesso `evento_id` ricevuto più volte: nessun duplicato, stessa risposta (idempotenza).
+- `comandi` sono i comandi scritti nella dashboard per la sessione, dal più vecchio, solo per un
+  evento con `comandi: true`; altrimenti `[]`. La consegna è al più una volta: un comando consegnato
+  non torna più, neanche se l'hook muore prima di passarlo a Claude. Arrivano anche gli esiti di
+  «Confermo» e «Non va» dati dalla dashboard a una domanda o a un task di verifica: quelli di un
+  cantiere vanno alla prima sessione del cantiere che li accetta. Un comando non consegnato scade
+  dopo 24 ore, l'esito di un cantiere no. `testo` è dato non fidato: il plugin lo presenta a Claude
+  come arrivato dalla dashboard.
 - Un evento con `session_id` sconosciuto crea la sessione al volo, legata al committente del token e
   al progetto dell'evento. Un evento con un progetto diverso da quello della sessione la sposta sul
   nuovo progetto, in lavoro diretto.

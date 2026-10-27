@@ -42,7 +42,7 @@ export async function montaApp({ url, ricordati = {}, ritardi = {}, telefono = f
     if (ritardo) await new Promise((r) => setTimeout(r, ritardo[1]));
     const id = /cantieri\/(\d+)$/.exec(u)?.[1];
     const dati = u.includes("albero") ? { release: "26.10.10", committenti: ALBERO }
-      : id ? { cantiere: CANTIERI.find((c) => c.id === Number(id)), turni: [], file: [], task_aperti: [], todo: [], esiti: [], discendenti_attivi: [] }
+      : id ? { cantiere: CANTIERI.find((c) => c.id === Number(id)), turni: [], file: [], task_aperti: [], verifiche: [], comandi: [], todo: [], esiti: [], discendenti_attivi: [] }
       : { sessioni: nonCensite };
     return { ok: true, status: 200, json: async () => dati };
   }

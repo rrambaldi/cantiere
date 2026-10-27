@@ -5,7 +5,7 @@ import { montaApp } from "./app-finta.ts";
 
 const ORA = "2026-10-22T08:00:00Z";
 const sciolta = (session_id: string, domande: object[]) =>
-  ({ session_id, titolo: null, host: "mine", avviata_il: ORA, ultimo_evento_il: ORA, turni: 1, stato: "in_attesa", ultimo_stato: null, domande });
+  ({ session_id, titolo: null, host: "mine", avviata_il: ORA, ultimo_evento_il: ORA, turni: 1, stato: "in_attesa", ultimo_stato: null, domande, comandi: [] });
 
 // Si apre da un link al figlio mentre il browser ricorda un'altra scelta, la cui risposta arriva per ultima.
 const { window, $, clic, naviga, titolo, hash } = await montaApp({

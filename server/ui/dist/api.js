@@ -48,4 +48,8 @@ export const api = {
     caricaFile: (cantiere, nome, contenuto) => richiesta(`cantieri/${cantiere}/file`, { nome, contenuto }),
     togliFile: (cantiere, nome) => richiesta(`cantieri/${cantiere}/file/elimina`, { nome }),
     esito: (cantiere, azione) => richiesta(`cantieri/${cantiere}/esito`, { azione }),
+    scriviComando: (session_id, testo) => richiesta("comandi", { session_id, testo }),
+    annullaComando: (id) => richiesta(`comandi/${id}/annulla`, {}),
+    esitoDomanda: (d, e) => richiesta("domande/esito", { session_id: d.session_id, domanda_id: d.id, ...e }),
+    esitoTask: (cantiere, task, e) => richiesta(`cantieri/${cantiere}/verifica`, { task, ...e }),
 };

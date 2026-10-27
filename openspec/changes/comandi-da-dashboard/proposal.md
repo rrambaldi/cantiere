@@ -3,6 +3,8 @@
 Oggi il flusso è a senso unico: la sessione di Claude Code manda stato al server e la dashboard lo mostra, ma
 da lì non si può dire niente alla sessione. Chi guarda la dashboard e vede una sessione ferma o fuori strada
 deve tornare al terminale. Serve un modo per mandare una riga di istruzioni dalla dashboard alla sessione.
+Spesso la sessione aspetta solo una conferma, come la verifica di un comportamento nella UI: chi la fa dal
+telefono deve poter dire "va" oppure "non va, perché…".
 
 ## What Changes
 
@@ -16,6 +18,12 @@ deve tornare al terminale. Serve un modo per mandare una riga di istruzioni dall
 - Un comando non consegnato entro 24 ore scade; finché non è consegnato si può annullare.
 - Il testo di un comando è sempre presentato a Claude come arrivato dalla dashboard, non come scritto
   dall'utente in sessione.
+- Sulle domande in attesa e sui task di verifica (task aperti del `tasks.md` che cominciano con «Verificare»
+  o «Prova») la dashboard offre «Confermo» e «Non va»; «Non va» chiede un testo di feedback.
+- L'esito si vede subito nella dashboard (la domanda perde il pallino, il task risulta confermato o negato)
+  e diventa un comando, consegnato una volta sola: alla sessione che ha chiesto, al suo prossimo passo,
+  oppure alla prossima sessione che lavora sullo stesso cantiere.
+- Con «Confermo» Claude smarca il task nel `tasks.md` o prosegue; con «Non va» lavora sul feedback.
 - Contratto v2: campo opzionale `comandi` nella richiesta di evento e nella risposta (compatibile, il client
   ignora i campi che non conosce).
 
@@ -31,15 +39,16 @@ dashboard.
 - `plugin/comandi`: abilitazione per area e consegna del comando a Claude a `stop` e a `prompt`.
 
 ### Modified Capabilities
-
-(nessuna: la risposta di `/api/v1/eventi` guadagna un campo opzionale, descritto nella nuova spec
-`server/comandi` e nel Contratto v2)
+- `server/domande`: dalla dashboard una domanda in attesa si può confermare o negare con un feedback, e si
+  chiude come `risposta`; una risposta libera resta esclusa. La risposta di `/api/v1/eventi` guadagna solo un
+  campo opzionale, descritto nella nuova spec `server/comandi` e nel Contratto v2.
 
 ## Impact
 
-- `server/src`: nuova migrazione `0003` (tabella `comandi`), `dominio.ts` (consegna nella risposta agli
+- `server/src`: nuova migrazione (tabella `comandi`, con gli esiti), `dominio.ts` (consegna nella risposta agli
   eventi), `modelli.ts` (validazione del campo `comandi`), `ui.ts` e `server/ui/src` (campo e lista nella
-  scheda della sessione), pulizia dei comandi scaduti.
+  scheda della sessione; «Confermo» e «Non va» nel riquadro delle domande e sui task di verifica), pulizia
+  dei comandi scaduti.
 - `plugin/bin/forgia.mts` e `forgia.mjs` compilato: invio di `comandi: true`, consegna a `stop` e `prompt`,
   comando `/cantiere comandi`; versione del plugin.
 - `docs/contratto-v2.md`, README di server e plugin.

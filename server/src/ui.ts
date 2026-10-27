@@ -6,6 +6,7 @@ import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CorpoTroppoGrande, creaCommittente, elencaCommittenti, leggiCorpo, rigeneraToken, trovaCommittente } from "./accesso.ts";
 import { di, progettiDi, sessioniDi, TUTTI, type Ambito } from "./ambito.ts";
+import { annullaComando, creaComando, esitoSuDomanda, esitoSuTask, leggiComandi, taskDiVerifica } from "./comandi.ts";
 import { AZIONI, cambiaEsito, creaProgetto, discendentiAttivi, elencaSessioni, formaProgetto, leggiCantieri, percorsoDi, ultimiStati, type Ambiente, type Azione } from "./dominio.ts";
 import { domandeInAttesa } from "./domande.ts";
 import { aggiungiFile, creaIdea, eliminaFile, modificaIdea } from "./idee.ts";
@@ -109,6 +110,13 @@ async function dettaglio(amb: Ambiente, ambito: Ambito, id: number) {
     turni,
     file,
     task_aperti: tasks ? contaTask(tasks.contenuto).aperti : [],
+    /** Quelli che si confermano dalla dashboard. */
+    verifiche: await taskDiVerifica(amb.db, id),
+    // Anche le sessioni ferme del cantiere: un loro comando in attesa si vede e si annulla.
+    comandi: await leggiComandi(amb.db, ambito, {
+      sessioni: (await sessioniDi(amb.db, ambito).select("session_id").where("cantiere_id", "=", id).execute()).map((s) => s.session_id),
+      cantiere: id,
+    }),
     todo,
     esiti,
     discendenti_attivi: await Promise.all(discendenti.map((d) => percorsoDi(amb.db, d.id))),
@@ -121,6 +129,7 @@ async function nonCensite(amb: Ambiente, ambito: Ambito, progettoId: number) {
   const sessioni = await elencaSessioni(amb.db, amb.config, ambito, { progettoId, senzaCantiere: true });
   const ultimi = await ultimiStati(amb.db, sessioni.map((s) => s.session_id));
   const domande = await domandeInAttesa(amb.db, ambito);
+  const comandi = await leggiComandi(amb.db, ambito, { sessioni: sessioni.map((s) => s.session_id) });
   return {
     sessioni: sessioni.map((s) => ({
       session_id: s.session_id,
@@ -132,6 +141,7 @@ async function nonCensite(amb: Ambiente, ambito: Ambito, progettoId: number) {
       stato: s.stato,
       ultimo_stato: ultimi.get(s.session_id) ?? null,
       domande: domande.filter((d) => d.domanda.session_id === s.session_id).map((d) => d.domanda),
+      comandi: comandi.filter((c) => c.session_id === s.session_id),
     })),
   };
 }
@@ -174,6 +184,10 @@ const SCRITTURE: [RegExp, Rotta][] = [
   [/^\/ui\/api\/cantieri\/(\d+)\/modifica$/, async (amb, ambito, id, corpo) => ({ cantiere: await modificaIdea(amb, ambito, id, corpo) })],
   [/^\/ui\/api\/cantieri\/(\d+)\/file$/, async (amb, ambito, id, corpo) => ({ file: await aggiungiFile(amb, ambito, id, corpo) })],
   [/^\/ui\/api\/cantieri\/(\d+)\/file\/elimina$/, async (amb, ambito, id, corpo) => (await eliminaFile(amb, ambito, id, corpo.nome), {})],
+  [/^\/ui\/api\/comandi$/, async (amb, ambito, _id, corpo) => ({ comando: await creaComando(amb, ambito, corpo) })],
+  [/^\/ui\/api\/comandi\/(\d+)\/annulla$/, async (amb, ambito, id) => ({ comando: await annullaComando(amb, ambito, id) })],
+  [/^\/ui\/api\/domande\/esito$/, async (amb, ambito, _id, corpo) => ({ comando: await esitoSuDomanda(amb, ambito, corpo) })],
+  [/^\/ui\/api\/cantieri\/(\d+)\/verifica$/, async (amb, ambito, id, corpo) => ({ comando: await esitoSuTask(amb, ambito, id, corpo) })],
   [
     /^\/ui\/api\/cantieri\/(\d+)\/esito$/,
     async (amb, ambito, id, corpo) => {

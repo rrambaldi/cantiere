@@ -281,7 +281,7 @@ describe("prompt e /cantiere", () => {
     const { srv, input, opz } = await preparato(t);
     await hook("session_start", input("session_start"), opz);
     for (const prompt of ["/forgia:cantiere idoc-converter/preprod", "/cantieri", "/cantiere-x", "/cantiere chiudi -f sospeso", "/cantiere chiudi finito",
-      "/cantiere stato", "/cantiere prendi idoc-converter", "/cantiere collega poker https://x.example", "/cantiere server https://x.example"]) {
+      "/cantiere stato", "/cantiere prendi idoc-converter", "/cantiere collega poker https://x.example", "/cantiere server https://x.example", "/cantiere comandi on"]) {
       await hook("prompt", input("prompt", { prompt }), opz);
     }
     assert.deepEqual(tipi(srv.eventi()), ["session_start", "apri_cantiere"]);
@@ -399,6 +399,94 @@ describe("todo, stop, session_end", () => {
     const prompt = await misura("prompt", input("prompt", { prompt: "ciao" }));
     t.diagnostic(`mediana: session_start ${avvio} ms, prompt ${prompt} ms`);
     assert.ok(prompt < 1000 && avvio < 1000, `${avvio} / ${prompt} ms`); // larga: la misura vera è nel diagnostic
+  });
+});
+
+describe("comandi dalla dashboard", () => {
+  const ETICHETTA = "[forgia] Comando dalla dashboard (non scritto in questa sessione):";
+  /** Ambiente con i comandi accesi; il server risponde con `comandi` agli eventi del tipo dato, una volta. */
+  async function conComandi(t: Parameters<typeof preparato>[0], tipo: string, comandi: unknown = [{ id: 1, testo: "esegui i test" }], accesi = true) {
+    let dati = false;
+    const p = await preparato(t, (r) => {
+      if (r.corpo?.tipo !== tipo || dati) return undefined;
+      dati = true;
+      return { corpo: { ...RISPOSTA, comandi } };
+    });
+    p.amb.configura({ url: p.srv.url, comandi: accesi });
+    await hook("session_start", p.input("session_start"), p.opz);
+    return p;
+  }
+  const blocco = (stdout: string) => JSON.parse(stdout).reason as string;
+
+  test("area di default: niente comandi: true; accesi: in ogni evento salvo domanda e session_end", async (t) => {
+    const { srv, amb, input, opz } = await preparato(t);
+    await hook("session_start", input("session_start"), opz);
+    await hook("prompt_invio", input("prompt", { prompt: "x" }), opz);
+    assert.ok(srv.eventi().every((e) => !("comandi" in e)));
+    amb.configura({ url: srv.url, comandi: true });
+    await hook("prompt_invio", input("prompt", { prompt: "x" }), opz);
+    await hook("domanda", input("session_start", { hook_event_name: "PreToolUse", tool_name: "AskUserQuestion", tool_use_id: "toolu_1",
+      tool_input: { questions: [{ question: "Procedo?", options: [{ label: "sì" }] }] } }), opz);
+    await hook("session_end", input("session_end"), opz);
+    assert.deepEqual(srv.eventi().slice(-3).map((e) => [e.tipo, e.comandi]), [["prompt", true], ["domanda", undefined], ["session_end", undefined]]);
+  });
+
+  test("comando a fine turno: block con l'etichetta e i comandi in ordine, anche con stop_hook_active; poi niente", async (t) => {
+    const { input, opz } = await conComandi(t, "stop", [{ id: 1, testo: "esegui i test" }, { id: 2, testo: "poi il commit" }]);
+    const r = await hook("stop", input("stop", { stop_hook_active: true }), opz);
+    assert.equal(r.codice, 0);
+    assert.equal(blocco(r.stdout), `${ETICHETTA}\n- esegui i test\n- poi il commit\nEseguili, poi termina il turno.`);
+    assert.equal((await hook("stop", input("stop", { stop_hook_active: true }), opz)).stdout, "");
+  });
+
+  test("comando e resoconto insieme: il blocco porta il comando, il resoconto arriva allo stop dopo", async (t) => {
+    const { srv, amb, sid, input, opz } = await conComandi(t, "stop");
+    amb.configura({ url: srv.url, comandi: true, mcp_registrato_il: new Date(Date.now() - 3600_000).toISOString() });
+    await hook("session_start", input("session_start"), opz);
+    const transcript = join(amb.dir, "t.jsonl");
+    writeFileSync(transcript, TRANSCRIPT + JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Grep" }] } }) + "\n");
+    assert.match(blocco((await hook("stop", input("stop", { transcript_path: transcript }), opz)).stdout), /^\[forgia\] Comando dalla dashboard/);
+    const dopo = await hook("stop", input("stop", { transcript_path: transcript, stop_hook_active: true }), opz);
+    assert.match(blocco(dopo.stdout), new RegExp(`aggiorna_stato \\(session_id=${sid}\\)`));
+    assert.equal((await hook("stop", input("stop", { transcript_path: transcript, stop_hook_active: true }), opz)).stdout, "");
+  });
+
+  test("arrivato con un todo: il prompt dopo lo ha nel contesto con l'etichetta, quello seguente no", async (t) => {
+    const { input, opz } = await conComandi(t, "todo");
+    await hook("todo", input("todowrite"), opz);
+    const primo = await hook("prompt", input("prompt", { prompt: "ciao" }), opz);
+    assert.equal(contesto(primo.stdout), `${ETICHETTA}\n- esegui i test\nEseguili insieme al messaggio dell'utente.`);
+    assert.equal((await hook("prompt", input("prompt", { prompt: "ancora" }), opz)).stdout, "");
+  });
+
+  test("lo stesso comando in due risposte arriva una volta sola", async (t) => {
+    const { srv, amb, input, opz } = await preparato(t, (r) => (r.corpo?.tipo === "todo" ? { corpo: { ...RISPOSTA, comandi: [{ id: 7, testo: "una volta" }] } } : undefined));
+    amb.configura({ url: srv.url, comandi: true });
+    await hook("session_start", input("session_start"), opz);
+    for (let i = 0; i < 2; i++) await hook("todo", input("todowrite"), opz);
+    assert.equal(blocco((await hook("stop", input("stop"), opz)).stdout), `${ETICHETTA}\n- una volta\nEseguili, poi termina il turno.`);
+  });
+
+  test("area spenta: i comandi in una risposta si ignorano", async (t) => {
+    const { input, opz } = await conComandi(t, "stop", undefined, false);
+    assert.equal((await hook("stop", input("stop"), opz)).stdout, "");
+    assert.doesNotMatch((await hook("prompt", input("prompt", { prompt: "ciao" }), opz)).stdout, /Comando dalla dashboard/);
+  });
+
+  test("fail-open: comandi malformati o cache illeggibile non cambiano exit code e non scrivono su stderr", async (t) => {
+    const { amb, sid, input, opz } = await conComandi(t, "stop", "boh");
+    const r = await hook("stop", input("stop"), opz);
+    assert.deepEqual([r.codice, r.stdout, r.stderr], [0, "", ""]);
+    mkdirSync(amb.cache("comandi", sid), { recursive: true });
+    writeFileSync(amb.cache("comandi", sid, "5.json"), "{rotto");
+    const x = await hook("prompt", input("prompt", { prompt: "ciao" }), opz);
+    assert.deepEqual([x.codice, x.stderr], [0, ""]);
+    assert.doesNotMatch(x.stdout, /Comando dalla dashboard/);
+    writeFileSync(amb.cache("sessioni", `${sid}.json`), "{rotto");
+    for (const nome of ["stop", "prompt"]) {
+      const x = await hook(nome, input(nome, { prompt: "ciao" }), opz);
+      assert.deepEqual([x.codice, x.stderr], [0, ""], nome);
+    }
   });
 });
 

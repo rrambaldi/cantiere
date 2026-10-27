@@ -28,3 +28,8 @@ export function sessioniDi(db: Kysely<DB>, a: Ambito) {
   const q = db.selectFrom("sessioni");
   return a.committenteId === null ? q : q.where("sessioni.committente_id", "=", a.committenteId);
 }
+
+export function comandiDi(db: Kysely<DB>, a: Ambito) {
+  const q = db.selectFrom("comandi");
+  return a.committenteId === null ? q : q.where("comandi.committente_id", "=", a.committenteId);
+}

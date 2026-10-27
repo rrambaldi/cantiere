@@ -2,6 +2,7 @@ import type { Kysely, Selectable, Transaction } from "kysely";
 import { adesso, type Committente } from "./accesso.ts";
 import { cantieriDi, di, progettiDi, sessioniDi, TUTTI, type Ambito } from "./ambito.ts";
 import type { Config } from "./config.ts";
+import { consegna, puliziaComandi } from "./comandi.ts";
 import * as testi from "./contesto.ts";
 import type { CantiereRisposta } from "./contesto.ts";
 import { violaUnicita, type DB } from "./db.ts";
@@ -32,6 +33,8 @@ export interface Risposta {
   cantiere: CantiereRisposta | null;
   contesto: string | null;
   config: Pick<Config, "modalita_resoconto" | "soglia_strumenti">;
+  /** I comandi dalla dashboard, solo per un evento che li accetta (design D3). */
+  comandi: { id: number; testo: string }[];
 }
 
 export type Esito = { codice: 200; risposta: Risposta } | { codice: 409 | 422; risposta: { errore: string } };
@@ -225,6 +228,8 @@ async function applica(
     cantiere: await cantiereRisposta(trx, s),
     contesto,
     config: { modalita_resoconto: config.modalita_resoconto, soglia_strumenti: config.soglia_strumenti },
+    // Una sessione già chiusa (un evento arrivato tardi dalla coda) non riceve nulla: l'esito resta a chi lavora.
+    comandi: ev.comandi && s.stato !== "chiusa" ? await consegna(trx, s, ora) : [],
   };
   return [{ codice: 200, risposta }, s.cantiere_id];
 }
@@ -852,9 +857,14 @@ async function sessioniAttive(db: Db, config: Config, ambito: Ambito, cantieri: 
   }));
 }
 
-export async function pulizia(amb: Ambiente): Promise<{ eventi: number; stati: number; domande: number }> {
+export async function pulizia(amb: Ambiente): Promise<{ eventi: number; stati: number; domande: number; comandi: number }> {
   const limite = new Date(Date.now() - amb.config.retention_giorni * 86_400_000).toISOString();
   const eventi = await amb.db.deleteFrom("eventi").where("ricevuto_il", "<", limite).executeTakeFirst();
   const stati = await amb.db.deleteFrom("stati").where("ts", "<", limite).executeTakeFirst();
-  return { eventi: Number(eventi.numDeletedRows), stati: Number(stati.numDeletedRows), domande: await puliziaDomande(amb.db, limite) };
+  return {
+    eventi: Number(eventi.numDeletedRows),
+    stati: Number(stati.numDeletedRows),
+    domande: await puliziaDomande(amb.db, limite),
+    comandi: await puliziaComandi(amb.db, limite),
+  };
 }

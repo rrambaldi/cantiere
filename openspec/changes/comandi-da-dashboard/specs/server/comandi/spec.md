@@ -50,7 +50,8 @@ nelle risposte successive.
 ### Requirement: Annullamento e scadenza
 Un comando `in attesa` MUST poter essere annullato dalla dashboard e passa ad `annullato`; un comando già
 `consegnato` MUST NOT poter essere annullato (409). Un comando ancora `in attesa` dopo 24 ore dalla
-creazione MUST passare a `scaduto` e MUST NOT essere più consegnato.
+creazione MUST passare a `scaduto` e MUST NOT essere più consegnato. L'esito di un cantiere MUST NOT scadere
+a 24 ore.
 
 #### Scenario: Annullo prima della consegna
 - **WHEN** si annulla un comando `in attesa` e poi arriva un evento con `comandi: true`
@@ -59,6 +60,38 @@ creazione MUST passare a `scaduto` e MUST NOT essere più consegnato.
 #### Scenario: Comando scaduto
 - **WHEN** un comando è in attesa da 25 ore e arriva un evento con `comandi: true`
 - **THEN** la risposta non lo contiene e il comando risulta `scaduto`
+
+### Requirement: Esito di una domanda o di una verifica
+La dashboard MUST permettere di confermare o negare una domanda in attesa del proprio ambito e un task di
+verifica (task aperto del `tasks.md` che comincia con «Verificare» o «Prova») di un cantiere del proprio
+ambito. Il rifiuto MUST avere un testo di feedback da 1 a 500 caratteri, altrimenti il server risponde 422;
+una domanda non più in attesa MUST dare 409. Un esito su un task MUST nascere anche senza sessioni aperte.
+Il limite di 5 comandi in attesa vale solo per i comandi di testo.
+
+#### Scenario: Conferma di una domanda
+- **WHEN** dalla dashboard si preme «Confermo» su una domanda in attesa
+- **THEN** la domanda passa a `risposta`, il pallino sparisce e nasce l'esito `confermato` in attesa di consegna
+
+#### Scenario: Rifiuto senza testo
+- **WHEN** si preme «Non va» senza scrivere il feedback
+- **THEN** il server risponde 422 e non salva nulla
+
+#### Scenario: Domanda già chiusa
+- **WHEN** si conferma una domanda che nel frattempo è stata chiusa
+- **THEN** il server risponde 409
+
+#### Scenario: Verifica confermata senza sessioni aperte
+- **WHEN** il cantiere non ha sessioni aperte e si conferma il task "1.3 Verificare nel browser…"
+- **THEN** la scheda mostra il task confermato dal web e l'esito resta in attesa di consegna
+
+### Requirement: Consegna dell'esito
+L'esito MUST diventare un comando con l'esito, il testo della domanda o del task e la sessione che ha
+chiesto. MUST essere consegnato una volta sola alla prima sessione dello stesso cantiere che manda un evento
+con `comandi: true`; senza cantiere, solo alla sessione che ha chiesto.
+
+#### Scenario: Consegna alla prossima sessione del cantiere
+- **WHEN** la sessione che ha chiesto è ferma e un'altra sessione dello stesso cantiere manda un evento con `comandi: true`
+- **THEN** l'altra sessione riceve l'esito con il testo della domanda o del task, e nessuna sessione lo riceve di nuovo
 
 ### Requirement: Comandi visibili nella scheda della sessione
 La scheda della sessione MUST mostrare i comandi con testo, stato (`in attesa`, `consegnato`, `annullato`,

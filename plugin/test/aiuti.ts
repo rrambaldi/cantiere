@@ -70,12 +70,12 @@ export function ambiente(extra: Record<string, string> = {}) {
     dir, progetto, env,
     cache: (...p: string[]) => join(dir, "cache", "forgia", ...p),
     fileConfig: join(dir, "config", "forgia", "config.json"),
-    // Config v2 con un'area sulla cartella del progetto; `aree` le sostituisce tutte. Gli altri campi
-    // sono le impostazioni generali.
+    // Config v2 con un'area sulla cartella del progetto; `aree` le sostituisce tutte. `comandi` va sull'area,
+    // gli altri campi sono le impostazioni generali.
     configura(cfg: Record<string, unknown> = {}) {
-      const { url, token = TOKEN, committente = "PRIV", progetto: nome = "prova", cartella = progetto, mcp_registrato_il = null, aree, ...generale } = cfg;
+      const { url, token = TOKEN, committente = "PRIV", progetto: nome = "prova", cartella = progetto, mcp_registrato_il = null, comandi, aree, ...generale } = cfg;
       mkdirSync(join(dir, "config", "forgia"), { recursive: true });
-      writeFileSync(this.fileConfig, JSON.stringify({ ...generale, aree: aree ?? [{ cartella, url, token, committente, progetto: nome, mcp_registrato_il }] }));
+      writeFileSync(this.fileConfig, JSON.stringify({ ...generale, aree: aree ?? [{ cartella, url, token, committente, progetto: nome, mcp_registrato_il, comandi }] }));
     },
     pulisci: () => rmSync(dir, { recursive: true, force: true }),
   };

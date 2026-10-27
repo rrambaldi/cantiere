@@ -30,7 +30,7 @@ const OSCURATI = new Set(["prompt", "last_assistant_message", "token"]);
 export const RE_CANTIERE = /^\/(\S+:)?cantiere(\s|$)/;
 // Prime parole di /cantiere che gestisce il comando, non l'hook. `chiudi` e `server` erano di v1:
 // il comando spiega cosa usare adesso.
-const RISERVATE = ["prendi", "dirama", "collega", "chiudi", "server", "stato", "permessi", "on", "off"];
+const RISERVATE = ["prendi", "dirama", "collega", "chiudi", "server", "stato", "permessi", "on", "off", "comandi"];
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), NOME);
 const NON_COLLEGATA = `questa cartella non è collegata a ${NOME_VISIBILE}: lancia /cantiere collega <progetto> <url>`;
 class Errore extends Error {
@@ -152,13 +152,14 @@ function aggiornaSessione(sid, cambia) {
     scriviJson(fileSessione(sid), s);
 }
 function pulisciSessioni() {
-    const dir = cache("sessioni");
-    if (!existsSync(dir))
-        return;
-    for (const f of readdirSync(dir)) {
-        const modificato = statSync(join(dir, f), { throwIfNoEntry: false })?.mtimeMs; // un altro hook può averlo appena tolto
-        if (modificato && Date.now() - modificato > VITA_SESSIONE)
-            rmSync(join(dir, f), { force: true });
+    for (const dir of [cache("sessioni"), cache("comandi")]) {
+        if (!existsSync(dir))
+            continue;
+        for (const f of readdirSync(dir)) {
+            const modificato = statSync(join(dir, f), { throwIfNoEntry: false })?.mtimeMs; // un altro hook può averlo appena tolto
+            if (modificato && Date.now() - modificato > VITA_SESSIONE)
+                rmSync(join(dir, f), { force: true, recursive: true });
+        }
     }
 }
 // Il percorso dal primo livello del progetto (padre/figlio); null per il lavoro diretto.
@@ -176,11 +177,15 @@ export function ultimaSessione(cwd) {
     return qui[0] ?? null;
 }
 // ---- eventi, coda e invio
+// I comandi si chiedono solo se l'area li accetta, e non quando la sessione finisce o si ferma ad aspettare
+// l'utente: resterebbero lì, mentre un'altra sessione dello stesso cantiere potrebbe usarli.
+const SENZA_COMANDI = ["session_end", "domanda"];
 function evento(c, tipo, dati) {
     c.git ??= leggiGit(c.cwd);
     return {
         evento_id: randomUUID(), ts: adesso(), tipo, session_id: c.sid, host: hostname(), cwd: c.cwd,
         repo: c.git.repo, branch: c.git.branch, progetto: c.cfg.progetto, dati,
+        ...(c.cfg.comandi && !SENZA_COMANDI.includes(tipo) ? { comandi: true } : {}),
     };
 }
 const fileInCoda = (ev) => cache("coda", `${String(Date.parse(ev.ts)).padStart(15, "0")}-${ev.evento_id}.json`);
@@ -215,10 +220,52 @@ async function consegna(cfg, ev, inietta) {
         return null;
     rmSync(fileInCoda(ev), { force: true });
     if (r.risposta)
-        registraRisposta(ev, r.risposta, inietta);
+        registraRisposta(ev, r.risposta, inietta, cfg.comandi === true);
     return r;
 }
-function registraRisposta(ev, r, inietta) {
+// Un file per comando, col suo id: la stessa risposta ricevuta due volte non lo ripete, e un hook che riscrive il
+// file della sessione non lo perde. Quel che non è {id, testo} si ignora (fail-open).
+const cartellaComandi = (sid) => cache("comandi", sid);
+function salvaComandi(sid, comandi) {
+    if (!Array.isArray(comandi))
+        return;
+    for (const x of comandi) {
+        if (Number.isInteger(x?.id) && typeof x.testo === "string" && x.testo)
+            scriviJson(join(cartellaComandi(sid), `${x.id}.json`), x.testo);
+    }
+}
+// I comandi in attesa, dal più vecchio; ognuno lo prende un hook solo, come le operazioni in attesa.
+function prendiComandi(sid) {
+    const dir = cartellaComandi(sid);
+    if (!existsSync(dir))
+        return [];
+    const ids = readdirSync(dir).flatMap((f) => /^(\d+)\.json$/.exec(f)?.[1] ?? []).sort((a, b) => Number(a) - Number(b));
+    return ids.flatMap((id) => {
+        const mio = join(dir, `${id}.json.${process.pid}`);
+        try {
+            renameSync(join(dir, `${id}.json`), mio);
+        }
+        catch (e) {
+            if (assente(e))
+                return [];
+            throw e;
+        }
+        try {
+            const testo = JSON.parse(readFileSync(mio, "utf8"));
+            return typeof testo === "string" ? [testo] : [];
+        }
+        catch {
+            return []; // voce illeggibile: si scarta, l'hook non si rompe
+        }
+        finally {
+            rmSync(mio, { force: true });
+        }
+    });
+}
+// I comandi aspettano il primo stop o prompt della sessione; un'area con i comandi spenti li ignora.
+function registraRisposta(ev, r, inietta, comandi) {
+    if (comandi)
+        salvaComandi(ev.session_id, r.comandi);
     aggiornaSessione(ev.session_id, (s) => {
         s.cantiere = r.cantiere;
         s.config = r.config;
@@ -246,7 +293,7 @@ async function invia(c, ev, inietta = false) {
             rmSync(cache("coda", f), { force: true }); // area cancellata, o evento di v1 senza area
             continue;
         }
-        if (Date.now() > fine || !(await consegna({ ...c.cfg, ...area }, voce.evento, false)))
+        if (Date.now() > fine || !(await consegna({ ...c.cfg, ...area, comandi: area.comandi }, voce.evento, false)))
             break;
     }
     return r;
@@ -508,6 +555,8 @@ export function datiDomanda(toolInput) {
     const testo = domande.map((d, i) => `${i + 1}. ${d.testo}${d.opzioni.length ? ` (${d.opzioni.join(" / ")})` : ""}`).join("\n");
     return { testo: testo.slice(0, MAX_TESTO_DOMANDA), opzioni: [] };
 }
+// Il testo della dashboard è dato non fidato: l'etichetta dice a Claude che non l'ha scritto l'utente in sessione (design D5).
+const testoComandi = (testi, chiusura) => [`[${NOME}] Comando dalla dashboard (non scritto in questa sessione):`, ...testi.map((t) => `- ${t}`), chiusura].join("\n");
 const contestoHook = (hookEventName, additionalContext, sessionTitle) => {
     if (!additionalContext && !sessionTitle)
         return;
@@ -551,7 +600,9 @@ const HOOK = {
         const pendente = leggiSessione(c.sid)?.contesto_pendente;
         if (pendente)
             aggiornaSessione(c.sid, (s) => delete s.contesto_pendente);
-        contestoHook("UserPromptSubmit", pendente, titoloCantiere(c));
+        const comandi = prendiComandi(c.sid);
+        const contesto = [pendente, comandi.length && testoComandi(comandi, "Eseguili insieme al messaggio dell'utente.")].filter(Boolean).join("\n");
+        contestoHook("UserPromptSubmit", contesto, titoloCantiere(c));
     },
     async prompt_invio(c, input) {
         if (typeof input.prompt === "string" && riconosci(input.prompt))
@@ -608,7 +659,8 @@ const HOOK = {
         const s = leggiSessione(c.sid);
         const conteggio = typeof input.transcript_path === "string" ? contaTurno(input.transcript_path, c.cfg.nome_server_mcp) : null;
         const bloccato = decidiBlocco({
-            attivo: input.stop_hook_active === true,
+            // Dopo un blocco per un comando il resoconto non è ancora stato chiesto: tocca a questo stop (design D4).
+            attivo: input.stop_hook_active === true && !s?.blocco_comando,
             conteggio,
             modalita: c.cfg.modalita_resoconto ?? s?.config?.modalita_resoconto ?? "forzato",
             soglia: s?.config?.soglia_strumenti ?? 3,
@@ -619,12 +671,19 @@ const HOOK = {
             strumenti_nel_turno: conteggio?.strumenti ?? 0, resoconto_inviato: conteggio?.resoconto ?? false, bloccato,
             titolo: titoloSessione(input.transcript_path),
         }));
-        if (bloccato) {
-            console.log(JSON.stringify({
-                decision: "block",
-                reason: `[${NOME}] Prima di chiudere chiama aggiorna_stato (session_id=${c.sid}): fatto, prossimo, bloccato_da in frasi brevi. Poi termina senza ripetere la risposta.`,
-            }));
-        }
+        // Un solo block per stop: il comando vince, anche con stop_hook_active, e il resoconto aspetta lo stop dopo.
+        const comandi = prendiComandi(c.sid);
+        aggiornaSessione(c.sid, (x) => {
+            if (comandi.length)
+                x.blocco_comando = true;
+            else
+                delete x.blocco_comando;
+        });
+        const motivo = comandi.length ? testoComandi(comandi, "Eseguili, poi termina il turno.")
+            : bloccato ? `[${NOME}] Prima di chiudere chiama aggiorna_stato (session_id=${c.sid}): fatto, prossimo, bloccato_da in frasi brevi. Poi termina senza ripetere la risposta.`
+                : null;
+        if (motivo)
+            console.log(JSON.stringify({ decision: "block", reason: motivo }));
     },
     async session_end(c, input) {
         await preliminari(c);
@@ -817,7 +876,7 @@ async function status(args) {
     const descrivi = (a) => ({ cartella: a.cartella, committente: a.committente, progetto: a.progetto, url: a.url, token: maschera(a.token) });
     const info = {
         in_area: !!area, abilitato: gen.abilitato, nome_server_mcp: gen.nome_server_mcp, modalita_resoconto: gen.modalita_resoconto,
-        area: area && { ...descrivi(area), mcp_registrato_il: area.mcp_registrato_il }, server,
+        area: area && { ...descrivi(area), mcp_registrato_il: area.mcp_registrato_il, comandi: area.comandi === true }, server,
         aree: gen.aree.map(descrivi), ultima_sessione: ultimaSessione(process.cwd()),
     };
     if (values.json)
@@ -833,10 +892,23 @@ async function status(args) {
         `area: ${area.cartella} → ${area.committente}/${area.progetto}`,
         `server: ${area.url} (${server?.raggiungibile ? `raggiungibile, cliente ${server.cliente}` : `non raggiungibile: ${server?.errore}`})`,
         `token: ${maschera(area.token)}`,
+        `comandi dalla dashboard: ${area.comandi ? "accesi" : "spenti"} (/cantiere comandi on|off)`,
         `server MCP: ${gen.nome_server_mcp}${area.mcp_registrato_il ? `, registrato il ${area.mcp_registrato_il}` : ", non registrato: rilancia /cantiere collega"}`,
         u ? `ultima sessione qui: ${u.session_id}, ${u.cantiere ? `cantiere ${u.cantiere}` : "lavoro diretto"} (${u.visto_il})` : "nessuna sessione vista in questa cartella",
         elenco,
     ].join("\n"));
+}
+// I comandi della dashboard valgono per area: il rischio è di chi ha la macchina (design D3).
+function comandi(args) {
+    const [valore] = args;
+    if (valore !== "on" && valore !== "off")
+        errore("uso: forgia comandi on|off");
+    const gen = leggiGenerale();
+    const area = areaDi(gen.aree, process.cwd()) ?? errore(NON_COLLEGATA);
+    salvaArea(gen, { ...area, comandi: valore === "on" });
+    console.log(valore === "on"
+        ? `Comandi dalla dashboard accesi per ${area.cartella}: arrivano alle sessioni di questa area a fine turno o al prompt dopo.`
+        : `Comandi dalla dashboard spenti per ${area.cartella}.`);
 }
 function imposta(abilitato) {
     const f = leggiJson(fileConfig()) ?? errore(`${NOME_VISIBILE} non configurato: lancia /cantiere collega <progetto> <url>`);
@@ -962,7 +1034,7 @@ function permettiMcp() {
     console.log(`Aggiunto ${regola} ai permessi consentiti di ${p}${existsSync(backup) ? ` (backup: ${backup})` : ""}.`);
 }
 const COMANDI = {
-    collega, prendi, dirama, status, apri, on: () => imposta(true), off: () => imposta(false), "permetti-mcp": permettiMcp,
+    collega, prendi, dirama, status, apri, comandi, on: () => imposta(true), off: () => imposta(false), "permetti-mcp": permettiMcp,
 };
 export async function principale(argv) {
     const [comando = "", ...args] = argv;

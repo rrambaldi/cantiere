@@ -1,3 +1,4 @@
+import { ComandiSessione, ListaComandi } from "./comandi.js";
 import { Button, Checkbox } from "./ds/core.js";
 import { StatoBadge } from "./ds/feedback.js";
 import { eta, finale, giorno, quando } from "./formato.js";
@@ -34,8 +35,12 @@ function Blocco({ titolo, children }) {
         React.createElement(Etichetta, null, titolo),
         children);
 }
-export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea }) {
+export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea, onAggiorna }) {
     const c = d.cantiere;
+    // Gli esiti dei task stanno sui task; quelli delle sessioni attive sotto la loro sessione.
+    const attive = new Set(c.sessioni.map((s) => s.session_id));
+    const diSessione = d.comandi.filter((x) => x.task === null && x.session_id !== null);
+    const ferme = diSessione.filter((x) => !attive.has(x.session_id));
     return (React.createElement("aside", { className: "scheda", "aria-label": T.schedaTecnica },
         React.createElement(Blocco, { titolo: T.schedaTecnicaEt }, React.createElement(Campi, { righe: [
                 [T.progetto, c.progetto],
@@ -62,7 +67,10 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea }) {
                     s.titolo ?? T.statoSessione[s.stato],
                     " \u00B7 ",
                     eta(s.eta_secondi)),
-                Object.keys(s.subagenti).length > 0 && React.createElement("span", { className: "secondario" }, subagenti(s.subagenti)))))))),
+                Object.keys(s.subagenti).length > 0 && React.createElement("span", { className: "secondario" }, subagenti(s.subagenti)),
+                React.createElement(ComandiSessione, { sessionId: s.session_id, comandi: diSessione.filter((x) => x.session_id === s.session_id), onAggiorna: onAggiorna }))))))),
+        ferme.length > 0 && (React.createElement(Blocco, { titolo: T.comandiSessioniFerme },
+            React.createElement(ListaComandi, { comandi: ferme, onAggiorna: onAggiorna }))),
         d.todo.length > 0 && (React.createElement(Blocco, { titolo: T.todoSessioni }, d.todo.map((t, i) => (React.createElement(Checkbox, { key: i, checked: t.stato === "completed", label: React.createElement("span", { style: { color: t.stato === "completed" ? "var(--testo-2)" : "var(--testo)" } },
                 t.testo,
                 t.stato === "in_progress" ? T.inCorsoTodo : "") }))))),

@@ -43,9 +43,21 @@ della radice; in una cartella senza git, da una sottocartella si rilancia `/cant
 | `/cantiere` o `/cantiere stato` | area della cartella, server, ultima sessione |
 | `/cantiere permessi` | aggiunge `mcp__forgia` ai permessi consentiti, con un backup di `settings.json` |
 | `/cantiere on` / `off` | accende o spegne il tracciamento, in modo persistente |
+| `/cantiere comandi on` / `off` | accetta o no i comandi scritti nella dashboard, per l'area della cartella (spenti di default) |
 
 Funziona anche come `/forgia:cantiere`. Un cantiere non si chiude da qui: completato arriva da
 `openspec archive`, sospeso e abbandonato si decidono dalla dashboard.
+
+## Comandi dalla dashboard
+
+Con `/cantiere comandi on` gli eventi dell'area portano `comandi: true`, e il server mette nella risposta
+i comandi scritti nella dashboard per la sessione, una volta sola. Arrivano anche gli esiti di «Confermo» e
+«Non va» dati dal web a una domanda in attesa o a un task di verifica: quelli di un cantiere li riceve la
+prima sessione del cantiere che accetta comandi. Il plugin li passa a Claude con l'etichetta
+`[forgia] Comando dalla dashboard (non scritto in questa sessione):`: a fine turno bloccando la chiusura
+(il comando vince sul blocco per il resoconto, che arriva allo stop dopo), altrimenti nel contesto del
+prompt successivo. Una sessione ferma non riceve nulla finché non fa il suo prossimo passo. Spenti (il
+default), il plugin non li chiede e ignora quelli che trova in una risposta.
 
 ## Cosa arriva al server
 
@@ -55,7 +67,8 @@ Funziona anche come `/forgia:cantiere`. Un cantiere non si chiude da qui: comple
   dal transcript locale (righe `custom-title` e `ai-title`, formato interno di Claude Code).
 - Le domande che Claude fa all'utente e che aspettano risposta: il testo e le opzioni di `AskUserQuestion`,
   e il testo delle notifiche di permesso richiesto o di sessione ferma. La dashboard le mostra con un
-  pallino rosso sul cantiere; la risposta si dà dal terminale. Con le esclusioni sotto non parte nulla.
+  pallino rosso sul cantiere; la risposta si dà dal terminale, oppure dal web con «Confermo» o «Non va»
+  se l'area accetta i comandi. Con le esclusioni sotto non parte nulla.
 - Dopo ogni turno, se è cambiata, la copia di `openspec/changes/`: per ogni change solo
   `.openspec.yaml`, `proposal.md`, `design.md`, `tasks.md`, i `.md` sotto `specs/` e i `.md`/`.txt`
   sotto `idee/` (fino a 256 KB l'uno), più i nomi dei change archiviati. Nient'altro della cartella.

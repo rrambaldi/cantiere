@@ -1,4 +1,5 @@
 import { Binari } from "./binari.js";
+import { ComandiSessione, EsitoDomanda, VerificaTask } from "./comandi.js";
 import { Documento, EditorMarkdown, RigaMarkdown } from "./documento.js";
 import { Nastro } from "./ds/cantiere.js";
 import { Button, Checkbox, Input, Tabs } from "./ds/core.js";
@@ -152,7 +153,7 @@ export function ZonaFile({ onFile, testo = T.trascinaFile, conTesto = true }) {
             React.createElement("input", { ref: input, type: "file", multiple: true, accept: FILE_AMMESSI, hidden: true, onChange: (e) => { onFile([...(e.target.files ?? [])]); e.target.value = ""; } })),
         conTesto && React.createElement(CampoTesto, { scritto: scritto, setScritto: setScritto, nome: nome, setNome: setNome, azione: React.createElement(Button, { variant: "secondario", size: "sm", onClick: () => { onFile([fileDaTesto(nome, scritto)]); setScritto(""); } }, T.aggiungiTesto) })));
 }
-export function LavoroCantiere({ d, cantieri, onScegli, onFile, onSalvaFile, onTogliFile, barra }) {
+export function LavoroCantiere({ d, cantieri, onScegli, onFile, onSalvaFile, onTogliFile, onAggiorna, barra }) {
     const c = d.cantiere;
     const idea = c.stato === "idea";
     const daFare = d.task_aperti.length > 0;
@@ -182,7 +183,7 @@ export function LavoroCantiere({ d, cantieri, onScegli, onFile, onSalvaFile, onT
         React.createElement(Testata, { etichetta: idea ? T.stato.idea : T.giornaleLavori, titolo: c.percorso, sotto: sotto, barra: barra }),
         React.createElement("div", { className: "corpo-lavoro" },
             c.descrizione && React.createElement("p", { className: "descrizione" }, c.descrizione),
-            React.createElement(DomandeInAttesa, { domande: c.domande }),
+            React.createElement(DomandeInAttesa, { domande: c.domande, onAggiorna: onAggiorna }),
             c.change_mancante && c.stato === "aperto" && (React.createElement(Avviso, null,
                 T.avvisoChangeMancante[0],
                 React.createElement("code", null, c.change),
@@ -209,16 +210,17 @@ export function LavoroCantiere({ d, cantieri, onScegli, onFile, onSalvaFile, onT
                         { id: "change", label: T.changeScheda, count: d.file.length },
                     ] }),
                 vista === "daFare"
-                    ? React.createElement("ul", { className: "task-aperti" }, d.task_aperti.map((t, i) => React.createElement("li", { key: i },
-                        React.createElement(Checkbox, { checked: false, label: React.createElement(RigaMarkdown, { testo: t }) }))))
+                    ? (React.createElement("ul", { className: "task-aperti" }, d.task_aperti.map((t, i) => (React.createElement("li", { key: i },
+                        React.createElement(Checkbox, { checked: false, label: React.createElement(RigaMarkdown, { testo: t }) }),
+                        d.verifiche.includes(t) && React.createElement(VerificaTask, { cantiere: c.id, task: t, onAggiorna: onAggiorna, esito: d.comandi.find((x) => x.task === t && x.stato !== "annullato") }))))))
                     : vista === "rami"
                         ? React.createElement(TaskERami, { c: c, tasks: d.file.find((f) => f.percorso === "tasks.md")?.contenuto ?? null, cantieri: cantieri, onScegli: onScegli })
                         : vista === "giornale"
                             ? React.createElement(Turni, { turni: d.turni, vuoto: c.origine === "repo" ? T.nessunResocontoRepo(quando(c.creato_il)) : T.nessunResoconto })
                             : React.createElement(Documenti, { file: d.file, vuoto: T.nessunaCopiaChange }))))));
 }
-/** Le domande che le sessioni del cantiere hanno fatto e che aspettano risposta (solo lettura). */
-function DomandeInAttesa({ domande }) {
+/** Le domande che le sessioni hanno fatto e che aspettano risposta: dal web si confermano o si negano con un feedback. */
+function DomandeInAttesa({ domande, onAggiorna }) {
     if (!domande.length)
         return null;
     return (React.createElement("section", { className: "domande-attesa", "aria-label": T.inAttesaTitolo },
@@ -234,7 +236,8 @@ function DomandeInAttesa({ domande }) {
                 " \u00B7 ",
                 React.createElement("code", null, d.session_id.slice(0, 8)),
                 " \u00B7 ",
-                T.inAttesaDa(eta(d.eta_secondi)))))),
+                T.inAttesaDa(eta(d.eta_secondi))),
+            React.createElement(EsitoDomanda, { d: d, onAggiorna: onAggiorna })))),
         React.createElement("span", { className: "secondario" }, T.inAttesaNota)));
 }
 function RigaCantiere({ c, onScegli }) {
@@ -248,7 +251,7 @@ function RigaCantiere({ c, onScegli }) {
         React.createElement(StatoBadge, { stato: c.stato })));
 }
 /** Doppio click (o Invio) apre sotto la riga l'ultimo messaggio di stato della sessione. */
-function RigaNonCensita({ s }) {
+function RigaNonCensita({ s, onAggiorna }) {
     const [aperta, setAperta] = React.useState(false);
     const u = s.ultimo_stato;
     return (React.createElement(React.Fragment, null,
@@ -267,18 +270,20 @@ function RigaNonCensita({ s }) {
             React.createElement("td", null,
                 React.createElement(SessioneBadge, { stato: s.stato }))),
         aperta && (React.createElement("tr", { className: "ultimo-stato" },
-            React.createElement("td", { colSpan: 6 }, u ? (React.createElement("div", { className: "resoconto-sessione" },
-                React.createElement("span", { className: "etichetta" }, T.ultimoStatoDel(quando(u.ts))),
-                React.createElement(RigaResoconto, { k: T.rFatto, v: u.fatto }),
-                React.createElement(RigaResoconto, { k: T.rDopo, v: u.prossimo }),
-                u.bloccato_da && React.createElement(RigaResoconto, { k: T.rBlocca, v: u.bloccato_da }))) : React.createElement("span", { className: "secondario" }, T.nessunoStato))))));
+            React.createElement("td", { colSpan: 6 },
+                u ? (React.createElement("div", { className: "resoconto-sessione" },
+                    React.createElement("span", { className: "etichetta" }, T.ultimoStatoDel(quando(u.ts))),
+                    React.createElement(RigaResoconto, { k: T.rFatto, v: u.fatto }),
+                    React.createElement(RigaResoconto, { k: T.rDopo, v: u.prossimo }),
+                    u.bloccato_da && React.createElement(RigaResoconto, { k: T.rBlocca, v: u.bloccato_da }))) : React.createElement("span", { className: "secondario" }, T.nessunoStato),
+                s.stato !== "chiusa" && React.createElement(ComandiSessione, { sessionId: s.session_id, comandi: s.comandi, onAggiorna: onAggiorna }))))));
 }
-export function LavoroProgetto({ p, committente, nonCensite, onScegli, barra }) {
+export function LavoroProgetto({ p, committente, nonCensite, onScegli, onAggiorna, barra }) {
     const attivi = p.cantieri.filter((c) => c.stato === "aperto" || c.stato === "sospeso" || c.stato === "idea");
     return (React.createElement("main", { className: "lavori" },
         React.createElement(Testata, { etichetta: T.progetto, titolo: p.nome, sotto: T.progettoSotto(committente, p.cantieri.length, giorno(p.creato_il)), barra: barra }),
         React.createElement("div", { className: "corpo-lavoro" },
-            nonCensite && React.createElement(DomandeInAttesa, { domande: nonCensite.flatMap((s) => s.domande) }),
+            nonCensite && React.createElement(DomandeInAttesa, { domande: nonCensite.flatMap((s) => s.domande), onAggiorna: onAggiorna }),
             React.createElement("section", { className: "sezione" },
                 React.createElement(Etichetta, null, T.cantieriApertiIdee),
                 attivi.length ? React.createElement("div", { className: "righe" }, attivi.map((c) => React.createElement(RigaCantiere, { key: c.id, c: c, onScegli: onScegli })))
@@ -297,7 +302,7 @@ export function LavoroProgetto({ p, committente, nonCensite, onScegli, barra }) 
                                     React.createElement("th", null, T.colUltimoEvento),
                                     React.createElement("th", { className: "numero" }, T.colTurni),
                                     React.createElement("th", null, T.colStato))),
-                            React.createElement("tbody", null, nonCensite.map((s) => React.createElement(RigaNonCensita, { key: s.session_id, s: s }))))))))));
+                            React.createElement("tbody", null, nonCensite.map((s) => React.createElement(RigaNonCensita, { key: s.session_id, s: s, onAggiorna: onAggiorna }))))))))));
 }
 const CHIAVE_SCHEDA_COMMITTENTE = "forgia-scheda-committente";
 export function LavoroCommittente({ cm, onScegli, barra }) {

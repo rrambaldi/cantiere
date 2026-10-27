@@ -33,6 +33,23 @@ export interface Domanda {
   eta_secondi: number;
 }
 
+/** Un comando scritto nella dashboard, o l'esito di «Confermo» / «Non va» su una domanda o un task di verifica. */
+export interface Comando {
+  id: number;
+  /** null per l'esito di un task. */
+  session_id: string | null;
+  cantiere_id: number | null;
+  task: string | null;
+  esito: "confermato" | "negato" | null;
+  /** Il comando, o il feedback di un rifiuto (vuoto per una conferma). */
+  testo: string;
+  stato: "in_attesa" | "consegnato" | "annullato" | "scaduto";
+  creato_il: string;
+  consegnato_il: string | null;
+}
+
+export type EsitoWeb = { esito: "confermato" } | { esito: "negato"; feedback: string };
+
 export interface Cantiere {
   id: number;
   progetto: string;
@@ -101,6 +118,10 @@ export interface Dettaglio {
   turni: Turno[];
   file: FileCopia[];
   task_aperti: string[];
+  /** I task aperti che si confermano dalla dashboard. */
+  verifiche: string[];
+  /** Comandi delle sessioni attive ed esiti del cantiere, dal più recente. */
+  comandi: Comando[];
   todo: { session_id: string; host: string; testo: string; stato: string }[];
   esiti: { stato: Stato; ts: string; da: AutoreEsito }[];
   discendenti_attivi: string[];
@@ -116,6 +137,7 @@ export interface NonCensita {
   stato: StatoSessione;
   ultimo_stato: { ts: string; fatto: string; prossimo: string; bloccato_da: string | null } | null;
   domande: Domanda[];
+  comandi: Comando[];
 }
 
 export type Azione = "sospendi" | "riattiva" | "abbandona";
@@ -174,4 +196,8 @@ export const api = {
     richiesta<{ file: { nome: string; byte: number } }>(`cantieri/${cantiere}/file`, { nome, contenuto }),
   togliFile: (cantiere: number, nome: string) => richiesta<object>(`cantieri/${cantiere}/file/elimina`, { nome }),
   esito: (cantiere: number, azione: Azione) => richiesta<{ cantieri: Cantiere[] }>(`cantieri/${cantiere}/esito`, { azione }),
+  scriviComando: (session_id: string, testo: string) => richiesta<{ comando: Comando }>("comandi", { session_id, testo }),
+  annullaComando: (id: number) => richiesta<{ comando: Comando }>(`comandi/${id}/annulla`, {}),
+  esitoDomanda: (d: Domanda, e: EsitoWeb) => richiesta<{ comando: Comando }>("domande/esito", { session_id: d.session_id, domanda_id: d.id, ...e }),
+  esitoTask: (cantiere: number, task: string, e: EsitoWeb) => richiesta<{ comando: Comando }>(`cantieri/${cantiere}/verifica`, { task, ...e }),
 };

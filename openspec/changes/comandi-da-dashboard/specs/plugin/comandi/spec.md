@@ -12,10 +12,10 @@ NOT inviare `comandi: true` e MUST ignorare un eventuale campo `comandi` nelle r
 
 #### Scenario: Accensione
 - **WHEN** nella cartella collegata si lancia `/cantiere comandi on`
-- **THEN** da quel momento gli eventi dell'area portano `comandi: true` e `/cantiere stato` dice che i comandi sono accesi
+- **THEN** da quel momento gli eventi dell'area, salvo `domanda` e `session_end`, portano `comandi: true` e `/cantiere stato` dice che i comandi sono accesi
 
 ### Requirement: Consegna a fine turno
-All'evento `stop`, se la risposta contiene comandi, il plugin MUST impedire la chiusura del turno con
+All'evento `stop`, se la risposta contiene comandi o ne sono arrivati con eventi precedenti, il plugin MUST impedire la chiusura del turno con
 `decision: "block"` e come motivo un testo che comincia con `[forgia] Comando dalla dashboard (non scritto
 in questa sessione):`, seguito dai comandi nell'ordine e da una riga che chiede di eseguirli e poi di
 terminare. La consegna MUST valere anche con `stop_hook_active` vero. Se nello stesso stop scatterebbe

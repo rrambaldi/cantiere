@@ -301,16 +301,16 @@ function App() {
   if (trovato?.tipo === "cantiere") {
     const d = dettaglioDi(trovato.c);
     if (d) {
-      centro = <LavoroCantiere d={d} barra={barra} cantieri={tuttiICantieri} onScegli={scegli} onFile={(f) => void caricaFile(d.cantiere.id, f).then(aggiorna)}
+      centro = <LavoroCantiere d={d} barra={barra} cantieri={tuttiICantieri} onScegli={scegli} onAggiorna={aggiorna} onFile={(f) => void caricaFile(d.cantiere.id, f).then(aggiorna)}
         onSalvaFile={(nome, testo) => salvaFile(d.cantiere.id, nome, testo)}
         onTogliFile={(nome) => setRichiesta({ tipo: "togli", cantiere: d.cantiere, nome })} />;
-      destra = <SchedaCantiere d={d}
+      destra = <SchedaCantiere d={d} onAggiorna={aggiorna}
         onEsito={(azione) => setRichiesta({ tipo: "esito", cantiere: d.cantiere, azione, discendenti: d.discendenti_attivi })}
         onModifica={() => setRichiesta({ tipo: "modifica", cantiere: d.cantiere })}
         onNuovaIdea={() => setRichiesta({ tipo: "idea", progetto: trovato.p, padre: d.cantiere })} />;
     }
   } else if (trovato?.tipo === "progetto") {
-    centro = <LavoroProgetto p={trovato.p} committente={trovato.cm.nome} nonCensite={nonCensite} onScegli={scegli} barra={barra} />;
+    centro = <LavoroProgetto p={trovato.p} committente={trovato.cm.nome} nonCensite={nonCensite} onScegli={scegli} onAggiorna={aggiorna} barra={barra} />;
     destra = <SchedaProgetto p={trovato.p} committente={trovato.cm.nome} onNuovaIdea={() => setRichiesta({ tipo: "idea", progetto: trovato.p, padre: null })} />;
   } else if (trovato?.tipo === "committente") {
     centro = <LavoroCommittente cm={trovato.cm} onScegli={scegli} barra={barra} />;

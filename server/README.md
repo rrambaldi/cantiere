@@ -52,7 +52,7 @@ npx forgia-admin committente rigenera <nome>  # token nuovo, il vecchio smette s
 npx forgia-admin progetti                      # tabella dei progetti
 npx forgia-admin sessioni                      # tabella delle sessioni
 npx forgia-admin cantieri                      # tabella dei cantieri
-npx forgia-admin pulizia                       # elimina eventi, stati e domande oltre FORGIA_RETENTION_GIORNI
+npx forgia-admin pulizia                       # elimina eventi, stati, domande e comandi oltre FORGIA_RETENTION_GIORNI
 ```
 
 Letture JSON con il token di un committente, che vede solo i suoi dati:
@@ -61,6 +61,14 @@ Letture JSON con il token di un committente, che vede solo i suoi dati:
 domande in attesa di risposta delle sessioni (`domande_in_attesa`, e `domande` per cantiere): la
 dashboard le mostra con un pallino rosso, e si chiudono con la risposta, un nuovo prompt, la fine
 della sessione o dopo 24 ore.
+
+Dalla dashboard si scrive un comando di testo (al più 500 caratteri, 5 in attesa per sessione) per una
+sessione non chiusa, e si dà «Confermo» o «Non va» con un feedback a una domanda in attesa o a un task
+di verifica (un task aperto che comincia con «Verificare» o «Prova»). Il server li consegna nella
+risposta agli eventi che portano `comandi: true`, come `comandi: [{"id", "testo"}]`, una volta sola;
+gli esiti di un cantiere alla prima sessione del cantiere che li accetta. Un comando non consegnato
+scade dopo 24 ore, l'esito di un cantiere no. Le letture `/api/v1` e i log non mostrano mai il testo
+dei comandi. Dettagli in [Contratto v2](../docs/contratto-v2.md).
 
 ## Produzione
 
