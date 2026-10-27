@@ -22,7 +22,8 @@ export const RISPOSTA = {
 export const PROGETTI = { progetti: [{ id: 1, nome: "prova", slug: "prova", creato_il: "2026-10-15T08:00:00.000Z", cantieri: {} }] };
 
 export type Richiesta = { metodo: string; percorso: string; auth?: string; corpo: any };
-type Rispondi = (r: Richiesta) => { codice?: number; corpo?: unknown } | undefined;
+// html: una pagina al posto del JSON, come quella di un proxy davanti al server.
+type Rispondi = (r: Richiesta) => { codice?: number; corpo?: unknown; html?: string } | undefined;
 
 // La copia dei change: il percorso può avere ?session_id=.
 const copia = (r: Richiesta) => new URL(r.percorso, "http://x").pathname.endsWith("/openspec");
@@ -39,8 +40,9 @@ export async function serverFinto(rispondi: Rispondi = () => undefined) {
       : r.percorso === "/api/v1/progetti" ? (r.metodo === "POST" ? { progetto: { id: 2, nome: r.corpo.nome, slug: r.corpo.nome } } : PROGETTI)
       : copia(r) ? { cantieri: [] }
       : RISPOSTA;
-    const { codice = 200, corpo = predefinito } = rispondi(r) ?? {};
-    res.writeHead(codice, { "content-type": "application/json" }).end(JSON.stringify(corpo));
+    const { codice = 200, corpo = predefinito, html } = rispondi(r) ?? {};
+    if (html !== undefined) res.writeHead(codice, { "content-type": "text/html" }).end(html);
+    else res.writeHead(codice, { "content-type": "application/json" }).end(JSON.stringify(corpo));
   });
   await new Promise<void>((ok) => srv.listen(0, "127.0.0.1", ok));
   return {

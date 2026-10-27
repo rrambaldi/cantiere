@@ -84,6 +84,13 @@ describe("collega", () => {
     assert.equal(existsSync(amb.fileConfig), false);
   });
 
+  test("pagina HTML al posto del JSON (proxy davanti, URL senza il percorso del server): dice di controllare l'URL", async (t) => {
+    const { amb, opz, srv } = await preparato(t, () => ({ codice: 403, html: "<h3>Accesso riservato</h3>" }));
+    const r = await esegui(["collega", "prova", "--url", srv.url, "--token-stdin"], { ...opz, input: TOKEN });
+    assert.match(r.stderr, /non risponde cantiere forgia \(HTTP 403\).*controlla l'URL/);
+    assert.deepEqual([r.codice, existsSync(amb.fileConfig)], [1, false]);
+  });
+
   test("http verso un host remoto rifiutato", async (t) => {
     const { srv, amb, opz } = await preparato(t);
     const r = await esegui(["collega", "prova", "--url", "http://priv.progettazionisoftware.it/cantiere", "--token-stdin"], { ...opz, input: "x" });

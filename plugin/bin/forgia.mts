@@ -849,6 +849,10 @@ async function chiamaApi(cfg: { url: string; token: string }, metodo: string, pe
     throw new Errore(`server non raggiungibile: ${cfg.url}`, { cause: e });
   }
   if (r.status === 401) errore("token non valido: il server risponde 401");
+  // Il server risponde sempre JSON: una pagina viene da altro, di solito un proxy con l'URL senza il percorso del server.
+  if (!r.headers.get("content-type")?.includes("json")) {
+    errore(`a ${cfg.url} non risponde ${NOME_VISIBILE} (HTTP ${r.status}): controlla l'URL, per esempio se manca un percorso come /cantiere`);
+  }
   const risposta = await r.json().catch(() => null);
   if (!r.ok) errore(`il server risponde ${r.status}${risposta?.errore ? `: ${risposta.errore}` : ""}`);
   return risposta;
