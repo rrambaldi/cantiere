@@ -87,7 +87,7 @@ describe("fail-open ed esclusioni", () => {
     assert.deepEqual([h.codice, h.stdout, h.stderr], [0, "", ""]);
     const s = await esegui([WRAPPER, "status"], { env });
     assert.equal(s.codice, 127);
-    assert.match(s.stderr, /richiede Node\.js ≥ 22\.18/);
+    assert.match(s.stderr, /richiede Node\.js ≥ 20/);
   });
 });
 
@@ -288,6 +288,23 @@ describe("prompt e /cantiere", () => {
     assert.equal(srv.eventi()[1].dati.nome, "idoc-converter/preprod");
   });
 
+  test("/cantiere fork: apri_cantiere con task e fork, conferma a Claude; senza --task l'uso e nessun evento", async (t) => {
+    const conferma = `[forgia] Comando /cantiere gestito: fork "export-csv" aperto da "pdfconverter", task 2.3.`;
+    const { srv, input, opz } = await preparato(t, (r) => (r.corpo?.tipo === "apri_cantiere" ? { corpo: { ...RISPOSTA, contesto: conferma } } : undefined));
+    await hook("session_start", input("session_start"), opz);
+    const senza = input("prompt", { prompt: "/cantiere fork export-csv" });
+    const uso = await hook("prompt", senza, opz);
+    await hook("prompt_invio", senza, opz);
+    assert.match(contesto(uso.stdout), /si usa così: \/cantiere fork <nome> --task <N>/);
+    assert.deepEqual(tipi(srv.eventi()), ["session_start"]);
+    const p = input("prompt", { prompt: "/cantiere fork export-csv --task 2.3 — esportazione dei binari" });
+    const r = await hook("prompt", p, opz);
+    await hook("prompt_invio", p, opz);
+    assert.equal(contesto(r.stdout), conferma);
+    assert.deepEqual(tipi(srv.eventi()), ["session_start", "apri_cantiere"]);
+    assert.deepEqual(srv.eventi()[1].dati, { nome: "export-csv", descrizione: "esportazione dei binari", origine: "utente", padre: null, task: "2.3", fork: true });
+  });
+
   test("/cantiere con --padre: padre nell'evento", async (t) => {
     const { srv, input, opz } = await preparato(t);
     await hook("session_start", input("session_start"), opz);
@@ -302,6 +319,31 @@ describe("prompt e /cantiere", () => {
     const r = await hook("prompt", input("prompt", { prompt: "/cantiere export-pdf" }), opz);
     assert.equal(contesto(r.stdout), `[forgia] Comando /cantiere gestito: ${errore} Rispondi all'utente con una sola riga.`);
     assert.deepEqual(readdirSync(amb.cache("coda")), []);
+  });
+
+  test("un fork senza risposta resta in coda e Claude sa che parte solo entro 5 minuti; un 422 porta il suo motivo a Claude", async (t) => {
+    const errore = "✖ Invalid input: expected string\n  → at dati.task";
+    const { amb, input, opz } = await preparato(t, (r) => (r.corpo?.tipo === "apri_cantiere" ? { codice: 422, corpo: { errore } } : undefined));
+    await hook("session_start", input("session_start"), opz);
+    const rifiutato = await hook("prompt", input("prompt", { prompt: "/cantiere fork x --task 2.3" }), opz);
+    assert.equal(contesto(rifiutato.stdout), `[forgia] Comando /cantiere gestito: ${errore} Rispondi all'utente con una sola riga.`);
+    amb.configura({ url: await portaChiusa() });
+    const lento = await hook("prompt", input("prompt", { prompt: "/cantiere fork x --task 2.3" }), opz);
+    assert.match(contesto(lento.stdout), /il fork parte se gli arriva entro 5 minuti, altrimenti no/);
+    const inCoda = readdirSync(amb.cache("coda")).map((f) => JSON.parse(readFileSync(amb.cache("coda", f), "utf8")).evento);
+    assert.deepEqual(inCoda.filter((e) => e.tipo === "apri_cantiere").map((e) => e.dati.fork), [true]);
+  });
+
+  test("il fork partito dalla coda lascia la sua conferma per il prompt dopo", async (t) => {
+    const conferma = `[forgia] Comando /cantiere gestito: fork "x" aperto da "pdfconverter", task 2.3. Scrivi openspec/changes/x/.`;
+    const { srv, amb, input, opz } = await preparato(t, (r) => (r.corpo?.tipo === "apri_cantiere" ? { corpo: { ...RISPOSTA, contesto: conferma } } : undefined));
+    await hook("session_start", input("session_start"), opz);
+    amb.configura({ url: await portaChiusa() });
+    await hook("prompt", input("prompt", { prompt: "/cantiere fork x --task 2.3" }), opz);
+    amb.configura({ url: srv.url });
+    await hook("prompt_invio", input("prompt", { prompt: "ci sei?" }), opz);
+    const dopo = await hook("prompt", input("prompt", { prompt: "allora?" }), opz);
+    assert.equal(contesto(dopo.stdout), conferma);
   });
 
   test("il contesto restituito per un prompt si inietta una volta, al prompt dopo", async (t) => {
@@ -513,12 +555,12 @@ describe("copia dei change OpenSpec", () => {
   }
 
   test("manda solo i file ammessi e gli archiviati; niente se nulla è cambiato; di nuovo dopo un task spuntato", async (t) => {
-    const { srv, amb, input, opz } = await preparato(t);
+    const { srv, amb, sid, input, opz } = await preparato(t);
     const change = openspecDiProva(amb.progetto);
     const r = await hook("copia", input("stop"), opz);
     assert.deepEqual([r.codice, r.stdout], [0, ""]);
     const [copia] = srv.copie();
-    assert.deepEqual([copia.metodo, copia.percorso, copia.auth], ["PUT", "/api/v1/progetti/prova/openspec", `Bearer ${TOKEN}`]);
+    assert.deepEqual([copia.metodo, copia.percorso, copia.auth], ["PUT", `/api/v1/progetti/prova/openspec?session_id=${sid}`, `Bearer ${TOKEN}`]);
     assert.deepEqual(copia.corpo.archiviati, [{ change: "vecchio-parser", archiviato_il: "2026-10-20", file: [{ percorso: "tasks.md", contenuto: "- [x] 1.1 fatto\n" }] }]);
     const [attivo] = copia.corpo.attivi;
     assert.equal(attivo.change, "export-pdf");
@@ -533,6 +575,41 @@ describe("copia dei change OpenSpec", () => {
     await hook("copia", input("stop"), opz);
     assert.equal(srv.copie().length, 2);
     assert.match(srv.copie()[1].corpo.attivi[0].file.find((f: any) => f.percorso === "tasks.md").contenuto, /\[x\] 1\.1/);
+  });
+
+  test("il ritorno da un fork nella risposta della copia arriva al prompt dopo, con il titolo della partenza, una volta sola", async (t) => {
+    const ritorno = "[forgia] Il fork export-pdf è completato: la sessione è tornata in mappa-cantieri. Riprendi dal task 2.3.";
+    const partenza = { ...RISPOSTA.cantiere, id: 2, nome: "mappa-cantieri", percorso: "mappa-cantieri", change: "mappa-cantieri" };
+    // Il server ridà lo stesso avviso alla risposta del prompt: il plugin non lo ripete.
+    const { amb, sid, input, opz } = await preparato(t, (r) => (r.percorso.includes("/openspec?") ? { corpo: { cantieri: [], contesto: ritorno, cantiere: partenza } }
+      : r.corpo?.tipo === "prompt" ? { corpo: { ...RISPOSTA, cantiere: partenza, contesto: ritorno } } : undefined));
+    await hook("session_start", input("session_start"), opz);
+    openspecDiProva(amb.progetto);
+    await hook("copia", input("stop"), opz);
+    const p = input("prompt", { prompt: "ok" });
+    const r = await hook("prompt", p, opz);
+    await hook("prompt_invio", p, opz);
+    assert.equal(contesto(r.stdout), ritorno);
+    assert.equal(JSON.parse(r.stdout).hookSpecificOutput.sessionTitle, `prova · ${sid.slice(0, 8)} · mappa-cantieri`);
+    const dopo = await hook("prompt", input("prompt", { prompt: "avanti" }), opz);
+    assert.equal(dopo.stdout, "");
+  });
+
+  test("il ritorno in attesa va prima della conferma di un /cantiere, e poi non torna", async (t) => {
+    const ritorno = "[forgia] Il fork export-pdf è completato: la sessione è tornata in mappa-cantieri. Riprendi dal task 2.3.";
+    const conferma = `[forgia] Comando /cantiere gestito: fork "export-json" aperto da "mappa-cantieri", task 3.1.`;
+    const { amb, input, opz } = await preparato(t, (r) => (r.percorso.includes("/openspec?") ? { corpo: { cantieri: [], contesto: ritorno, cantiere: RISPOSTA.cantiere } }
+      : r.corpo?.tipo === "apri_cantiere" ? { corpo: { ...RISPOSTA, contesto: conferma } } : undefined));
+    await hook("session_start", input("session_start"), opz);
+    openspecDiProva(amb.progetto);
+    await hook("copia", input("stop"), opz);
+    const r = await hook("prompt", input("prompt", { prompt: "/cantiere fork export-json --task 3.1" }), opz);
+    assert.equal(contesto(r.stdout), `${ritorno}\n${conferma}`);
+    const p = input("prompt", { prompt: "ok" });
+    const dopo = await hook("prompt", p, opz);
+    await hook("prompt_invio", p, opz);
+    assert.equal(dopo.stdout, "");
+    assert.equal(JSON.parse(readFileSync(amb.cache("sessioni", `${p.session_id}.json`), "utf8")).avviso_copia, undefined);
   });
 
   test("area senza openspec/: niente; server giù: exit 0 e la copia riparte allo stop dopo", async (t) => {

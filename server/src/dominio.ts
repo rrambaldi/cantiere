@@ -15,6 +15,7 @@ import {
   segmenti,
   slugifica,
   STATI_FINALI,
+  testoTask,
   type Evento,
   type Luogo,
   type Origine,
@@ -54,6 +55,13 @@ export const nonApribile = (percorso: string, stato: StatoCantiere) =>
     : `Il cantiere "${percorso}" è ${stato}: un cantiere chiuso non si riapre. Scegli un altro nome.`;
 const TASK_SENZA_PARTENZA =
   "task è il task da cui nasce il cantiere: serve un legame da scrivere, cioè nato_da, oppure una sessione che sta in un cantiere e ne apre uno nuovo che non ne è una fase.";
+const FORK_SENZA_PARTENZA = "Il fork parte dal cantiere aperto della sessione, nello stesso progetto: entra prima in un cantiere.";
+const FORK_SENZA_TASK = "Il fork nasce da un task: indica il suo numero in tasks.md (--task N).";
+const FORK_DICHIARATO = "Il fork parte dal cantiere della sessione e ha un nome solo: niente nato_da, padre o percorso.";
+// Un fork rimasto in coda parte solo se arriva poco dopo il comando: più tardi la sessione può essere altrove (fork-da-task, D6).
+const FORK_VALIDO_MS = 5 * 60_000;
+const FORK_SCADUTO = "Il fork è arrivato al server più di 5 minuti dopo il comando: non parte. Se serve ancora, rifallo con /cantiere fork.";
+const forkEsistente = (percorso: string) => `Il cantiere "${percorso}" esiste già: il fork ne apre uno nuovo, scegli un altro nome.`;
 const changePreso = (change: string, percorso: string) => `Il change "${change}" è già del cantiere "${percorso}": scegli un altro nome.`;
 
 // Sessione creata da un client senza hook (MCP): host e cwd non si conoscono.
@@ -170,19 +178,25 @@ async function applica(
   switch (ev.tipo) {
     case "apri_cantiere": {
       if (s.cantiere_id !== null && s.origine_associazione === "utente" && ev.dati.origine === "claude") return rifiuto(RIFIUTO_PRECEDENZA);
+      if (ev.dati.fork && Date.parse(ora) - Date.parse(ev.ts) > FORK_VALIDO_MS) return rifiuto(FORK_SCADUTO);
+      const fork = ev.dati.fork ? await partenzaFork(trx, prima, progetto.id, ev.dati) : null;
+      if (typeof fork === "string") return rifiuto(fork);
       const dichiarata = await partenzaDichiarata(trx, committente.id, progetto.id, ev.dati);
       if (typeof dichiarata === "string") return rifiuto(dichiarata);
       const nomi = [...(ev.dati.padre ? segmenti(ev.dati.padre) : []), ...segmenti(ev.dati.nome)];
       const aperto = await apriPercorso(trx, progetto.id, nomi, ev.dati.descrizione ?? null, ev.dati.origine, ora);
       if (typeof aperto === "string") return rifiuto(aperto);
       const c = aperto.cantiere;
+      if (fork && !aperto.creato) return rifiuto(forkEsistente(await percorsoDi(trx, c.id)));
       // Senza nato_da il ramo parte dal cantiere della sessione, e solo se questo è appena nato (design D2).
-      const da = dichiarata ?? (aperto.creato ? prima : null);
-      const legato = da !== null && (await scriviLegame(trx, da, c.id, ev.dati.task ?? null, s.session_id, ora));
+      const da = fork?.id ?? dichiarata ?? (aperto.creato ? prima : null);
+      const legato = da !== null && (await scriviLegame(trx, da, c.id, ev.dati.task ?? null, s.session_id, ora, fork !== null));
       // Un task senza un legame scritto non va perso in silenzio: il rifiuto annulla anche la creazione.
       if (ev.dati.task && !legato) throw new Rifiuto(409, TASK_SENZA_PARTENZA);
       s = await associa(trx, s.session_id, c.id, ev.dati.origine);
-      contesto = testi.confermaApertura(await percorsoDi(trx, c.id), c.change);
+      contesto = fork
+        ? testi.confermaFork(await percorsoDi(trx, c.id), c.change, fork.percorso, ev.dati.task!, fork.testo, fork.assente)
+        : testi.confermaApertura(await percorsoDi(trx, c.id), c.change);
       break;
     }
     case "session_start":
@@ -445,6 +459,25 @@ async function partenzaDichiarata(trx: Db, committenteId: number, progettoId: nu
   return c ? c.id : `Il cantiere di partenza "${d.nato_da}" non esiste.`;
 }
 
+const tasksDi = async (db: Db, cantiereId: number) =>
+  (await db.selectFrom("change_file").select("contenuto").where("cantiere_id", "=", cantiereId).where("percorso", "=", "tasks.md").executeTakeFirst())?.contenuto ?? null;
+
+/**
+ * Il cantiere da cui parte un fork, con il testo del task, o il motivo del rifiuto (fork-da-task, D2): il cantiere
+ * aperto della sessione nello stesso progetto. Un task che la copia del tasks.md non ha non blocca (la copia può
+ * essere indietro): la conferma lo dice.
+ */
+async function partenzaFork(trx: Db, prima: number | null, progettoId: number, d: Extract<Evento, { tipo: "apri_cantiere" }>["dati"]) {
+  if (d.nato_da || d.nato_da_progetto || d.padre || segmenti(d.nome).length > 1) return FORK_DICHIARATO;
+  if (!d.task) return FORK_SENZA_TASK;
+  const p = prima === null ? undefined : await cantieriDelProgetto(trx, progettoId).where("cantieri.id", "=", prima).executeTakeFirst();
+  if (p?.stato !== "aperto") return FORK_SENZA_PARTENZA;
+  const percorso = await percorsoDi(trx, p.id);
+  const tasks = await tasksDi(trx, p.id);
+  const testo = tasks === null ? null : testoTask(tasks, d.task);
+  return { id: p.id, percorso, testo, assente: tasks !== null && testo === null };
+}
+
 /** Un cantiere e i suoi antenati, o i suoi discendenti: tra loro basta il padre. */
 const stessaLinea = async (db: Db, x: number, y: number) =>
   (await risali(db, y)).some((c) => c.id === x) || (await risali(db, x)).some((c) => c.id === y);
@@ -485,14 +518,14 @@ async function togliCitatiNeiGiri(trx: Db, da: number, a: number) {
 /**
  * Il ramo da `da` ad `a`, una volta sola: tra padre e figlio basta il padre (design D2) e non si
  * scrive niente; un giro di registrati si rifiuta. Vince sui citati che chiuderebbero un giro (D7).
- * Restituisce se il legame c'è.
+ * Con `ritorno` è un fork: chiuso `a`, la sessione torna in `da`. Restituisce se il legame c'è.
  */
-export async function scriviLegame(trx: Db, da: number, a: number, task: string | null, sessionId: string, ora: string) {
+export async function scriviLegame(trx: Db, da: number, a: number, task: string | null, sessionId: string, ora: string, ritorno = false) {
   if (await stessaLinea(trx, da, a)) return false;
   if (await chiudeGiro(trx, da, a)) throw new Rifiuto(409, `Il legame da "${await percorsoDi(trx, da)}" a "${await percorsoDi(trx, a)}" chiuderebbe un giro.`);
   await trx
     .insertInto("legami")
-    .values({ da_id: da, a_id: a, tipo: "registrato", task, session_id: sessionId, creato_il: ora })
+    .values({ da_id: da, a_id: a, tipo: "registrato", task, session_id: sessionId, creato_il: ora, ritorno: ritorno ? 1 : 0 })
     .onConflict((oc) =>
       oc
         .columns(["da_id", "a_id"])
@@ -518,17 +551,38 @@ async function legamiVerso(db: Db, ambito: Ambito, ids: number[], percorsi: Map<
 }
 
 /**
- * Cambia lo stato e lo scrive nello storico. Se il cantiere smette di essere aperto, le sue
- * sessioni tornano al lavoro diretto con un avviso per il loro primo prompt.
+ * Cambia lo stato e lo scrive nello storico. Se il cantiere smette di essere aperto, la sessione che
+ * l'ha aperto come fork torna alla partenza ancora aperta (fork-da-task, D3); le altre sessioni tornano
+ * al lavoro diretto. Ognuna con un avviso per il suo primo prompt.
  */
 export async function cambiaStato(trx: Db, c: Cantiere, stato: StatoCantiere, da: string, ora: string, ts = ora) {
   await trx.updateTable("cantieri").set({ stato, stato_il: ts, aggiornato_il: ora }).where("id", "=", c.id).execute();
   await trx.insertInto("esiti").values({ cantiere_id: c.id, stato, ts, da }).execute();
   if (c.stato === "aperto" && stato !== "aperto") {
+    const percorso = await percorsoDi(trx, c.id);
+    const ritorni = await trx
+      .selectFrom("legami")
+      .innerJoin("cantieri", "cantieri.id", "legami.da_id")
+      .select(["legami.da_id", "legami.task", "legami.session_id"])
+      .where("legami.a_id", "=", c.id)
+      .where("legami.ritorno", "=", 1)
+      .where("cantieri.stato", "=", "aperto")
+      .execute();
+    for (const r of ritorni) {
+      if (r.session_id === null) continue;
+      const tasks = r.task ? await tasksDi(trx, r.da_id) : null;
+      const avviso = testi.avvisoRitorno(percorso, stato, await percorsoDi(trx, r.da_id), r.task, tasks && r.task && testoTask(tasks, r.task));
+      await trx
+        .updateTable("sessioni")
+        .set({ cantiere_id: r.da_id, origine_associazione: "utente", avviso })
+        .where("session_id", "=", r.session_id)
+        .where("cantiere_id", "=", c.id)
+        .execute();
+    }
     const progetto = await progettiDi(trx, TUTTI).select("nome").where("id", "=", c.progetto_id).executeTakeFirstOrThrow();
     await trx
       .updateTable("sessioni")
-      .set({ cantiere_id: null, origine_associazione: null, avviso: testi.avvisoNonAperto(await percorsoDi(trx, c.id), stato, progetto.nome) })
+      .set({ cantiere_id: null, origine_associazione: null, avviso: testi.avvisoNonAperto(percorso, stato, progetto.nome) })
       .where("cantiere_id", "=", c.id)
       .execute();
   }
@@ -567,7 +621,7 @@ export function cambiaEsito(amb: Ambiente, ambito: Ambito, cantiereId: number, a
   });
 }
 
-async function cantiereRisposta(db: Db, s: Sessione): Promise<CantiereRisposta | null> {
+export async function cantiereRisposta(db: Db, s: Sessione): Promise<CantiereRisposta | null> {
   if (s.cantiere_id === null || s.origine_associazione === null) return null;
   const catena = await risali(db, s.cantiere_id);
   const c = catena[catena.length - 1];

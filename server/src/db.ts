@@ -59,6 +59,8 @@ export interface DB {
     task: string | null;
     session_id: string | null;
     creato_il: string;
+    /** 1 per un fork: chiuso `a_id`, la sessione `session_id` torna in `da_id`. */
+    ritorno: Generated<number>;
   };
   sessioni: {
     session_id: string;

@@ -86,7 +86,11 @@ export function creaApp(amb: Ambiente, log: Log = logJson, cartellaUi = CARTELLA
       }
     }
     const copia = ROTTA_COPIA.exec(url.pathname);
-    if (copia && metodo === "PUT") return [200, { cantieri: await riceviCopia(amb, committente, decodifica(copia[1]), json(corpo)) }, "PUT openspec"];
+    if (copia && metodo === "PUT") {
+      // session_id nell'indirizzo, non nel corpo: un server di prima lo ignora invece di rifiutare la copia (fork-da-task, D4).
+      const sessionId = url.searchParams.get("session_id");
+      return [200, await riceviCopia(amb, committente, decodifica(copia[1]), json(corpo), sessionId), "PUT openspec", sessionId ?? undefined];
+    }
     const presa = ROTTA_PRESA.exec(url.pathname);
     if (presa && metodo === "POST") {
       const nomi = segmenti(presa[2]).map(decodifica);

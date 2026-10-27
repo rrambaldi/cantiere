@@ -1,14 +1,21 @@
 ## ADDED Requirements
 
 ### Requirement: Fork da un task
-`apri_cantiere` con `fork: true` MUST creare un cantiere nuovo nello stesso progetto, legato al cantiere della sessione con il task e con il ritorno, e spostarci la sessione. MUST rifiutare con 409, senza creare niente, se la sessione non sta in un cantiere aperto, se manca `task`, se il cantiere esiste già, o se il `tasks.md` copiato della partenza non ha quel task. La conferma MUST nominare la partenza, il task con il suo testo e il change da scrivere.
+`apri_cantiere` con `fork: true` MUST creare un cantiere nuovo nello stesso progetto, legato al cantiere della sessione con il task e con il ritorno, e spostarci la sessione. La conferma MUST nominare la partenza, il task con il suo testo e il change da scrivere; se il `tasks.md` copiato della partenza non ha quel task, MUST dirlo.
 
 #### Scenario: Fork dal task 2.3
 - **WHEN** la sessione s1 sta in `mappa-cantieri`, il cui `tasks.md` ha il task `2.3`, e manda `apri_cantiere` con nome `export-csv`, task `2.3` e `fork: true`
 - **THEN** nasce `export-csv` con `nato_da` `mappa-cantieri` e task `2.3`, s1 è in `export-csv`, e il contesto dice di scrivere il change `export-csv` dal task 2.3
 
-#### Scenario: Task che non c'è
-- **WHEN** la sessione s1 sta in `mappa-cantieri` e manda il fork con task `9.9`, che non c'è nel suo `tasks.md`
+#### Scenario: Task che la copia non ha
+- **WHEN** la sessione s1 sta in `mappa-cantieri` e manda il fork con task `9.9`, che non c'è nella copia del suo `tasks.md`
+- **THEN** il fork nasce, e la conferma dice che il task 9.9 non c'è nella copia e di controllare il numero con l'utente
+
+### Requirement: Rifiuti del fork
+Il server MUST rifiutare un fork con 409, senza creare niente, se la sessione non sta in un cantiere aperto, se manca `task`, se il cantiere esiste già o se l'evento arriva più di 5 minuti dopo il suo `ts`.
+
+#### Scenario: Fork arrivato tardi dalla coda
+- **WHEN** l'evento del fork, con `ts` di 6 minuti fa, arriva al server dalla coda del plugin
 - **THEN** il server risponde 409 con il motivo e non nasce nessun cantiere
 
 #### Scenario: Senza cantiere
@@ -35,8 +42,8 @@ Quando un cantiere F smette di essere aperto, ogni sessione ancora in F con un l
 - **THEN** s2 passa al lavoro diretto; s1, se è ancora in `f`, torna alla partenza
 
 ### Requirement: Avviso nella risposta della copia
-`PUT /api/v1/progetti/<p>/openspec` MUST accettare `session_id`. Se la copia sposta o chiude il cantiere di quella sessione, la risposta MUST portare l'avviso in `contesto` e il `cantiere` della sessione, e l'avviso MUST NOT ripetersi al prompt dopo. Senza `session_id` la risposta MUST restare quella di prima.
+`PUT /api/v1/progetti/<p>/openspec` MUST accettare `?session_id=` nell'indirizzo. Se la copia sposta o chiude il cantiere di quella sessione, la risposta MUST portare l'avviso in `contesto` e il `cantiere` della sessione; l'avviso MUST restare anche per la risposta al prompt dopo. Senza `session_id` la risposta MUST restare quella di prima.
 
 #### Scenario: Copia con il ritorno
 - **WHEN** s1 manda la copia che archivia il suo fork `export-csv`
-- **THEN** la risposta ha `contesto` con il ritorno a `mappa-cantieri` task 2.3 e `cantiere` `mappa-cantieri`, e il prompt dopo di s1 non lo ripete
+- **THEN** la risposta ha `contesto` con il ritorno a `mappa-cantieri` task 2.3 e `cantiere` `mappa-cantieri`, e la risposta al prompt dopo di s1 ha lo stesso avviso, quella dopo ancora no

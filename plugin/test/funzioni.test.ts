@@ -43,6 +43,14 @@ describe("riconosci /cantiere", () => {
       assert.deepEqual(riconosci(p), { op: null }, p);
     }
   });
+  test("fork: nome, task e descrizione; senza task o senza nome, l'uso", () => {
+    assert.deepEqual(riconosci("/cantiere fork export-csv --task 2.3 — esportazione dei binari"),
+      { op: "fork", nome: "export-csv", task: "2.3", descrizione: "esportazione dei binari" });
+    assert.deepEqual(riconosci("/forgia:cantiere fork --task 1.1 export-csv"), { op: "fork", nome: "export-csv", task: "1.1", descrizione: null });
+    for (const p of ["/cantiere fork export-csv", "/cantiere fork --task 2.3", "/cantiere fork"]) {
+      assert.deepEqual(riconosci(p), { op: "uso", uso: "/cantiere fork <nome> --task <N> [— descrizione]" }, p);
+    }
+  });
   test("comandi simili ma diversi", () => {
     for (const p of ["/cantieri", "/cantiere-x prova", "fai /cantiere x", "cantiere x"]) assert.equal(riconosci(p), null, p);
   });

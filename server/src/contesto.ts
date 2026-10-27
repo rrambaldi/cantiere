@@ -68,6 +68,16 @@ export function contestoAvvio(d: DatiAvvio): string {
 export const avvisoNonAperto = (percorso: string, stato: StatoCantiere, progetto: string) =>
   `${PREFISSO} Il cantiere ${percorso} è ${stato}: ora lavori direttamente su ${progetto}. Dillo all'utente in una riga.`;
 
+// Il testo di un task viene dal tasks.md del repo: nel contesto ne basta l'inizio.
+const MAX_TESTO_TASK = 300;
+const task = (numero: string, testo: string | null) => `task ${numero}${testo ? ` «${testo.slice(0, MAX_TESTO_TASK)}»` : ""}`;
+
+export const confermaFork = (percorso: string, change: string, partenza: string, numero: string, testo: string | null, assente: boolean) =>
+  `${CONFERMA}: fork "${percorso}" aperto da "${partenza}", ${task(numero, testo)}.${assente ? ` Il task ${numero} non c'è nella copia di tasks.md che ha il server: se il numero è sbagliato dillo all'utente.` : ""} Scrivi openspec/changes/${change}/ con proposal.md e tasks.md a partire da quel task, come /opsx:propose, piccolo (design e spec solo se il task li chiede), poi lavoraci. Quando lo archivi la sessione torna da sola in "${partenza}", al task ${numero}. Rispondi all'utente con una sola riga di conferma, poi scrivi il change.`;
+
+export const avvisoRitorno = (fork: string, stato: StatoCantiere, partenza: string, numero: string | null, testo: string | null) =>
+  `${PREFISSO} Il fork ${fork} è ${stato}: la sessione è tornata in ${partenza}.${numero ? ` Riprendi dal ${task(numero, testo)}.` : ""} Dillo all'utente in una riga.`;
+
 export const confermaApertura = (percorso: string, change: string) =>
   `${CONFERMA}: cantiere "${percorso}" aperto (change ${change}). Rispondi all'utente con una sola riga di conferma.`;
 

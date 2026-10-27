@@ -270,9 +270,13 @@ function registraRisposta(ev, r, inietta, comandi) {
         s.cantiere = r.cantiere;
         s.config = r.config;
         s.ultimo_evento_il = ev.ts;
-        // Il contesto che nessuno inietta adesso aspetta il prossimo prompt.
-        if (!inietta && r.contesto && (ev.tipo === "session_start" || ev.tipo === "prompt")) {
-            s.contesto_pendente = [s.contesto_pendente, r.contesto].filter(Boolean).join("\n");
+        // Il contesto che nessuno inietta adesso aspetta il prossimo prompt, se non è già arrivato con la copia;
+        // anche la conferma di un /cantiere partito dalla coda, che per un fork dice di scrivere il change.
+        if (!inietta && r.contesto && (ev.tipo === "session_start" || ev.tipo === "prompt" || ev.tipo === "apri_cantiere")) {
+            if (r.contesto === s.avviso_copia)
+                delete s.avviso_copia;
+            else
+                s.contesto_pendente = [s.contesto_pendente, r.contesto].filter(Boolean).join("\n");
         }
     });
 }
@@ -324,6 +328,8 @@ async function preliminari(c) {
     if (op)
         await invia(c, evento(c, op.tipo, op.dati));
 }
+const USO_FORK = "/cantiere fork <nome> --task <N> [— descrizione]";
+const FORK_IN_ATTESA = "il server non ha risposto in tempo: il fork parte se gli arriva entro 5 minuti, altrimenti no. Si controlla con /cantiere stato.";
 export function riconosci(prompt) {
     const testo = prompt.trimStart();
     const m = RE_CANTIERE.exec(testo);
@@ -333,13 +339,24 @@ export function riconosci(prompt) {
     const [primo = ""] = args.split(/\s+/);
     if (!primo || RISERVATE.includes(primo))
         return { op: null };
+    if (primo === "fork")
+        return riconosciFork(args.slice(primo.length).trim());
     const d = /^(.+?)\s+(?:—|--)\s+(.+)$/s.exec(args);
     // Il nome può essere un percorso padre/figlio: lo risolve il server.
     const p = /(?:^|\s)--padre\s+(\S+)/.exec(d ? d[1] : args);
     const nome = (d ? d[1] : args).replace(p?.[0] ?? "", "").trim();
     return nome ? { op: "apri", nome, padre: p?.[1] ?? null, descrizione: d ? d[2] : null } : { op: null };
 }
-const datiApertura = (cmd) => ({ nome: cmd.nome, descrizione: cmd.descrizione, origine: "utente", padre: cmd.padre });
+// Fork da un task (fork-da-task, D6): senza --task o senza nome non parte niente, si risponde con l'uso.
+function riconosciFork(args) {
+    const d = /^(.+?)\s+(?:—|--)\s+(.+)$/s.exec(args);
+    const t = /(?:^|\s)--task\s+(\S+)/.exec(d ? d[1] : args);
+    const nome = (d ? d[1] : args).replace(t?.[0] ?? "", "").trim();
+    return nome && t ? { op: "fork", nome, task: t[1], descrizione: d ? d[2] : null } : { op: "uso", uso: USO_FORK };
+}
+const datiApertura = (cmd) => cmd.op === "fork"
+    ? { nome: cmd.nome, descrizione: cmd.descrizione, origine: "utente", padre: null, task: cmd.task, fork: true }
+    : { nome: cmd.nome, descrizione: cmd.descrizione, origine: "utente", padre: cmd.padre };
 // Il motivo di un 409 (precedenza, cantiere sospeso o chiuso, idea, nome di change preso), dal corpo del server.
 const motivoRifiuto = (r) => r.corpo?.errore;
 export function datiTodo(strumento, inp, ris, noti) {
@@ -588,13 +605,24 @@ const HOOK = {
         if (cmd) {
             if (!cmd.op)
                 return;
+            if (cmd.op === "uso")
+                return contestoHook("UserPromptSubmit", `[${NOME}] Comando /cantiere gestito: si usa così: ${cmd.uso}. Rispondi all'utente con una sola riga.`);
             await preliminari(c);
             const r = await invia(c, evento(c, "apri_cantiere", datiApertura(cmd)), true);
-            const motivo = r?.codice === 409 && motivoRifiuto(r);
+            // Senza risposta l'evento resta in coda; un fork il server lo applica solo entro 5 minuti (fork-da-task, D6).
+            const motivo = !r && cmd.op === "fork" ? FORK_IN_ATTESA : (r?.codice === 409 || r?.codice === 422) && motivoRifiuto(r);
             const contesto = typeof motivo === "string"
                 ? `[${NOME}] Comando /cantiere gestito: ${motivo} Rispondi all'utente con una sola riga.`
                 : r?.risposta?.contesto;
-            contestoHook("UserPromptSubmit", contesto, titoloCantiere(c));
+            // Quel che aspettava (il ritorno da un fork) va prima della risposta al comando. Un comando riuscito ha
+            // consumato l'avviso sul server: il plugin non deve più aspettarlo dalla risposta del prompt.
+            const pendente = leggiSessione(c.sid)?.contesto_pendente;
+            aggiornaSessione(c.sid, (s) => {
+                delete s.contesto_pendente;
+                if (r?.risposta)
+                    delete s.avviso_copia;
+            });
+            contestoHook("UserPromptSubmit", [pendente, contesto].filter(Boolean).join("\n"), titoloCantiere(c));
             return;
         }
         const pendente = leggiSessione(c.sid)?.contesto_pendente;
@@ -691,7 +719,9 @@ const HOOK = {
         await invia(c, evento(c, "session_end", { reason: String(input.reason ?? "other"), titolo: titoloSessione(input.transcript_path) }));
     },
     // Asincrono, accanto allo Stop: manda la copia dei change solo se è cambiata dall'ultimo invio.
-    // Niente coda: è uno snapshot, e il prossimo Stop la rimanda intera.
+    // Niente coda: è uno snapshot, e il prossimo Stop la rimanda intera. Il session_id nell'indirizzo dice
+    // al server chi la manda: la risposta porta l'avviso se la copia ha chiuso il suo cantiere (il ritorno
+    // da un fork), per il prompt dopo. Se questa risposta si perde, l'avviso arriva con quella del prompt.
     async copia(c) {
         const corpo = copiaChange(c.cfg.cartella);
         if (!corpo)
@@ -702,7 +732,7 @@ const HOOK = {
         if (leggiJson(ultimo) === hash)
             return;
         try {
-            const r = await fetch(`${c.cfg.url}/api/v1/progetti/${encodeURIComponent(c.cfg.progetto)}/openspec`, {
+            const r = await fetch(`${c.cfg.url}/api/v1/progetti/${encodeURIComponent(c.cfg.progetto)}/openspec?session_id=${encodeURIComponent(c.sid)}`, {
                 method: "PUT",
                 headers: { authorization: `Bearer ${c.cfg.token}`, "content-type": "application/json" },
                 body: testo,
@@ -712,6 +742,16 @@ const HOOK = {
             // Un rifiuto definitivo non si ripete finché la copia non cambia.
             if (r.ok || RIFIUTI_DEFINITIVI.includes(r.status))
                 scriviJson(ultimo, hash);
+            if (!r.ok)
+                return;
+            const { contesto, cantiere } = (await r.json());
+            if (contesto) {
+                aggiornaSessione(c.sid, (s) => {
+                    s.cantiere = cantiere ?? null;
+                    s.contesto_pendente = [s.contesto_pendente, contesto].filter(Boolean).join("\n");
+                    s.avviso_copia = contesto;
+                });
+            }
         }
         catch {
             // server giù: la copia riparte al prossimo Stop

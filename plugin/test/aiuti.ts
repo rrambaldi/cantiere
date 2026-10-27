@@ -24,6 +24,9 @@ export const PROGETTI = { progetti: [{ id: 1, nome: "prova", slug: "prova", crea
 export type Richiesta = { metodo: string; percorso: string; auth?: string; corpo: any };
 type Rispondi = (r: Richiesta) => { codice?: number; corpo?: unknown } | undefined;
 
+// La copia dei change: il percorso può avere ?session_id=.
+const copia = (r: Richiesta) => new URL(r.percorso, "http://x").pathname.endsWith("/openspec");
+
 export async function serverFinto(rispondi: Rispondi = () => undefined) {
   const richieste: Richiesta[] = [];
   const srv = createServer(async (req, res) => {
@@ -34,7 +37,7 @@ export async function serverFinto(rispondi: Rispondi = () => undefined) {
     // Le risposte di base del Contratto v2; ogni test cambia quelle che gli servono.
     const predefinito = r.percorso.endsWith("/salute") ? { ok: true, versione_contratto: 2, cliente: "PRIV" }
       : r.percorso === "/api/v1/progetti" ? (r.metodo === "POST" ? { progetto: { id: 2, nome: r.corpo.nome, slug: r.corpo.nome } } : PROGETTI)
-      : r.percorso.endsWith("/openspec") ? { cantieri: [] }
+      : copia(r) ? { cantieri: [] }
       : RISPOSTA;
     const { codice = 200, corpo = predefinito } = rispondi(r) ?? {};
     res.writeHead(codice, { "content-type": "application/json" }).end(JSON.stringify(corpo));
@@ -44,7 +47,7 @@ export async function serverFinto(rispondi: Rispondi = () => undefined) {
     url: `http://127.0.0.1:${(srv.address() as AddressInfo).port}`,
     richieste,
     eventi: () => richieste.filter((r) => r.percorso === "/api/v1/eventi").map((r) => r.corpo),
-    copie: () => richieste.filter((r) => r.percorso.endsWith("/openspec")),
+    copie: () => richieste.filter(copia),
     chiudi: () => new Promise((ok) => srv.close(ok)),
   };
 }

@@ -1,8 +1,8 @@
 import type { Transaction } from "kysely";
 import { adesso, type Committente } from "./accesso.ts";
-import { cantieriDi, di } from "./ambito.ts";
+import { cantieriDi, di, sessioniDi } from "./ambito.ts";
 import type { DB } from "./db.ts";
-import { cambiaStato, cantieriDelProgetto, creaCantiere, leggiCantieri, progettoPerNome, type Ambiente } from "./dominio.ts";
+import { cambiaStato, cantiereRisposta, cantieriDelProgetto, creaCantiere, leggiCantieri, progettoPerNome, type Ambiente } from "./dominio.ts";
 import { contaTask, errore422, Rifiuto, schemaCopia } from "./modelli.ts";
 
 type FileChange = { percorso: string; contenuto: string };
@@ -92,9 +92,11 @@ function riassunto(file: FileChange[]) {
 /**
  * PUT /api/v1/progetti/<progetto>/openspec: la copia di openspec/changes/ mandata dal plugin. Il repo
  * comanda: una copia sostituisce quella di un change solo se è più recente, un change archiviato
- * resta archiviato e porta il suo cantiere a completato.
+ * resta archiviato e porta il suo cantiere a completato. Se la copia sposta o chiude il cantiere della
+ * sessione che la manda, la risposta le porta subito l'avviso e il suo cantiere (fork-da-task, D4).
+ * L'avviso resta anche per il prompt dopo: una risposta persa non lo perde, e il plugin non lo ripete.
  */
-export async function riceviCopia(amb: Ambiente, committente: Committente, nomeProgetto: string, corpo: unknown) {
+export async function riceviCopia(amb: Ambiente, committente: Committente, nomeProgetto: string, corpo: unknown, sessionId: string | null = null) {
   const ambito = di(committente.id);
   const progetto = await progettoPerNome(amb.db, ambito, nomeProgetto);
   if (!progetto) throw new Rifiuto(404, `Il progetto "${nomeProgetto}" non esiste.`);
@@ -106,6 +108,8 @@ export async function riceviCopia(amb: Ambiente, committente: Committente, nomeP
     const ora = adesso();
     const perChange = (change: string) => cantieriDelProgetto(trx, progetto.id).where("cantieri.change", "=", change).executeTakeFirst();
     const copiaDi = (id: number) => trx.selectFrom("change_copie").selectAll().where("cantiere_id", "=", id).executeTakeFirst();
+    const sessione = async () => (sessionId ? sessioniDi(trx, ambito).selectAll().where("session_id", "=", sessionId).executeTakeFirst() : undefined);
+    const prima = await sessione();
 
     for (const a of copia.attivi) {
       const c =
@@ -151,6 +155,9 @@ export async function riceviCopia(amb: Ambiente, committente: Committente, nomeP
 
     await aggiornaCitati(trx, committente.id, progetto.id, ora);
     await trx.updateTable("progetti").set({ openspec_il: ora }).where("id", "=", progetto.id).execute();
-    return leggiCantieri(trx, amb.config, ambito, { progettoId: progetto.id, sessioni: false });
+    const cantieri = await leggiCantieri(trx, amb.config, ambito, { progettoId: progetto.id, sessioni: false });
+    const dopo = await sessione();
+    if (!prima || !dopo?.avviso || dopo.cantiere_id === prima.cantiere_id) return { cantieri };
+    return { cantieri, contesto: dopo.avviso, cantiere: await cantiereRisposta(trx, dopo) };
   });
 }

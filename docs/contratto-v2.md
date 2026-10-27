@@ -65,7 +65,7 @@ risposta. Il plugin lo manda solo se l'area ha i comandi accesi; senza, il serve
 | `todo` | `{"strumento": "<nome del tool>", "completo": true \| false, "todos": [{"id": "<id> \| null", "testo": "...", "stato": "pending \| in_progress \| completed \| deleted"}]}` |
 | `stop` | `{"strumenti_nel_turno": <int>, "resoconto_inviato": <bool>, "bloccato": <bool>, "titolo": "... \| null"}` |
 | `session_end` | `{"reason": "<motivo fornito da Claude Code>", "titolo": "... \| null"}` |
-| `apri_cantiere` | `{"nome": "...", "descrizione": "... \| null", "origine": "utente" \| "claude", "padre": "... \| null", "task": "... \| null", "nato_da": "... \| null", "nato_da_progetto": "... \| null"}` — `nome`, `padre` e `nato_da` possono essere percorsi `a/b`; `padre`, `task`, `nato_da` e `nato_da_progetto` possono mancare; `task` al più 32 caratteri |
+| `apri_cantiere` | `{"nome": "...", "descrizione": "... \| null", "origine": "utente" \| "claude", "padre": "... \| null", "task": "... \| null", "nato_da": "... \| null", "nato_da_progetto": "... \| null", "fork": true}` — `nome`, `padre` e `nato_da` possono essere percorsi `a/b`; `padre`, `task`, `nato_da`, `nato_da_progetto` e `fork` possono mancare; `task` al più 32 caratteri |
 | `domanda` | `{"id": "<id della domanda>", "tipo": "scelta" \| "attesa", "testo": "...", "opzioni": ["..."]}` — al più 4000 caratteri di testo e 10 opzioni da 200 |
 | `risposta` | `{"id": "<id della domanda>"}` |
 | `subagente` | `{"tipo": "<tipo del subagente, es. Explore>"}` — al più 64 caratteri; mai prompt né descrizione. Il server conta i subagenti della sessione per tipo |
@@ -141,6 +141,8 @@ Il plugin manda lo stato di `openspec/changes/` dell'area. Corpo (massimo `max_o
 }
 ```
 
+Il plugin aggiunge all'indirizzo `?session_id=<sessione che manda la copia>` (facoltativo).
+
 - `percorso` è relativo alla cartella del change. Ammessi solo `.openspec.yaml`, `proposal.md`,
   `design.md`, `tasks.md`, i `.md` sotto `specs/`, i `.md` e `.txt` sotto `idee/`; ciascuno al
   massimo `max_file` byte (default 256 KB). Un percorso assoluto, con `..` o fuori elenco dà 422 e
@@ -154,7 +156,10 @@ Il plugin manda lo stato di `openspec/changes/` dell'area. Corpo (massimo `max_o
   `completato`; un `abbandonato` resta `abbandonato`.
 
 200 → `{"cantieri": [<cantiere come in GET /api/v1/cantieri, senza sessioni>]}` per tutti i
-cantieri del progetto. 404 progetto inesistente; 413; 422.
+cantieri del progetto. Se la copia sposta o chiude il cantiere della sessione di `?session_id=` (per esempio
+archivia il suo fork), la risposta aggiunge `"contesto"` con l'avviso e `"cantiere"` (come nella risposta
+agli eventi, `null` in lavoro diretto). L'avviso resta anche per la risposta al `prompt` dopo: il client
+che l'ha già iniettato non lo ripete. 404 progetto inesistente; 413; 422.
 
 ## Presa di un'idea
 
@@ -262,8 +267,14 @@ restituisce JSON strutturato e una riga di testo.
   nascono legami (basta il padre); un legame dichiarato che chiude un giro di registrati dà 409.
 - Sospendere, riattivare e abbandonare si fanno solo dalla dashboard; completato arriva solo dal repo
   (`openspec archive`). Abbandonare un padre abbandona anche i discendenti non finali.
-- Quando un cantiere smette di essere `aperto`, le sue sessioni tornano al lavoro diretto al loro
-  evento successivo, e il primo `prompt` riceve un avviso nel `contesto`.
+- Fork (`fork: true`, da `/cantiere fork`): parte dal cantiere `aperto` della sessione nello stesso
+  progetto, vuole `task`, un `nome` di un solo livello che non esiste, niente `padre` né `nato_da`, e
+  un `ts` di al più 5 minuti prima dell'arrivo (un fork rimasto in coda). Altrimenti 409 e niente creato. Il legame registrato porta il ritorno, e il `contesto` dice di scrivere
+  il change dal task, con il suo testo dal `tasks.md` copiato della partenza (o che la copia non ce l'ha).
+- Quando un cantiere smette di essere `aperto`, la sessione che l'ha aperto come fork, se ci sta ancora,
+  torna nella partenza se è `aperta`, con origine `utente`; le altre sessioni tornano al lavoro diretto.
+  Il primo `prompt` dopo riceve un avviso nel `contesto`; la sessione che manda la copia che l'ha chiuso
+  lo riceve già nella risposta della copia.
 
 ## Testo di `contesto`
 

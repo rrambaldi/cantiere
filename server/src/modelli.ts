@@ -147,6 +147,7 @@ export const schemaEvento = z.discriminatedUnion("tipo", [
       nato_da: campi.nome.nullish(),
       nato_da_progetto: campi.progetto.nullish(),
       task: campi.task.nullish(),
+      fork: z.boolean().optional(),
     }),
   }),
   z.strictObject({
@@ -217,9 +218,21 @@ export type Copia = z.infer<ReturnType<typeof schemaCopia>>;
  * `aperti` ha il testo dei task non fatti, con le righe rientrate che lo continuano.
  */
 export function contaTask(testo: string): { fatti: number; totali: number; aperti: string[] } {
-  const caselle = [...testo.matchAll(/^([^\S\r\n]*)- \[([^\]\n]{0,3})\](?=\s|$)(.*(?:\r?\n\1[^\S\r\n]+(?!- \[)\S.*)*)/gm)].map((c) => ({
+  const c = caselle(testo);
+  return { fatti: c.filter((x) => x.fatta).length, totali: c.length, aperti: c.filter((x) => !x.fatta).map((x) => x.testo) };
+}
+
+const caselle = (testo: string) =>
+  [...testo.matchAll(/^([^\S\r\n]*)- \[([^\]\n]{0,3})\](?=\s|$)(.*(?:\r?\n\1[^\S\r\n]+(?!- \[)\S.*)*)/gm)].map((c) => ({
     fatta: c[2].trim().toLowerCase() === "x",
     testo: c[3].replace(/\s+/g, " ").trim(),
   }));
-  return { fatti: caselle.filter((c) => c.fatta).length, totali: caselle.length, aperti: caselle.filter((c) => !c.fatta).map((c) => c.testo) };
+
+/** Il testo del task con quel numero (es. "2.3") in un tasks.md, senza il numero; null se non c'è. */
+export function testoTask(testo: string, numero: string): string | null {
+  for (const c of caselle(testo)) {
+    const m = /^(\d+(?:\.\d+)*)(?:\s+|$)(.*)$/.exec(c.testo);
+    if (m?.[1] === numero) return m[2];
+  }
+  return null;
 }

@@ -66,6 +66,8 @@ type VoceTodo = { testo: string; stato: string };
 type Sessione = {
   titolo_impostato?: string; domanda_aperta?: string; primo_visto: string; cwd: string; avvio_reale_il?: string; ultimo_evento_il?: string;
   cantiere?: Cantiere | null; config?: Risposta["config"]; contesto_pendente?: string;
+  /** L'avviso arrivato con la risposta della copia: il server lo ridà al prompt dopo, e lì non si ripete. */
+  avviso_copia?: string;
   todo?: Record<string, VoceTodo>;
   /** L'ultimo stop ha bloccato per un comando, non per il resoconto. */
   blocco_comando?: boolean;
@@ -325,9 +327,11 @@ function registraRisposta(ev: Evento, r: Risposta, inietta: boolean, comandi: bo
     s.cantiere = r.cantiere;
     s.config = r.config;
     s.ultimo_evento_il = ev.ts;
-    // Il contesto che nessuno inietta adesso aspetta il prossimo prompt.
-    if (!inietta && r.contesto && (ev.tipo === "session_start" || ev.tipo === "prompt")) {
-      s.contesto_pendente = [s.contesto_pendente, r.contesto].filter(Boolean).join("\n");
+    // Il contesto che nessuno inietta adesso aspetta il prossimo prompt, se non è già arrivato con la copia;
+    // anche la conferma di un /cantiere partito dalla coda, che per un fork dice di scrivere il change.
+    if (!inietta && r.contesto && (ev.tipo === "session_start" || ev.tipo === "prompt" || ev.tipo === "apri_cantiere")) {
+      if (r.contesto === s.avviso_copia) delete s.avviso_copia;
+      else s.contesto_pendente = [s.contesto_pendente, r.contesto].filter(Boolean).join("\n");
     }
   });
 }
@@ -381,7 +385,14 @@ async function preliminari(c: Contesto) {
 
 // ---- logica degli hook
 
-export type Comando = { op: null } | { op: "apri"; nome: string; padre: string | null; descrizione: string | null };
+export type Comando =
+  | { op: null }
+  | { op: "uso"; uso: string }
+  | { op: "apri"; nome: string; padre: string | null; descrizione: string | null }
+  | { op: "fork"; nome: string; task: string; descrizione: string | null };
+
+const USO_FORK = "/cantiere fork <nome> --task <N> [— descrizione]";
+const FORK_IN_ATTESA = "il server non ha risposto in tempo: il fork parte se gli arriva entro 5 minuti, altrimenti no. Si controlla con /cantiere stato.";
 
 export function riconosci(prompt: string): Comando | null {
   const testo = prompt.trimStart();
@@ -390,6 +401,7 @@ export function riconosci(prompt: string): Comando | null {
   const args = testo.slice(m[0].length).trim();
   const [primo = ""] = args.split(/\s+/);
   if (!primo || RISERVATE.includes(primo)) return { op: null };
+  if (primo === "fork") return riconosciFork(args.slice(primo.length).trim());
   const d = /^(.+?)\s+(?:—|--)\s+(.+)$/s.exec(args);
   // Il nome può essere un percorso padre/figlio: lo risolve il server.
   const p = /(?:^|\s)--padre\s+(\S+)/.exec(d ? d[1] : args);
@@ -397,8 +409,18 @@ export function riconosci(prompt: string): Comando | null {
   return nome ? { op: "apri", nome, padre: p?.[1] ?? null, descrizione: d ? d[2] : null } : { op: null };
 }
 
-const datiApertura = (cmd: Exclude<Comando, { op: null }>) =>
-  ({ nome: cmd.nome, descrizione: cmd.descrizione, origine: "utente", padre: cmd.padre });
+// Fork da un task (fork-da-task, D6): senza --task o senza nome non parte niente, si risponde con l'uso.
+function riconosciFork(args: string): Comando {
+  const d = /^(.+?)\s+(?:—|--)\s+(.+)$/s.exec(args);
+  const t = /(?:^|\s)--task\s+(\S+)/.exec(d ? d[1] : args);
+  const nome = (d ? d[1] : args).replace(t?.[0] ?? "", "").trim();
+  return nome && t ? { op: "fork", nome, task: t[1], descrizione: d ? d[2] : null } : { op: "uso", uso: USO_FORK };
+}
+
+const datiApertura = (cmd: Extract<Comando, { op: "apri" | "fork" }>) =>
+  cmd.op === "fork"
+    ? { nome: cmd.nome, descrizione: cmd.descrizione, origine: "utente", padre: null, task: cmd.task, fork: true }
+    : { nome: cmd.nome, descrizione: cmd.descrizione, origine: "utente", padre: cmd.padre };
 
 // Il motivo di un 409 (precedenza, cantiere sospeso o chiuso, idea, nome di change preso), dal corpo del server.
 const motivoRifiuto = (r: Consegna) => (r.corpo as { errore?: unknown } | null)?.errore;
@@ -635,13 +657,22 @@ const HOOK: Record<string, (c: Contesto, input: Input) => Promise<void>> = {
     const cmd = typeof input.prompt === "string" ? riconosci(input.prompt) : null;
     if (cmd) {
       if (!cmd.op) return;
+      if (cmd.op === "uso") return contestoHook("UserPromptSubmit", `[${NOME}] Comando /cantiere gestito: si usa così: ${cmd.uso}. Rispondi all'utente con una sola riga.`);
       await preliminari(c);
       const r = await invia(c, evento(c, "apri_cantiere", datiApertura(cmd)), true);
-      const motivo = r?.codice === 409 && motivoRifiuto(r);
+      // Senza risposta l'evento resta in coda; un fork il server lo applica solo entro 5 minuti (fork-da-task, D6).
+      const motivo = !r && cmd.op === "fork" ? FORK_IN_ATTESA : (r?.codice === 409 || r?.codice === 422) && motivoRifiuto(r);
       const contesto = typeof motivo === "string"
         ? `[${NOME}] Comando /cantiere gestito: ${motivo} Rispondi all'utente con una sola riga.`
         : r?.risposta?.contesto;
-      contestoHook("UserPromptSubmit", contesto, titoloCantiere(c));
+      // Quel che aspettava (il ritorno da un fork) va prima della risposta al comando. Un comando riuscito ha
+      // consumato l'avviso sul server: il plugin non deve più aspettarlo dalla risposta del prompt.
+      const pendente = leggiSessione(c.sid)?.contesto_pendente;
+      aggiornaSessione(c.sid, (s) => {
+        delete s.contesto_pendente;
+        if (r?.risposta) delete s.avviso_copia;
+      });
+      contestoHook("UserPromptSubmit", [pendente, contesto].filter(Boolean).join("\n"), titoloCantiere(c));
       return;
     }
     const pendente = leggiSessione(c.sid)?.contesto_pendente;
@@ -738,7 +769,9 @@ const HOOK: Record<string, (c: Contesto, input: Input) => Promise<void>> = {
   },
 
   // Asincrono, accanto allo Stop: manda la copia dei change solo se è cambiata dall'ultimo invio.
-  // Niente coda: è uno snapshot, e il prossimo Stop la rimanda intera.
+  // Niente coda: è uno snapshot, e il prossimo Stop la rimanda intera. Il session_id nell'indirizzo dice
+  // al server chi la manda: la risposta porta l'avviso se la copia ha chiuso il suo cantiere (il ritorno
+  // da un fork), per il prompt dopo. Se questa risposta si perde, l'avviso arriva con quella del prompt.
   async copia(c) {
     const corpo = copiaChange(c.cfg.cartella);
     if (!corpo) return;
@@ -747,7 +780,7 @@ const HOOK: Record<string, (c: Contesto, input: Input) => Promise<void>> = {
     const ultimo = cache("copie", `${chiaveCartella(c.cfg.cartella)}.json`);
     if (leggiJson<string>(ultimo) === hash) return;
     try {
-      const r = await fetch(`${c.cfg.url}/api/v1/progetti/${encodeURIComponent(c.cfg.progetto)}/openspec`, {
+      const r = await fetch(`${c.cfg.url}/api/v1/progetti/${encodeURIComponent(c.cfg.progetto)}/openspec?session_id=${encodeURIComponent(c.sid)}`, {
         method: "PUT",
         headers: { authorization: `Bearer ${c.cfg.token}`, "content-type": "application/json" },
         body: testo,
@@ -756,6 +789,15 @@ const HOOK: Record<string, (c: Contesto, input: Input) => Promise<void>> = {
       debug("copia", r.status);
       // Un rifiuto definitivo non si ripete finché la copia non cambia.
       if (r.ok || RIFIUTI_DEFINITIVI.includes(r.status)) scriviJson(ultimo, hash);
+      if (!r.ok) return;
+      const { contesto, cantiere } = (await r.json()) as Partial<Risposta>;
+      if (contesto) {
+        aggiornaSessione(c.sid, (s) => {
+          s.cantiere = cantiere ?? null;
+          s.contesto_pendente = [s.contesto_pendente, contesto].filter(Boolean).join("\n");
+          s.avviso_copia = contesto;
+        });
+      }
     } catch {
       // server giù: la copia riparte al prossimo Stop
     }
