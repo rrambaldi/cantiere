@@ -500,7 +500,7 @@ async function togliCitatiNeiGiri(trx: Db, da: number, a: number) {
     // Un cammino da `a` a `da` su tutti i legami: con da → a è un giro. Si ricorda l'arco che arriva a ogni cantiere.
     const arrivo = new Map<number, { da_id: number; tipo: string }>();
     for (let fronte = [a]; fronte.length && !arrivo.has(da); ) {
-      const archi = await trx.selectFrom("legami").select(["da_id", "a_id", "tipo"]).where("da_id", "in", fronte).execute();
+      const archi = await trx.selectFrom("legami").select(["da_id", "a_id", "tipo"]).where("da_id", "in", fronte).where("tipo", "!=", "tolto").execute();
       fronte = [];
       for (const l of archi) {
         if (l.a_id === a || arrivo.has(l.a_id)) continue;
@@ -517,10 +517,11 @@ async function togliCitatiNeiGiri(trx: Db, da: number, a: number) {
 
 /**
  * Il ramo da `da` ad `a`, una volta sola: tra padre e figlio basta il padre (design D2) e non si
- * scrive niente; un giro di registrati si rifiuta. Vince sui citati che chiuderebbero un giro (D7).
- * Con `ritorno` è un fork: chiuso `a`, la sessione torna in `da`. Restituisce se il legame c'è.
+ * scrive niente; un giro di registrati si rifiuta. Vince sui citati che chiuderebbero un giro (D7),
+ * e rimette un legame tolto (D9). Con `ritorno` è un fork: chiuso `a`, la sessione torna in `da`.
+ * Senza sessione viene dalla dashboard. Restituisce se il legame c'è.
  */
-export async function scriviLegame(trx: Db, da: number, a: number, task: string | null, sessionId: string, ora: string, ritorno = false) {
+export async function scriviLegame(trx: Db, da: number, a: number, task: string | null, sessionId: string | null, ora: string, ritorno = false) {
   if (await stessaLinea(trx, da, a)) return false;
   if (await chiudeGiro(trx, da, a)) throw new Rifiuto(409, `Il legame da "${await percorsoDi(trx, da)}" a "${await percorsoDi(trx, a)}" chiuderebbe un giro.`);
   await trx
@@ -530,7 +531,7 @@ export async function scriviLegame(trx: Db, da: number, a: number, task: string 
       oc
         .columns(["da_id", "a_id"])
         .doUpdateSet({ tipo: "registrato", session_id: sessionId, ...(task ? { task } : {}) })
-        .where("legami.tipo", "=", "citato"),
+        .where("legami.tipo", "in", ["citato", "tolto"]),
     )
     .execute();
   await togliCitatiNeiGiri(trx, da, a);
@@ -544,6 +545,7 @@ async function legamiVerso(db: Db, ambito: Ambito, ids: number[], percorsi: Map<
     .innerJoin("legami", "legami.da_id", "cantieri.id")
     .select(["legami.a_id", "legami.da_id as id", "progetti.nome as progetto", "legami.task", "legami.tipo"])
     .where("legami.a_id", "in", ids)
+    .where("legami.tipo", "!=", "tolto")
     .orderBy("legami.id")
     .execute();
   // Un cantiere di partenza in un altro progetto non è tra le righe lette: il suo percorso si risale.

@@ -291,6 +291,46 @@ test("task e rami: un clic su un ramo lo apre", async () => {
   await React.act(async () => radice.unmount());
 });
 
+test("task e rami: la × toglie un «nato da»; «Aggiungi» propone le partenze, prima quelle del progetto, senza sé stesso, fasi e quelle che ha già", async () => {
+  const scritture: { url: string; corpo: unknown }[] = [];
+  const fetchVero = globalThis.fetch;
+  globalThis.fetch = (async (url: string, init: RequestInit) => {
+    scritture.push({ url, corpo: JSON.parse(String(init.body)) });
+    return { ok: true, status: 200, json: async () => ({}) };
+  }) as unknown as typeof fetch;
+  let aggiornamenti = 0;
+  const piano = cantiereDi(60, "parity-deriva", "piano");
+  const fase = cantiereDi(61, "parity-deriva", "basket-mix/fase", { padre_id: 45 });
+  const altro = cantiereDi(62, "audio", "riassunto");
+  const contenitore = window.document.createElement("div");
+  const radice = createRoot(contenitore);
+  const bottone = (testo: string) => [...contenitore.querySelectorAll<HTMLButtonElement>("button")].find((b) => (b.title || b.textContent!).includes(testo))!;
+  const imposta = (campo: HTMLInputElement | HTMLSelectElement, valore: string, evento: string) => React.act(async () => {
+    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(campo), "value")!.set!.call(campo, valore);
+    campo.dispatchEvent(new window.Event(evento, { bubbles: true }));
+  });
+  try {
+    await React.act(async () => radice.render(React.createElement(TaskERami, {
+      c: basket, tasks: null, cantieri: [multi, basket, fuori, piano, fase, altro], onScegli: niente, onAggiorna: async () => void aggiornamenti++,
+    })));
+    await React.act(async () => bottone("Togli «nato da» multi-instrument-simulations").click());
+    assert.deepEqual(scritture, [{ url: "ui/api/cantieri/45/nato-da/togli", corpo: { da: 3 } }]);
+    await React.act(async () => bottone("Aggiungi «nato da»").click());
+    const gruppi = [...contenitore.querySelectorAll("optgroup")].map((g) => [g.label, [...g.querySelectorAll("option")].map((o) => o.textContent)]);
+    assert.deepEqual(gruppi, [["parity-deriva", ["piano"]], ["audio", ["riassunto"]], ["mercurius", ["info-extra"]]]);
+    assert.equal(bottone("Lega").disabled, true);
+    await imposta(contenitore.querySelector("select")!, "60", "change");
+    await imposta(contenitore.querySelector("input")!, " 2.1 ", "input");
+    await React.act(async () => bottone("Lega").click());
+    assert.deepEqual(scritture[1], { url: "ui/api/cantieri/45/nato-da", corpo: { da: 60, task: "2.1" } });
+    assert.equal(aggiornamenti, 2);
+    assert.equal(contenitore.querySelector("select"), null);
+  } finally {
+    globalThis.fetch = fetchVero;
+    await React.act(async () => radice.unmount());
+  }
+});
+
 test("scheda: subagenti accanto alla sessione, i più usati per primi; senza subagenti niente riga", () => {
   const sessione = (subagenti: object) => ({ session_id: "s1", host: "mine", branch: null, stato: "lavorando", titolo: "Prova", fatto: null, prossimo: null, eta_secondi: 0, subagenti });
   const scheda = (subagenti: object) => html(SchedaCantiere, { d: dettaglio({ sessioni: [sessione(subagenti)] }), onEsito: niente, onModifica: niente, onNuovaIdea: niente });

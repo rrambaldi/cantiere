@@ -223,10 +223,11 @@ Filtri: `progetto=<nome>`, `aperti=1` (solo `aperto`). Senza filtri, tutti gli s
 elenca le sessioni attive. `domande_in_attesa` conta le domande aperte e non scadute del cantiere e dei
 suoi discendenti; `domande` elenca solo quelle del cantiere stesso. `nato_da` elenca i cantieri da cui
 questo è nato, anche di altri progetti dello stesso committente; è vuoto se non ce ne sono. `tipo` è
-`registrato` (da `apri_cantiere`) o `citato` (ricavato a ogni copia dei change: un `proposal.md` o un
-`tasks.md` che nomina tra apici inversi il change di un altro cantiere del progetto; parte il più vecchio
-per la data `created` del change, e il task si legge anche dalle righe che continuano un task). Un
-registrato vince su un citato, anche al contrario.
+`registrato` (da `apri_cantiere` o dalla dashboard) o `citato` (ricavato a ogni copia dei change: un
+`proposal.md` o un `tasks.md` che nomina tra apici inversi il change di un altro cantiere del progetto;
+parte il più vecchio per la data `created` del change, e il task si legge anche dalle righe che continuano
+un task). Un registrato vince su un citato, anche al contrario. Un legame tolto dalla dashboard sparisce
+da `nato_da` e le citazioni non lo rimettono; `apri_cantiere` con `nato_da` lo rimette registrato.
 
 ### `GET /api/v1/sessioni`
 

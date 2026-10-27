@@ -23,10 +23,13 @@ Il cantiere di partenza si cerca solo tra i progetti del committente del token. 
 Ogni cantiere letto ha `nato_da: [{ id, progetto, percorso, task }]`. I rami in uscita li calcola chi legge, dagli stessi dati.
 
 ### D7. Tipo del legame (fase 2)
-`tipo` è `registrato` (da `apri_cantiere`, da `dirama` o dalla dashboard) o `citato` (dai file del change). La colonna nasce subito per non fare una seconda migrazione; in fase 1 si scrive solo `registrato`. Un legame registrato vince su uno citato della stessa coppia.
+`tipo` è `registrato` (da `apri_cantiere`, da `dirama` o dalla dashboard) o `citato` (dai file del change). La colonna nasce subito per non fare una seconda migrazione; in fase 1 si scrive solo `registrato`. Un legame tolto dalla dashboard resta come `tolto` (D9). Un legame registrato vince su uno citato della stessa coppia.
 
 ### D8. Subagenti (fase 2)
 Un hook `PreToolUse` sul tool `Agent` manda un evento con il solo tipo del subagente; il server li conta per sessione. Mai il prompt né la descrizione, come per il resto del tracciamento.
+
+### D9. «Nato da» dalla scheda (fase 2)
+Nella scheda «Task e rami» si mette un legame scegliendo la partenza tra i cantieri del committente, con il task facoltativo, e si toglie con la ×. Messo dalla dashboard è `registrato`, senza sessione, e il suo task prende il posto di quello che c'era; su un legame registrato che c'è già cambia solo il task, e un fork resta un fork. Tolto non si cancella: diventa `tolto`, che letture e giri ignorano e che la copia dei change non riscrive come citato; un fork tolto non riporta più la sessione alla partenza. Un'idea non ha la scheda: il suo «nato da» si mette e si toglie dopo la presa. Alternativa scartata: cancellare la riga, ma la copia dopo riscriverebbe il citato.
 
 ## Risks
 

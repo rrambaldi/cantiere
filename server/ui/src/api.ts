@@ -195,6 +195,8 @@ export const api = {
   caricaFile: (cantiere: number, nome: string, contenuto: string) =>
     richiesta<{ file: { nome: string; byte: number } }>(`cantieri/${cantiere}/file`, { nome, contenuto }),
   togliFile: (cantiere: number, nome: string) => richiesta<object>(`cantieri/${cantiere}/file/elimina`, { nome }),
+  mettiNatoDa: (cantiere: number, da: number, task: string | null) => richiesta<object>(`cantieri/${cantiere}/nato-da`, { da, task }),
+  togliNatoDa: (cantiere: number, da: number) => richiesta<object>(`cantieri/${cantiere}/nato-da/togli`, { da }),
   esito: (cantiere: number, azione: Azione) => richiesta<{ cantieri: Cantiere[] }>(`cantieri/${cantiere}/esito`, { azione }),
   scriviComando: (session_id: string, testo: string) => richiesta<{ comando: Comando }>("comandi", { session_id, testo }),
   annullaComando: (id: number) => richiesta<{ comando: Comando }>(`comandi/${id}/annulla`, {}),

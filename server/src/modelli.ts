@@ -10,8 +10,11 @@ export const STATI_CANTIERE = ["idea", "aperto", "sospeso", "completato", "abban
 export type StatoCantiere = (typeof STATI_CANTIERE)[number];
 export const STATI_FINALI: readonly StatoCantiere[] = ["completato", "abbandonato"];
 export const STATI_TODO = ["pending", "in_progress", "completed", "deleted"] as const;
-/** Un legame registrato viene da apri_cantiere o dalla dashboard; uno citato dai file del change (design D7). */
-export type TipoLegame = "registrato" | "citato";
+/**
+ * Un legame registrato viene da apri_cantiere o dalla dashboard; uno citato dai file del change (design D7); uno
+ * tolto dalla dashboard resta per non tornare dalle citazioni, ma letture e giri lo ignorano (D9).
+ */
+export type TipoLegame = "registrato" | "citato" | "tolto";
 export type StatoSessione = "attiva" | "lavorando" | "in_attesa" | "chiusa";
 
 export const LIMITI = {

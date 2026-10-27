@@ -214,7 +214,7 @@ export function LavoroCantiere({ d, cantieri, onScegli, onFile, onSalvaFile, onT
                         React.createElement(Checkbox, { checked: false, label: React.createElement(RigaMarkdown, { testo: t }) }),
                         d.verifiche.includes(t) && React.createElement(VerificaTask, { cantiere: c.id, task: t, onAggiorna: onAggiorna, esito: d.comandi.find((x) => x.task === t && x.stato !== "annullato") }))))))
                     : vista === "rami"
-                        ? React.createElement(TaskERami, { c: c, tasks: d.file.find((f) => f.percorso === "tasks.md")?.contenuto ?? null, cantieri: cantieri, onScegli: onScegli })
+                        ? React.createElement(TaskERami, { c: c, tasks: d.file.find((f) => f.percorso === "tasks.md")?.contenuto ?? null, cantieri: cantieri, onScegli: onScegli, onAggiorna: onAggiorna })
                         : vista === "giornale"
                             ? React.createElement(Turni, { turni: d.turni, vuoto: c.origine === "repo" ? T.nessunResocontoRepo(quando(c.creato_il)) : T.nessunResoconto })
                             : React.createElement(Documenti, { file: d.file, vuoto: T.nessunaCopiaChange }))))));

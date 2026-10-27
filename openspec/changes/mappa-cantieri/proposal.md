@@ -15,7 +15,7 @@ Direzione scelta: prima i legami nel server e nel plugin, poi la vista «Dal tas
 ## Impact
 
 - `server/src/migrazioni/0004_legami.ts`, `db.ts`, `modelli.ts`, `dominio.ts`, `strumenti.ts`, `contesto.ts`; `docs/contratto-v2.md`.
-- Fase 2: `server/src/openspec.ts`, `plugin/bin/forgia.mts`, `plugin/hooks/hooks.json`, `plugin/skills/cantiere/SKILL.md`.
+- Fase 2: `server/src/openspec.ts`, `plugin/bin/forgia.mts`, `plugin/hooks/hooks.json`, `plugin/skills/cantiere/SKILL.md`; «nato da» dalla scheda in `server/src/idee.ts` e `server/src/ui.ts`.
 - Fase 3: `server/ui/src`, `server/ui/static/forgia.css`, `server/ui/dist`.
 - Spec `server/cantieri`, `server/strumenti-mcp`, `server/dashboard`, `plugin/comando-cantiere`, `plugin/tracciamento`.
 - Compatibile: i campi nuovi sono facoltativi, i plugin di oggi continuano a funzionare.

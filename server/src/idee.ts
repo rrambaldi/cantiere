@@ -182,3 +182,42 @@ export async function dirama(amb: Ambiente, committente: Committente, nomeProget
   });
   return unoLetto(amb, ambito, c.id);
 }
+
+const NATO_DA_IN_LINEA = "Un cantiere non nasce da sé stesso, da un suo padre o da una sua fase: lì basta il padre.";
+const corpoNatoDa = z.strictObject({ da: z.number().int().positive(), task: campi.task.nullish() });
+
+/** Il cantiere della scheda e la partenza scritta nel corpo, che deve essere dello stesso committente (design D4, D9). */
+async function legameDellaScheda(amb: Ambiente, ambito: Ambito, id: number, corpo: unknown) {
+  const valido = corpoNatoDa.safeParse(corpo);
+  if (!valido.success) throw errore422(valido.error);
+  const a = await cantieriDi(amb.db, ambito).select(["cantieri.id", "progetti.committente_id"]).where("cantieri.id", "=", id).executeTakeFirst();
+  if (!a) throw new Rifiuto(404, "Cantiere inesistente.");
+  const da = await cantieriDi(amb.db, di(a.committente_id)).select("cantieri.id").where("cantieri.id", "=", valido.data.da).executeTakeFirst();
+  if (!da) throw new Rifiuto(404, "Il cantiere di partenza non esiste.");
+  return { a: a.id, da: da.id, task: valido.data.task ?? null };
+}
+
+/**
+ * «Nato da» messo dalla scheda (design D9): registrato, senza sessione, con il task dato al posto di quello che c'era.
+ * Su un legame registrato che c'è già cambia solo il task: un fork resta un fork.
+ */
+export async function mettiNatoDa(amb: Ambiente, ambito: Ambito, id: number, corpo: unknown) {
+  const { a, da, task } = await legameDellaScheda(amb, ambito, id, corpo);
+  await amb.db.transaction().execute(async (trx) => {
+    if (!(await scriviLegame(trx, da, a, task, null, adesso()))) throw new Rifiuto(409, NATO_DA_IN_LINEA);
+    await trx.updateTable("legami").set({ task }).where("da_id", "=", da).where("a_id", "=", a).execute();
+  });
+}
+
+/** «Nato da» tolto dalla scheda (design D9): resta come `tolto`, così la copia dei change non lo riscrive da citato. */
+export async function togliNatoDa(amb: Ambiente, ambito: Ambito, id: number, corpo: unknown) {
+  const { a, da } = await legameDellaScheda(amb, ambito, id, corpo);
+  const r = await amb.db
+    .updateTable("legami")
+    .set({ tipo: "tolto", ritorno: 0 })
+    .where("da_id", "=", da)
+    .where("a_id", "=", a)
+    .where("tipo", "!=", "tolto")
+    .executeTakeFirst();
+  if (!r.numUpdatedRows) throw new Rifiuto(404, "Legame inesistente.");
+}

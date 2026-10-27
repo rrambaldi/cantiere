@@ -33,11 +33,13 @@ async function aggiornaCitati(trx: Transaction<DB>, committenteId: number, proge
     for (let p = perId.get(a)?.padre_id ?? null; p !== null; p = perId.get(p)?.padre_id ?? null) if (p === da) return true;
     return false;
   };
-  // I registrati di tutto il committente (un giro può passare da un altro progetto) più i citati via via scelti.
+  // I legami di tutto il committente (un giro può passare da un altro progetto) più i citati via via scelti.
+  // Uno tolto dalla dashboard non è un arco, e la sua citazione non lo rimette (design D9).
   const archi = new Map<number, number[]>();
   const arco = (da: number, a: number) => archi.set(da, [...(archi.get(da) ?? []), a]);
-  const registrati = await cantieriDi(trx, di(committenteId)).innerJoin("legami", "legami.da_id", "cantieri.id").select(["legami.da_id", "legami.a_id"]).execute();
-  for (const l of registrati) arco(l.da_id, l.a_id);
+  const legami = await cantieriDi(trx, di(committenteId)).innerJoin("legami", "legami.da_id", "cantieri.id").select(["legami.da_id", "legami.a_id", "legami.tipo"]).execute();
+  const tolti = new Set(legami.filter((l) => l.tipo === "tolto").map((l) => `${l.da_id}>${l.a_id}`));
+  for (const l of legami) if (l.tipo !== "tolto") arco(l.da_id, l.a_id);
   const raggiunge = (da: number, a: number) => {
     const visti = new Set<number>();
     for (const fronte = [da]; fronte.length; ) {
@@ -62,6 +64,7 @@ async function aggiornaCitati(trx: Transaction<DB>, committenteId: number, proge
         const [da, a] = ordine(chi) < ordine(altro) ? [chi, altro] : [altro, chi];
         const chiave = `${da.id}>${a.id}`;
         const giaScelto = citati.get(chiave);
+        if (tolti.has(chiave)) continue;
         if (!giaScelto && (antenato(da.id, a.id) || antenato(a.id, da.id) || archi.get(da.id)?.includes(a.id) || raggiunge(a.id, da.id))) continue;
         const suo = f.percorso === "tasks.md" && da === chi ? task : null;
         if (!giaScelto) arco(da.id, a.id);

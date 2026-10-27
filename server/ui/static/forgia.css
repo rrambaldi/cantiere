@@ -272,6 +272,9 @@ button{font:inherit;color:inherit}
 .testa-rami{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .testa-rami > section{display:flex;flex-direction:column;gap:8px;min-width:0;padding:12px 14px;border:1px solid var(--linea);border-radius:var(--r-3)}
 .testa-rami ul,.rami-del-task{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.testa-rami li.con-azione{display:flex;align-items:center;gap:4px}
+.testa-rami > section > button{align-self:flex-start}
+.metti-nato-da{display:flex;flex-direction:column;gap:8px}
 .righe-task{list-style:none;margin:0;padding:0;border:1px solid var(--linea);border-radius:var(--r-3);overflow-wrap:anywhere}
 .titolo-task{padding:14px 14px 6px;font:var(--t-h3)}
 .riga-task{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,340px);gap:8px 16px;align-items:center;padding:8px 14px;border-top:1px solid var(--linea)}

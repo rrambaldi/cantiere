@@ -141,7 +141,6 @@ function App() {
         interruttore.current?.querySelector("button")?.focus();
     }, [foglio]);
     const trovato = albero ? trova(albero, selezione) : null;
-    const tuttiICantieri = React.useMemo(() => (albero ?? []).flatMap((cm) => cm.progetti.flatMap((p) => p.cantieri)), [albero]);
     // Selezione sparita (o mai fatta): si sceglie quella predefinita.
     React.useEffect(() => {
         if (albero && !trovato)
@@ -291,7 +290,7 @@ function App() {
     if (trovato?.tipo === "cantiere") {
         const d = dettaglioDi(trovato.c);
         if (d) {
-            centro = React.createElement(LavoroCantiere, { d: d, barra: barra, cantieri: tuttiICantieri, onScegli: scegli, onAggiorna: aggiorna, onFile: (f) => void caricaFile(d.cantiere.id, f).then(aggiorna), onSalvaFile: (nome, testo) => salvaFile(d.cantiere.id, nome, testo), onTogliFile: (nome) => setRichiesta({ tipo: "togli", cantiere: d.cantiere, nome }) });
+            centro = React.createElement(LavoroCantiere, { d: d, barra: barra, cantieri: trovato.cm.progetti.flatMap((p) => p.cantieri), onScegli: scegli, onAggiorna: aggiorna, onFile: (f) => void caricaFile(d.cantiere.id, f).then(aggiorna), onSalvaFile: (nome, testo) => salvaFile(d.cantiere.id, nome, testo), onTogliFile: (nome) => setRichiesta({ tipo: "togli", cantiere: d.cantiere, nome }) });
             destra = React.createElement(SchedaCantiere, { d: d, onAggiorna: aggiorna, onEsito: (azione) => setRichiesta({ tipo: "esito", cantiere: d.cantiere, azione, discendenti: d.discendenti_attivi }), onModifica: () => setRichiesta({ tipo: "modifica", cantiere: d.cantiere }), onNuovaIdea: () => setRichiesta({ tipo: "idea", progetto: trovato.p, padre: d.cantiere }) });
         }
     }

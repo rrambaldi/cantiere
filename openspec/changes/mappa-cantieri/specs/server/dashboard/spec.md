@@ -1,11 +1,15 @@
 ## ADDED Requirements
 
 ### Requirement: Task e rami
-La pagina di un cantiere MUST avere una scheda «Task e rami» con i task del suo `tasks.md` e, accanto a ciascuno, i cantieri nati da quel task con stato e avanzamento; in testa MUST dire da quale cantiere è nato e quali rami ha. Un ramo senza task MUST stare in testa, non accanto a un task.
+La pagina di un cantiere MUST avere una scheda «Task e rami» con i task del suo `tasks.md` e, accanto a ciascuno, i cantieri nati da quel task con stato e avanzamento; in testa MUST dire da quale cantiere è nato e quali rami ha, e MUST permettere di mettere e togliere un «nato da». Un ramo senza task MUST stare in testa, non accanto a un task.
 
 #### Scenario: Ramo accanto al suo task
 - **WHEN** si apre `multi-instrument-simulations` e `basket-mix` è nato dal suo task 1.1
 - **THEN** accanto al task 1.1 c'è `basket-mix` con il suo stato e 7/8, e un clic lo apre
+
+#### Scenario: Nato da messo e tolto dalla scheda
+- **WHEN** in «Task e rami» di `b` si sceglie `a`, si scrive il task `2.1` e si preme «Lega», poi si preme la × accanto ad `a`
+- **THEN** prima `a` compare in «nato da» con «dal task 2.1», poi sparisce
 
 ### Requirement: Binari nel tempo
 La pagina di un committente MUST avere una scheda «Binari»: un asse dei giorni e, per ogni cantiere non idea, una linea dalla nascita (o dalla presa, per un'idea presa più tardi) all'ultimo aggiornamento, poi a puntini fino a oggi o alla chiusura. Un cantiere aperto fermo da 3 giorni o più MUST dire da quanti giorni. Le ore MUST essere quelle locali del browser.

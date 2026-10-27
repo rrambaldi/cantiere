@@ -13,7 +13,7 @@
 - [x] 2.1 Legami citati dai file dei change (`openspec.ts`), sotto quelli registrati
 - [x] 2.2 `/cantiere dirama <progetto>/<nome> [--task N]`, legame conservato da `/cantiere prendi`
 - [x] 2.3 Hook sul tool `Agent`: evento con il solo tipo, conteggio per sessione
-- [ ] 2.4 «Nato da» da mettere e togliere dalla scheda del cantiere
+- [x] 2.4 «Nato da» da mettere e togliere dalla scheda del cantiere
 
 ## 3. Dashboard
 

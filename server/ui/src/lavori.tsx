@@ -226,7 +226,7 @@ export function LavoroCantiere({ d, cantieri, onScegli, onFile, onSalvaFile, onT
   d: Dettaglio; onFile: (f: File[]) => void; onTogliFile: (nome: string) => void; barra?: ReactNode;
   /** Ricarica i dati dopo un comando o un esito dato dalla dashboard. */
   onAggiorna: () => Promise<unknown>;
-  /** Tutti i cantieri dell'albero: servono per i rami in uscita e per lo stato di quelli legati. */
+  /** I cantieri del committente: servono per i rami in uscita, lo stato di quelli legati e le partenze possibili. */
   cantieri: Cantiere[];
   onScegli: (s: Selezione) => void;
   /** Salva il testo modificato di un file dell'idea; dice se è riuscito. */
@@ -299,7 +299,7 @@ export function LavoroCantiere({ d, cantieri, onScegli, onFile, onSalvaFile, onT
                 </ul>
               )
               : vista === "rami"
-              ? <TaskERami c={c} tasks={d.file.find((f) => f.percorso === "tasks.md")?.contenuto ?? null} cantieri={cantieri} onScegli={onScegli} />
+              ? <TaskERami c={c} tasks={d.file.find((f) => f.percorso === "tasks.md")?.contenuto ?? null} cantieri={cantieri} onScegli={onScegli} onAggiorna={onAggiorna} />
               : vista === "giornale"
               ? <Turni turni={d.turni} vuoto={c.origine === "repo" ? T.nessunResocontoRepo(quando(c.creato_il)) : T.nessunResoconto} />
               : <Documenti file={d.file} vuoto={T.nessunaCopiaChange} />}

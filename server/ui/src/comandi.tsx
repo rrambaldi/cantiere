@@ -6,7 +6,7 @@ import { T } from "./testi.ts";
 import { BottoneIcona } from "./ui.tsx";
 
 /** Un invio al server: l'errore resta sotto il campo, così chi scrive dal telefono non perde il testo. */
-function useInvio() {
+export function useInvio() {
   const [inCorso, setInCorso] = React.useState(false);
   const [errore, setErrore] = React.useState<string | null>(null);
   const invia = async (azione: () => Promise<unknown>) => {
@@ -25,7 +25,7 @@ function useInvio() {
   return { inCorso, errore, invia };
 }
 
-const Errore = ({ testo }: { testo: string | null }) => (testo ? <span className="errore-campo" role="alert">{testo}</span> : null);
+export const Errore = ({ testo }: { testo: string | null }) => (testo ? <span className="errore-campo" role="alert">{testo}</span> : null);
 
 /** «Confermo» parte subito; «Non va» apre il campo del feedback, che serve. */
 function ConfermaONo({ onEsito }: { onEsito: (e: EsitoWeb) => Promise<unknown> }) {

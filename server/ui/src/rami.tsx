@@ -1,11 +1,12 @@
 // Scheda «Task e rami» del cantiere: da chi è nato, i task di tasks.md e accanto a ciascuno i cantieri nati da lì.
-import type { Cantiere } from "./api.ts";
+import { api, type Cantiere } from "./api.ts";
+import { Errore, useInvio } from "./comandi.tsx";
 import { RigaMarkdown } from "./documento.tsx";
-import { Checkbox } from "./ds/core.tsx";
+import { Button, Checkbox, Input } from "./ds/core.tsx";
 import { StatoBadge } from "./ds/feedback.tsx";
 import type { Selezione } from "./indice.tsx";
 import { T } from "./testi.ts";
-import { Avanzamento, Etichetta, Vuoto } from "./ui.tsx";
+import { Avanzamento, BottoneIcona, Etichetta, Vuoto } from "./ui.tsx";
 
 export type RigaTask = { tipo: "titolo"; testo: string } | { tipo: "task"; fatto: boolean; numero: string | null; testo: string };
 
@@ -42,9 +43,64 @@ function Cartellino({ cantiere, progetto, percorso, qui, citato, task, onScegli 
   );
 }
 
-export function TaskERami({ c, tasks, cantieri, onScegli }: {
+/** Le partenze possibili di `c`: non sé stesso, un suo padre o una sua fase (lì basta il padre), né quelle che ha già. */
+function partenzePossibili(c: Cantiere, cantieri: Cantiere[]) {
+  const padri = new Map(cantieri.map((x) => [x.id, x.padre_id]));
+  const linea = (id: number) => {
+    const ids: number[] = [];
+    for (let x: number | null = id; x !== null; x = padri.get(x) ?? null) ids.push(x);
+    return ids;
+  };
+  const antenati = linea(c.id);
+  return cantieri.filter((x) => !antenati.includes(x.id) && !linea(x.id).includes(c.id) && !c.nato_da.some((l) => l.id === x.id));
+}
+
+/** «Nato da» messo dalla scheda: la partenza tra i cantieri del committente, prima quelli del progetto, e il task facoltativo. */
+function MettiNatoDa({ c, cantieri, onAggiorna }: { c: Cantiere; cantieri: Cantiere[]; onAggiorna: () => Promise<unknown> }) {
+  const [aperto, setAperto] = React.useState(false);
+  const [da, setDa] = React.useState<number | null>(null);
+  const [task, setTask] = React.useState("");
+  const { inCorso, errore, invia } = useInvio();
+  const possibili = partenzePossibili(c, cantieri);
+  if (!aperto) return possibili.length ? <Button size="sm" variant="secondario" onClick={() => setAperto(true)}>{T.aggiungiNatoDa}</Button> : null;
+  const progetti = [...new Set([c.progetto, ...possibili.map((x) => x.progetto).sort()])].filter((p) => possibili.some((x) => x.progetto === p));
+  const chiudi = () => {
+    setAperto(false);
+    setDa(null);
+    setTask("");
+  };
+  const lega = async () => {
+    if (await invia(() => api.mettiNatoDa(c.id, da!, task.trim() || null).then(onAggiorna))) chiudi();
+  };
+  return (
+    <div className="metti-nato-da">
+      <label className="campo-scelta">
+        <span className="etichetta">{T.partenza}</span>
+        <select value={da ?? ""} onChange={(e) => setDa(e.target.value ? Number(e.target.value) : null)}>
+          <option value="">{T.scegliPartenza}</option>
+          {progetti.map((p) => (
+            <optgroup key={p} label={p}>
+              {possibili.filter((x) => x.progetto === p).map((x) => <option key={x.id} value={x.id}>{x.percorso}</option>)}
+            </optgroup>
+          ))}
+        </select>
+      </label>
+      <Input label={T.taskFacoltativo} hint={T.suggTask} value={task} onChange={setTask} mono />
+      <span className="azioni-esito">
+        <Button size="sm" disabled={inCorso || da === null} onClick={() => void lega()}>{T.lega}</Button>
+        <Button size="sm" variant="fantasma" disabled={inCorso} onClick={chiudi}>{T.annulla}</Button>
+      </span>
+      <Errore testo={errore} />
+    </div>
+  );
+}
+
+export function TaskERami({ c, tasks, cantieri, onScegli, onAggiorna }: {
   c: Cantiere; tasks: string | null; cantieri: Cantiere[]; onScegli: (s: Selezione) => void;
+  /** Ricarica i dati dopo un «nato da» messo o tolto. */
+  onAggiorna: () => Promise<unknown>;
 }) {
+  const togli = useInvio();
   const perId = new Map(cantieri.map((x) => [x.id, x]));
   // Un livello solo, da qui ai cantieri legati: nessuna visita, quindi nessun rischio di giri.
   const rami = cantieri.flatMap((x) => x.nato_da.filter((l) => l.id === c.id).map((legame) => ({ x, legame })));
@@ -64,12 +120,16 @@ export function TaskERami({ c, tasks, cantieri, onScegli }: {
           {c.nato_da.length ? (
             <ul>
               {c.nato_da.map((l) => (
-                <li key={l.id}>
+                <li key={l.id} className="con-azione">
                   <Cartellino cantiere={perId.get(l.id)} progetto={l.progetto} percorso={l.percorso} qui={c.progetto} citato={l.tipo === "citato"} task={l.task} onScegli={onScegli} />
+                  <BottoneIcona icona="chiudi" titolo={T.togliNatoDa(l.percorso)} disabled={togli.inCorso}
+                    onClick={() => void togli.invia(() => api.togliNatoDa(c.id, l.id).then(onAggiorna))} />
                 </li>
               ))}
             </ul>
           ) : <Vuoto>{T.nessunaPartenza}</Vuoto>}
+          <Errore testo={togli.errore} />
+          <MettiNatoDa key={c.id} c={c} cantieri={cantieri} onAggiorna={onAggiorna} />
         </section>
         <section>
           <Etichetta>{T.ramiN(rami.length)}</Etichetta>

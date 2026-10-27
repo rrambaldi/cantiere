@@ -5,7 +5,7 @@ import { quando } from "./formato.js";
 import { T } from "./testi.js";
 import { BottoneIcona } from "./ui.js";
 /** Un invio al server: l'errore resta sotto il campo, così chi scrive dal telefono non perde il testo. */
-function useInvio() {
+export function useInvio() {
     const [inCorso, setInCorso] = React.useState(false);
     const [errore, setErrore] = React.useState(null);
     const invia = async (azione) => {
@@ -25,7 +25,7 @@ function useInvio() {
     };
     return { inCorso, errore, invia };
 }
-const Errore = ({ testo }) => (testo ? React.createElement("span", { className: "errore-campo", role: "alert" }, testo) : null);
+export const Errore = ({ testo }) => (testo ? React.createElement("span", { className: "errore-campo", role: "alert" }, testo) : null);
 /** «Confermo» parte subito; «Non va» apre il campo del feedback, che serve. */
 function ConfermaONo({ onEsito }) {
     const [feedback, setFeedback] = React.useState(null);

@@ -69,3 +69,18 @@ Una citazione tolta dai file MUST togliere il suo legame citato alla copia dopo.
 #### Scenario: Citazione tolta
 - **WHEN** la proposta di un cantiere non cita più `altro`
 - **THEN** alla copia dopo `altro` non ha più quel legame citato
+
+### Requirement: Nato da dalla dashboard
+La dashboard MUST poter mettere un legame `registrato` verso un cantiere da un altro dello stesso committente, con un task facoltativo che prende il posto di quello che c'era; MUST rifiutarlo con 409 e il motivo tra un cantiere e sé stesso o le sue fasi, o se chiude un giro. Un legame tolto dalla dashboard MUST sparire dalle letture, MUST NOT riportare indietro la sessione di un fork e MUST NOT tornare dalle citazioni; messo di nuovo, MUST tornare `registrato`.
+
+#### Scenario: Legame messo dalla scheda
+- **WHEN** dalla dashboard si mette su `b`, senza legami, «nato da» `a` con task `2.1`
+- **THEN** `b` ha `nato_da` con `a`, task `2.1` e tipo `registrato`
+
+#### Scenario: Citato tolto
+- **WHEN** dalla dashboard si toglie da `b` il legame citato da `a`, e arriva una copia in cui il `tasks.md` di `a` cita ancora `b`
+- **THEN** `b` resta senza `nato_da`
+
+#### Scenario: Fase
+- **WHEN** dalla dashboard si mette sulla fase `a/f` «nato da» `a`
+- **THEN** la richiesta è rifiutata con 409 e il motivo
