@@ -3,6 +3,8 @@
 import type { AutoreEsito, Stato, StatoSessione } from "./api.ts";
 
 export type Lingua = "it" | "en";
+/** Ogni lingua col suo nome, che non si traduce. */
+export const NOMI_LINGUA: Record<Lingua, string> = { it: "Italiano", en: "English" };
 
 const it = {
   titoloPagina: "forgia · cantieri",
@@ -70,7 +72,6 @@ const it = {
   sfoglia: "sfoglia",
   apriColonna: "Apri la colonna: committenti, progetti, cantieri",
   chiudiColonna: "Chiudi la colonna",
-  tieniAperta: "Tieni aperta la colonna",
   committenti: "committenti",
   progettiDi: "progetti di",
   cantieriDi: "cantieri di",
@@ -299,7 +300,6 @@ const en: Testi = {
   sfoglia: "browse",
   apriColonna: "Open the column: clients, projects, worksites",
   chiudiColonna: "Close the column",
-  tieniAperta: "Keep the column open",
   committenti: "clients",
   progettiDi: "projects of",
   cantieriDi: "worksites of",

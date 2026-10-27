@@ -265,12 +265,13 @@ describe("sessione tardiva, operazioni in attesa, pulizia, debug", () => {
 describe("prompt e /cantiere", () => {
   test("/cantiere nome — descrizione: apri_cantiere sincrono con progetto e conferma, niente evento prompt", async (t) => {
     const conferma = `[forgia] Comando /cantiere gestito: cantiere "pdfconverter" aperto (change pdfconverter). Rispondi all'utente con una sola riga di conferma.`;
-    const { srv, input, opz } = await preparato(t, (r) => (r.corpo?.tipo === "apri_cantiere" ? { corpo: { ...RISPOSTA, contesto: conferma } } : undefined));
+    const { srv, sid, input, opz } = await preparato(t, (r) => (r.corpo?.tipo === "apri_cantiere" ? { corpo: { ...RISPOSTA, contesto: conferma } } : undefined));
     await hook("session_start", input("session_start"), opz);
     const p = input("prompt", { prompt: "/cantiere pdfconverter — conversione dei PDF caricati" });
     const r = await hook("prompt", p, opz);
     await hook("prompt_invio", p, opz);
     assert.equal(contesto(r.stdout), conferma);
+    assert.equal(JSON.parse(r.stdout).hookSpecificOutput.sessionTitle, `prova · ${sid.slice(0, 8)} · pdfconverter`);
     assert.deepEqual(tipi(srv.eventi()), ["session_start", "apri_cantiere"]);
     assert.deepEqual(srv.eventi()[1].dati, { nome: "pdfconverter", descrizione: "conversione dei PDF caricati", origine: "utente", padre: null });
     assert.equal(srv.eventi()[1].progetto, "prova");

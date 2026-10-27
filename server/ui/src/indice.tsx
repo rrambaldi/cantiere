@@ -5,14 +5,14 @@ import { Logo } from "./ds/brand.tsx";
 import { Button, Tabs } from "./ds/core.tsx";
 import { StatoBadge } from "./ds/feedback.tsx";
 import { ora, profondita, VISTA_DI, type Vista } from "./formato.ts";
-import { lingua, T, type Lingua } from "./testi.ts";
+import { lingua, NOMI_LINGUA, T, type Lingua } from "./testi.ts";
 import { BottoneIcona, Etichetta, Icona, Pallino, Vuoto } from "./ui.tsx";
 
 export type Selezione = { tipo: "committente" | "progetto" | "cantiere"; id: number };
 /** Il livello che la colonna mostra: i committenti, i progetti di uno, i cantieri di un progetto. */
 export type Posizione = { livello: "committenti" } | { livello: "progetti"; cm: number } | { livello: "cantieri"; cm: number; p: number };
-/** Colonna aperta, puntina accesa (la colonna non si chiude da sola), scheda tecnica aperta. */
-export type Colonne = { colonna: boolean; fissata: boolean; scheda: boolean };
+/** Colonna aperta, scheda tecnica aperta. */
+export type Colonne = { colonna: boolean; scheda: boolean };
 /** Un pezzo del percorso; senza `scelta` è quello corrente. */
 export type Segmento = { testo: string; scelta?: Selezione };
 
@@ -192,7 +192,7 @@ export function Indice({ committenti, selezione, onScegli, posizione, onPosizion
 
   const scegliCantiere = (c: Cantiere) => {
     onScegli({ tipo: "cantiere", id: c.id });
-    if (!colonne.fissata) chiudi();
+    chiudi();
   };
   let contenuto: React.ReactNode;
   if (p && cm) {
@@ -276,12 +276,12 @@ export function Indice({ committenti, selezione, onScegli, posizione, onPosizion
     <aside className="indice" aria-label={T.indice}>
       <div className="indice-testa">
         {logo}
-        <span role="group" aria-label={T.lingua} className="lingue">
-          {(["it", "en"] as const).map((l) => (
-            <Button key={l} variant={l === lingua ? "secondario" : "fantasma"} size="sm" onClick={() => onLingua(l)}>{l.toUpperCase()}</Button>
-          ))}
-        </span>
-        <span className="puntina"><BottoneIcona icona="puntina" titolo={T.tieniAperta} premuto={colonne.fissata} onClick={() => onColonne({ fissata: !colonne.fissata })} /></span>
+        <label className="lingua" title={T.lingua}>
+          <Icona nome="lingua" />
+          <select aria-label={T.lingua} value={lingua} onChange={(e) => onLingua(e.target.value as Lingua)}>
+            {Object.entries(NOMI_LINGUA).map(([l, nome]) => <option key={l} value={l}>{nome}</option>)}
+          </select>
+        </label>
         <BottoneIcona icona="chiudiColonna" titolo={T.chiudiColonna} onClick={chiudi} />
       </div>
       <section key={chiave} className={"livello" + (entrata.current.daSinistra ? " da-sinistra" : "")}>{contenuto}</section>

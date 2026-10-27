@@ -150,8 +150,8 @@ La colonna di sinistra MUST mostrare un livello alla volta (committenti, progett
 - **THEN** il centro mostra il progetto `cantiere` e la colonna, aperta, i suoi cantieri
 
 #### Scenario: Colonna che si chiude da sola
-- **WHEN** la puntina è spenta e si sceglie un cantiere nella colonna
-- **THEN** il cantiere si apre al centro e la colonna diventa la rotaia «sfoglia»; con la puntina accesa resta aperta
+- **WHEN** si sceglie un cantiere nella colonna
+- **THEN** il cantiere si apre al centro e la colonna diventa la rotaia «sfoglia»
 
 #### Scenario: Tornare su
 - **WHEN** la colonna mostra i cantieri di `mercurius` e si clicca «‹ PRIV»

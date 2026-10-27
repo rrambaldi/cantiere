@@ -2,7 +2,7 @@ import { Logo } from "./ds/brand.js";
 import { Button, Tabs } from "./ds/core.js";
 import { StatoBadge } from "./ds/feedback.js";
 import { ora, profondita, VISTA_DI } from "./formato.js";
-import { lingua, T } from "./testi.js";
+import { lingua, NOMI_LINGUA, T } from "./testi.js";
 import { BottoneIcona, Etichetta, Icona, Pallino, Vuoto } from "./ui.js";
 export function trova(albero, s) {
     if (!s)
@@ -152,8 +152,7 @@ export function Indice({ committenti, selezione, onScegli, posizione, onPosizion
     }
     const scegliCantiere = (c) => {
         onScegli({ tipo: "cantiere", id: c.id });
-        if (!colonne.fissata)
-            chiudi();
+        chiudi();
     };
     let contenuto;
     if (p && cm) {
@@ -219,9 +218,9 @@ export function Indice({ committenti, selezione, onScegli, posizione, onPosizion
     return (React.createElement("aside", { className: "indice", "aria-label": T.indice },
         React.createElement("div", { className: "indice-testa" },
             logo,
-            React.createElement("span", { role: "group", "aria-label": T.lingua, className: "lingue" }, ["it", "en"].map((l) => (React.createElement(Button, { key: l, variant: l === lingua ? "secondario" : "fantasma", size: "sm", onClick: () => onLingua(l) }, l.toUpperCase())))),
-            React.createElement("span", { className: "puntina" },
-                React.createElement(BottoneIcona, { icona: "puntina", titolo: T.tieniAperta, premuto: colonne.fissata, onClick: () => onColonne({ fissata: !colonne.fissata }) })),
+            React.createElement("label", { className: "lingua", title: T.lingua },
+                React.createElement(Icona, { nome: "lingua" }),
+                React.createElement("select", { "aria-label": T.lingua, value: lingua, onChange: (e) => onLingua(e.target.value) }, Object.entries(NOMI_LINGUA).map(([l, nome]) => React.createElement("option", { key: l, value: l }, nome)))),
             React.createElement(BottoneIcona, { icona: "chiudiColonna", titolo: T.chiudiColonna, onClick: chiudi })),
         React.createElement("section", { key: chiave, className: "livello" + (entrata.current.daSinistra ? " da-sinistra" : "") }, contenuto),
         React.createElement("div", { className: "indice-piede" },

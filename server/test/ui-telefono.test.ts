@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { montaApp } from "./app-finta.ts";
 
-const RICORDATE = { colonna: true, fissata: true, scheda: true };
+const RICORDATE = { colonna: true, scheda: true };
 const { window, $, clic, naviga, titolo, cambiaLarghezza } = await montaApp({
   url: "http://x/cantiere/#/PRIV/mercurius/AI-Berkshire", telefono: true, ricordati: { "forgia-colonne": RICORDATE },
 });

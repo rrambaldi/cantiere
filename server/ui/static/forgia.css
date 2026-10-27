@@ -62,7 +62,6 @@ button{font:inherit;color:inherit}
   .dashboard{grid-template-columns:minmax(0,1fr);align-content:start} /* lo spazio libero non allunga la barra in cima */
   .dashboard > .indice{width:auto;grid-row:auto;position:static;height:100vh;height:100dvh;border-right:0;border-bottom:1px solid var(--linea)}
   .dashboard:has(> .indice:not(.rotaia)) > .lavori{display:none}
-  .puntina{display:none} /* la colonna copre il centro: si chiude a ogni scelta */
   .dashboard > .rotaia{height:auto;flex-direction:row;padding:6px 16px}
   .rotaia .sfoglia{flex-direction:row;width:auto;height:44px;padding:0 12px}
   .rotaia .verticale{writing-mode:horizontal-tb}
@@ -72,7 +71,9 @@ button{font:inherit;color:inherit}
 /* colonna di navigazione: un livello alla volta */
 .indice{display:flex;flex-direction:column;background:var(--sfondo-profondo);border-right:1px solid var(--linea)}
 .indice-testa{display:flex;align-items:center;gap:4px;min-height:56px;padding:0 10px 0 16px;flex:none}
-.lingue{margin-left:auto;display:inline-flex;gap:2px}
+.lingua{margin-left:auto;display:inline-flex;align-items:center;gap:4px;color:var(--testo-2)}
+.lingua select{height:28px;padding:0 4px;background:var(--sfondo-profondo);color:var(--carta-50);border:1px solid var(--linea);border-radius:var(--r-2);font:var(--t-corpo);font-size:13px;cursor:pointer}
+.lingua select:hover{border-color:var(--linea-forte)}
 .livello{display:flex;flex-direction:column;flex:1;min-height:0;animation:da-destra var(--durata-2) var(--curva)}
 .livello.da-sinistra{animation-name:da-sinistra}
 @keyframes da-destra{from{opacity:0;transform:translateX(12px)}}

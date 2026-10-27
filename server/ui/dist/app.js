@@ -7,32 +7,15 @@ import { hashDi, Indice, Percorso, posizioneDi, segmentiDi, selezioneDaHash, ste
 import { LavoroCantiere, LavoroCommittente, LavoroProgetto } from "./lavori.js";
 import { Foglio, SchedaCantiere, SchedaCommittente, SchedaProgetto } from "./scheda.js";
 import { impostaLingua, lingua as linguaCorrente, salvaLingua, T } from "./testi.js";
-import { BottoneIcona, Vuoto } from "./ui.js";
+import { BottoneIcona, ricorda, ricordato, Vuoto } from "./ui.js";
 const CHIAVE_SELEZIONE = "forgia-selezione";
 const CHIAVE_COLONNE = "forgia-colonne";
-const COLONNE_PREDEFINITE = { colonna: true, fissata: false, scheda: true };
-const CHIUSE = { colonna: false, fissata: false, scheda: false };
+const COLONNE_PREDEFINITE = { colonna: true, scheda: true };
+const CHIUSE = { colonna: false, scheda: false };
 // La stessa soglia di forgia.css: sotto, la colonna aperta e la scheda coprono il centro.
 const TELEFONO = matchMedia("(max-width:720px)");
 const AGGIORNA_OGNI_MS = 30_000;
 const FILE_AMMESSO = /\.(md|txt)$/i;
-// Quel che il browser ricorda (scelta, colonne) è una comodità: senza storage si riparte dal valore predefinito.
-function ricordato(chiave, predefinito) {
-    try {
-        return JSON.parse(localStorage.getItem(chiave) ?? "null") ?? predefinito;
-    }
-    catch {
-        return predefinito;
-    }
-}
-function ricorda(chiave, valore) {
-    try {
-        localStorage.setItem(chiave, JSON.stringify(valore));
-    }
-    catch {
-        /* storage non disponibile: il valore non resta, il resto funziona */
-    }
-}
 /** All'apertura: il primo cantiere in corso, altrimenti il primo progetto, altrimenti il primo committente. */
 function predefinita(albero) {
     const progetti = albero.flatMap((cm) => cm.progetti);
@@ -54,7 +37,7 @@ function App() {
     const [selezione, setSelezione] = React.useState(() => ricordato(CHIAVE_SELEZIONE, null));
     const [vista, setVista] = React.useState("aperti");
     // Al desktop colonna e scheda restano come le si lascia, anche al ricaricamento. Al telefono coprono il centro: ogni volta
-    // che si entra (all'apertura, stringendo la finestra) si parte chiuse, senza puntina, e lì non si ricorda niente.
+    // che si entra (all'apertura, stringendo la finestra) si parte chiuse, e lì non si ricorda niente.
     const [telefono, setTelefono] = React.useState(TELEFONO.matches);
     const [alDesktop, setAlDesktop] = React.useState(() => ({ ...COLONNE_PREDEFINITE, ...ricordato(CHIAVE_COLONNE, {}) }));
     const [alTelefono, setAlTelefono] = React.useState(CHIUSE);

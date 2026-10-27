@@ -10,7 +10,7 @@ import { eta, giorno, ora, quando } from "./formato.ts";
 import type { Selezione } from "./indice.tsx";
 import { TaskERami } from "./rami.tsx";
 import { T } from "./testi.ts";
-import { Avanzamento, Avviso, BottoneIcona, Etichetta, Pallino, Vuoto } from "./ui.tsx";
+import { Avanzamento, Avviso, BottoneIcona, Etichetta, Pallino, ricorda, ricordato, Vuoto } from "./ui.tsx";
 
 const FILE_AMMESSI = ".md,.txt,text/markdown,text/plain";
 
@@ -389,13 +389,18 @@ export function LavoroProgetto({ p, committente, nonCensite, onScegli, barra }: 
   );
 }
 
+const CHIAVE_SCHEDA_COMMITTENTE = "forgia-scheda-committente";
+type SchedaCommittente = "progetti" | "binari";
+
 export function LavoroCommittente({ cm, onScegli, barra }: { cm: Committente; onScegli: (s: Selezione) => void; barra?: ReactNode }) {
-  const [scheda, setScheda] = React.useState<"progetti" | "binari">("progetti");
+  // Progetti o Binari restano come li si è lasciati, anche cambiando committente o ricaricando.
+  const [scheda, setScheda] = React.useState<SchedaCommittente>(() => ricordato<string>(CHIAVE_SCHEDA_COMMITTENTE, "progetti") === "binari" ? "binari" : "progetti");
+  const scegliScheda = (s: SchedaCommittente) => { ricorda(CHIAVE_SCHEDA_COMMITTENTE, s); setScheda(s); };
   return (
     <main className="lavori">
       <Testata etichetta={T.committente} titolo={cm.nome} sotto={T.committenteSotto(cm.progetti.length, giorno(cm.creato_il))} barra={barra} />
       <div className="corpo-lavoro">
-        <Tabs value={scheda} onChange={setScheda} items={[
+        <Tabs value={scheda} onChange={scegliScheda} items={[
           { id: "progetti", label: T.progettiScheda, count: cm.progetti.length },
           { id: "binari", label: T.binari },
         ]} />

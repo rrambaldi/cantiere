@@ -515,12 +515,13 @@ export function decidiBlocco(p: {
     !p.conteggio.resoconto && !!p.avvio && !!p.registrato && p.avvio > p.registrato;
 }
 
-// sessionTitle fa come /rename. Si manda solo quando "progetto · cantiere" cambia, così un /rename
-// fatto a mano dura fino al cambio di cantiere.
+// sessionTitle fa come /rename: "progetto · inizio del session_id · cantiere", l'inizio per distinguere due sessioni
+// sullo stesso cantiere. Si manda solo quando cambia, così un /rename fatto a mano dura fino al cambio di cantiere.
+const CIFRE_SESSIONE = 8;
 function titoloCantiere(c: Contesto): string | undefined {
   const cantiere = leggiSessione(c.sid)?.cantiere;
   if (!cantiere) return;
-  const titolo = `${c.cfg.progetto} · ${cantiere.percorso}`.slice(0, MAX_TITOLO);
+  const titolo = `${c.cfg.progetto} · ${c.sid.slice(0, CIFRE_SESSIONE)} · ${cantiere.percorso}`.slice(0, MAX_TITOLO);
   if (leggiSessione(c.sid)?.titolo_impostato === titolo) return;
   aggiornaSessione(c.sid, (s) => (s.titolo_impostato = titolo));
   return titolo;

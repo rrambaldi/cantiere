@@ -6,7 +6,7 @@ import { SessioneBadge, StatoBadge } from "./ds/feedback.js";
 import { eta, giorno, ora, quando } from "./formato.js";
 import { TaskERami } from "./rami.js";
 import { T } from "./testi.js";
-import { Avanzamento, Avviso, BottoneIcona, Etichetta, Pallino, Vuoto } from "./ui.js";
+import { Avanzamento, Avviso, BottoneIcona, Etichetta, Pallino, ricorda, ricordato, Vuoto } from "./ui.js";
 const FILE_AMMESSI = ".md,.txt,text/markdown,text/plain";
 /** `barra`: il percorso e il bottone della scheda, sopra l'etichetta. */
 function Testata({ etichetta, titolo, sotto, barra }) {
@@ -299,12 +299,15 @@ export function LavoroProgetto({ p, committente, nonCensite, onScegli, barra }) 
                                     React.createElement("th", null, T.colStato))),
                             React.createElement("tbody", null, nonCensite.map((s) => React.createElement(RigaNonCensita, { key: s.session_id, s: s }))))))))));
 }
+const CHIAVE_SCHEDA_COMMITTENTE = "forgia-scheda-committente";
 export function LavoroCommittente({ cm, onScegli, barra }) {
-    const [scheda, setScheda] = React.useState("progetti");
+    // Progetti o Binari restano come li si è lasciati, anche cambiando committente o ricaricando.
+    const [scheda, setScheda] = React.useState(() => ricordato(CHIAVE_SCHEDA_COMMITTENTE, "progetti") === "binari" ? "binari" : "progetti");
+    const scegliScheda = (s) => { ricorda(CHIAVE_SCHEDA_COMMITTENTE, s); setScheda(s); };
     return (React.createElement("main", { className: "lavori" },
         React.createElement(Testata, { etichetta: T.committente, titolo: cm.nome, sotto: T.committenteSotto(cm.progetti.length, giorno(cm.creato_il)), barra: barra }),
         React.createElement("div", { className: "corpo-lavoro" },
-            React.createElement(Tabs, { value: scheda, onChange: setScheda, items: [
+            React.createElement(Tabs, { value: scheda, onChange: scegliScheda, items: [
                     { id: "progetti", label: T.progettiScheda, count: cm.progetti.length },
                     { id: "binari", label: T.binari },
                 ] }),

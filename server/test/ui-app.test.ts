@@ -65,3 +65,22 @@ test("nella pagina del progetto la domanda di una sessione senza cantiere sta in
   const righe = [...window.document.querySelectorAll(".tabella tbody tr")].map((r) => r.querySelector(".pallino") !== null);
   assert.deepEqual(righe, [true, false]);
 });
+
+test("nel committente la scheda scelta, Progetti o Binari, resta anche tornandoci da un'altra pagina", async () => {
+  await naviga(() => (window.location.hash = "#/PRIV"));
+  assert.equal($('[role="tab"][aria-selected="true"]')?.textContent, "Progetti2");
+  await clic('[role="tab"]', "Binari");
+  assert.equal(window.localStorage.getItem("forgia-scheda-committente"), '"binari"');
+  await naviga(() => (window.location.hash = "#/PRIV/cantiere"));
+  await naviga(() => (window.location.hash = "#/PRIV"));
+  assert.equal($('[role="tab"][aria-selected="true"]')?.textContent, "Binari");
+  assert.ok($(".binari"));
+});
+
+test("la lingua si sceglie da una tendina con i nomi delle lingue", async () => {
+  const scelta = $(".lingua select") as HTMLSelectElement;
+  assert.deepEqual([...scelta.options].map((o) => o.textContent), ["Italiano", "English"]);
+  await naviga(() => { scelta.value = "en"; scelta.dispatchEvent(new window.Event("change", { bubbles: true })); });
+  assert.equal(window.document.documentElement.lang, "en");
+  assert.equal(window.localStorage.getItem("forgia-lingua"), "en");
+});

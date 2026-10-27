@@ -47,7 +47,7 @@ async function monta(props: object) {
   const radice = createRoot($("#radice"));
   const base = {
     committenti: ALBERO, selezione: { tipo: "cantiere", id: 100 }, vista: "aperti", onVista: () => {},
-    posizione: { livello: "cantieri", cm: 1, p: 10 }, colonne: { colonna: true, fissata: false, scheda: true },
+    posizione: { livello: "cantieri", cm: 1, p: 10 }, colonne: { colonna: true, scheda: true },
     ristretta: false, onNuovoCommittente: () => {}, aggiornato: null, release: "26.10.10", errore: null, onLingua: () => {},
     onScegli: (s: unknown) => chiamate.scegli.push(s), onPosizione: (p: unknown) => chiamate.posizione.push(p),
     onColonne: (c: unknown) => chiamate.colonne.push(c),
@@ -89,18 +89,12 @@ test("un figlio con il padre in un altro filtro mostra il percorso intero", asyn
   await smonta();
 });
 
-test("scelto un cantiere la colonna si chiude da sola, con la puntina accesa no", async () => {
-  const libera = await monta({});
+test("scelto un cantiere la colonna si chiude da sola", async () => {
+  const { chiamate, smonta } = await monta({});
   await clic(".voce");
-  assert.deepEqual(libera.chiamate.scegli, [{ tipo: "cantiere", id: 100 }]);
-  assert.deepEqual(libera.chiamate.colonne, [{ colonna: false }]);
-  await libera.smonta();
-
-  const fissata = await monta({ colonne: { colonna: true, fissata: true, scheda: true } });
-  assert.equal($('button[aria-label="Tieni aperta la colonna"]')!.getAttribute("aria-pressed"), "true");
-  await clic(".voce");
-  assert.deepEqual(fissata.chiamate.colonne, []);
-  await fissata.smonta();
+  assert.deepEqual(chiamate.scegli, [{ tipo: "cantiere", id: 100 }]);
+  assert.deepEqual(chiamate.colonne, [{ colonna: false }]);
+  await smonta();
 });
 
 test("livello progetti: doppio clic sul titolo per la pagina del committente, o per la home nella vista ristretta", async () => {
@@ -142,7 +136,7 @@ test("colonna chiusa: rotaia «sfoglia» con il pallino di tutte le domande; chi
   const { chiamate, mostra, smonta } = await monta({});
   await clic('button[aria-label="Chiudi la colonna"]');
   assert.deepEqual(chiamate.colonne, [{ colonna: false }]);
-  await mostra({ colonne: { colonna: false, fissata: false, scheda: true } });
+  await mostra({ colonne: { colonna: false, scheda: true } });
   assert.ok(!$(".livello"), "nessun livello nella rotaia");
   assert.ok(window.document.activeElement?.matches("button.sfoglia"), "il fuoco è su «sfoglia»");
   assert.equal($(".rotaia .pallino")!.getAttribute("aria-label"), "2 domande in attesa di risposta");
@@ -152,16 +146,16 @@ test("colonna chiusa: rotaia «sfoglia» con il pallino di tutte le domande; chi
 });
 
 test("aperta da fuori la colonna prende il fuoco rimasto nel vuoto, non quello che sta altrove", async () => {
-  const chiusa = { colonne: { colonna: false, fissata: false, scheda: true } };
+  const chiusa = { colonne: { colonna: false, scheda: true } };
   const { mostra, smonta } = await monta(chiusa);
   (window.document.activeElement as HTMLElement | null)?.blur();
-  await mostra({ colonne: { colonna: true, fissata: false, scheda: true } });
+  await mostra({ colonne: { colonna: true, scheda: true } });
   assert.ok(window.document.activeElement?.matches(".livello-titolo"), "il fuoco è sul titolo del livello");
   await mostra(chiusa);
   const altrove = window.document.createElement("button");
   window.document.body.append(altrove);
   altrove.focus();
-  await mostra({ colonne: { colonna: true, fissata: false, scheda: true } });
+  await mostra({ colonne: { colonna: true, scheda: true } });
   assert.ok(window.document.activeElement === altrove, "il fuoco resta dov'era");
   altrove.remove();
   await smonta();

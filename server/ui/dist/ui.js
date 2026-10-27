@@ -35,7 +35,7 @@ const ICONE = {
     apriColonna: [RIQUADRO, "M9 3v18", "m14 9 3 3-3 3"],
     chiudiScheda: [RIQUADRO, "M15 3v18", "m8 9 3 3-3 3"],
     apriScheda: [RIQUADRO, "M15 3v18", "m10 15-3-3 3-3"],
-    puntina: ["M12 17v5", "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"],
+    lingua: ["m5 8 6 6", "m4 14 6-6 2-3", "M2 5h12", "M7 2h1", "m22 22-5-10-5 10", "M14 18h6"],
     avanti: ["m9 18 6-6-6-6"],
     indietro: ["m15 18-6-6 6-6"],
 };
@@ -47,6 +47,23 @@ export function Icona({ nome }) {
 export function BottoneIcona({ icona, titolo, onClick, disabled = false, premuto }) {
     return (React.createElement(Button, { variant: premuto ? "secondario" : "fantasma", size: "sm", title: titolo, onClick: onClick, disabled: disabled, premuto: premuto, style: { width: 28, padding: 0 } },
         React.createElement(Icona, { nome: icona })));
+}
+// Quel che il browser ricorda (scelta, colonne, scheda del committente) è una comodità: senza storage si riparte dal valore predefinito.
+export function ricordato(chiave, predefinito) {
+    try {
+        return JSON.parse(localStorage.getItem(chiave) ?? "null") ?? predefinito;
+    }
+    catch {
+        return predefinito;
+    }
+}
+export function ricorda(chiave, valore) {
+    try {
+        localStorage.setItem(chiave, JSON.stringify(valore));
+    }
+    catch {
+        /* storage non disponibile: il valore non resta, il resto funziona */
+    }
 }
 export function Etichetta({ children }) {
     return React.createElement("span", { className: "etichetta" }, children);

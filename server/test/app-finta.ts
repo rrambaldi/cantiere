@@ -55,6 +55,8 @@ export async function montaApp({ url, ricordati = {}, ritardi = {}, telefono = f
     window, document: window.document, location: window.location, history: window.history, localStorage: window.localStorage,
     addEventListener: window.addEventListener.bind(window), removeEventListener: window.removeEventListener.bind(window),
     matchMedia: () => media, HTMLElement: window.HTMLElement, fetch: fetchFinto, IS_REACT_ACT_ENVIRONMENT: true,
+    // jsdom non misura: i binari restano alla larghezza minima.
+    ResizeObserver: class { observe() {} disconnect() {} },
   });
   // react-dom guarda all'avvio se c'è un DOM: caricato prima, usa i ripieghi dei vecchi browser e si rompe sui campi di testo.
   const React = richiedi("react");
