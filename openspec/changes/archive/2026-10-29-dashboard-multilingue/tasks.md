@@ -3,8 +3,8 @@
 ## 1. Base
 
 - [x] 1.1 Creare `server/ui/src/testi.ts` con i dizionari `it` ed `en` e il tipo delle chiavi; verifica: `npm run typecheck` fallisce se una chiave manca in `en`.
-- [ ] 1.2 Aggiungere `impostaLingua` e lo stato lingua in `app.tsx` (stato lingua, scelta iniziale da `localStorage` poi `navigator.language`, salvataggio, aggiornamento di `<html lang>` e del titolo); verifica: con `navigator.language` francese parte in italiano, con inglese parte in inglese.
-- [ ] 1.3 Selettore di lingua (IT / EN) nell'intestazione; verifica: il cambio è immediato e sopravvive al ricaricamento.
+- [x] 1.2 Aggiungere `impostaLingua` e lo stato lingua in `app.tsx` (stato lingua, scelta iniziale da `localStorage` poi `navigator.language`, salvataggio, aggiornamento di `<html lang>` e del titolo); verifica: con `navigator.language` francese parte in italiano, con inglese parte in inglese.
+- [x] 1.3 Selettore di lingua (IT / EN) nell'intestazione; verifica: il cambio è immediato e sopravvive al ricaricamento.
 
 ## 2. Stringhe
 
@@ -16,6 +16,6 @@
 ## 3. Chiusura
 
 - [x] 3.1 Cercare testo italiano rimasto in `server/ui/src/**/*.tsx` (grep su accenti e parole comuni); verifica: solo nel dizionario.
-- [ ] 3.2 Aprire la dashboard in entrambe le lingue e controllare viste, dialoghi e layout; verifica: nessun testo troncato o misto.
+- [x] 3.2 Aprire la dashboard in entrambe le lingue e controllare viste, dialoghi e layout; verifica: nessun testo troncato o misto.
 - [x] 3.3 `npm run build:ui` e `npm test` in `server/`; verifica: test verdi, incluso `ui-compilato`.
 - [x] 3.4 Aggiornare `server/README.md` con la lingua della dashboard; verifica: una riga che spiega selettore e predefinito.
