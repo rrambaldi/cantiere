@@ -9,7 +9,7 @@ import { di, progettiDi, sessioniDi, TUTTI, type Ambito } from "./ambito.ts";
 import { annullaComando, creaComando, esitoSuDomanda, esitoSuTask, leggiComandi, taskDiVerifica } from "./comandi.ts";
 import { AZIONI, cambiaEsito, creaProgetto, discendentiAttivi, elencaSessioni, formaProgetto, leggiCantieri, percorsoDi, ultimiStati, type Ambiente, type Azione } from "./dominio.ts";
 import { domandeInAttesa } from "./domande.ts";
-import { aggiungiFile, creaIdea, eliminaFile, mettiNatoDa, modificaIdea, togliNatoDa } from "./idee.ts";
+import { aggiungiFile, creaIdea, eliminaFile, mettiNatoDa, modificaCantiere, togliNatoDa } from "./idee.ts";
 import { contaTask, Rifiuto } from "./modelli.ts";
 
 /** La release (AA.MM.N) è la versione di server/package.json. */
@@ -181,7 +181,7 @@ const SCRITTURE: [RegExp, Rotta][] = [
     },
   ],
   [/^\/ui\/api\/progetti\/(\d+)\/idee$/, async (amb, ambito, id, corpo) => ({ cantiere: await creaIdea(amb, ambito, id, corpo) })],
-  [/^\/ui\/api\/cantieri\/(\d+)\/modifica$/, async (amb, ambito, id, corpo) => ({ cantiere: await modificaIdea(amb, ambito, id, corpo) })],
+  [/^\/ui\/api\/cantieri\/(\d+)\/modifica$/, async (amb, ambito, id, corpo) => ({ cantiere: await modificaCantiere(amb, ambito, id, corpo) })],
   [/^\/ui\/api\/cantieri\/(\d+)\/file$/, async (amb, ambito, id, corpo) => ({ file: await aggiungiFile(amb, ambito, id, corpo) })],
   [/^\/ui\/api\/cantieri\/(\d+)\/file\/elimina$/, async (amb, ambito, id, corpo) => (await eliminaFile(amb, ambito, id, corpo.nome), {})],
   [/^\/ui\/api\/cantieri\/(\d+)\/nato-da$/, async (amb, ambito, id, corpo) => (await mettiNatoDa(amb, ambito, id, corpo), {})],

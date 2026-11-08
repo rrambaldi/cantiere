@@ -69,7 +69,7 @@ const rango = (p: string) => {
   return i >= 0 ? i : p.startsWith("specs/") ? 3 : p.startsWith("idee/") ? 4 : 5;
 };
 
-function BottoneCopia({ testo }: { testo: string }) {
+export function BottoneCopia({ testo }: { testo: string }) {
   const [riuscita, setRiuscita] = React.useState<boolean | null>(null);
   const copia = () => navigator.clipboard.writeText(testo).then(() => setRiuscita(true), () => setRiuscita(false));
   React.useEffect(() => {

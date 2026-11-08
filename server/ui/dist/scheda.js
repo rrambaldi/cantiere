@@ -3,6 +3,7 @@ import { Button, Checkbox } from "./ds/core.js";
 import { StatoBadge } from "./ds/feedback.js";
 import { eta, finale, giorno, quando } from "./formato.js";
 import { T } from "./testi.js";
+import { BottoneCopia } from "./lavori.js";
 import { Avanzamento, BottoneIcona, Campi, Etichetta, Vuoto } from "./ui.js";
 const ARTEFATTI = ["proposal", "design", "specs", "tasks"];
 /** «3 subagenti · 2 Explore · 1 general-purpose»: i più usati per primi. */
@@ -41,6 +42,8 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea, onAggiorna
     const attive = new Set(c.sessioni.map((s) => s.session_id));
     const diSessione = d.comandi.filter((x) => x.task === null && x.session_id !== null);
     const ferme = diSessione.filter((x) => !attive.has(x.session_id));
+    // Per numero: il comando vale anche dopo un cambio di nome.
+    const comando = `/cantiere prendi #${c.id}`;
     return (React.createElement("aside", { className: "scheda", "aria-label": T.schedaTecnica },
         React.createElement(Blocco, { titolo: T.schedaTecnicaEt }, React.createElement(Campi, { righe: [
                 [T.progetto, c.progetto],
@@ -50,6 +53,11 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea, onAggiorna
                 [T.creato, quando(c.creato_il)],
                 [T.aggiornato, quando(c.aggiornato_il)],
             ] })),
+        (c.stato === "idea" || c.stato === "aperto") && (React.createElement(Blocco, { titolo: T.perClaude },
+            React.createElement("div", { className: "comando-claude" },
+                React.createElement("code", null, comando),
+                React.createElement(BottoneCopia, { testo: comando })),
+            React.createElement("span", { className: "nota" }, T.notaPerClaude(c.progetto)))),
         c.stato !== "idea" && (React.createElement(Blocco, { titolo: T.avanzamento },
             c.task ? React.createElement(Campi, { righe: [[T.task, React.createElement(Avanzamento, { fatti: c.task.fatti, totali: c.task.totali, attivo: c.stato === "aperto" })]] })
                 : React.createElement(Vuoto, null, T.nessunTasks),
@@ -84,20 +92,13 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea, onAggiorna
                     T.origini[e.da])))))),
         React.createElement("div", { className: "blocco azioni" },
             React.createElement(Etichetta, null, T.esito),
+            React.createElement(Button, { variant: "secondario", size: "sm", onClick: onModifica }, T.modificaNomeDescr),
             finale(c.stato) ? React.createElement(StatoBadge, { stato: c.stato }) : (React.createElement(React.Fragment, null,
-                c.stato === "idea" && React.createElement(Button, { variant: "secondario", size: "sm", onClick: onModifica }, T.modificaNomeDescr),
                 c.stato === "aperto" && React.createElement(Button, { variant: "secondario", size: "sm", onClick: () => onEsito("sospendi") }, T.sospendi),
                 c.stato === "sospeso" && React.createElement(Button, { size: "sm", onClick: () => onEsito("riattiva") }, T.riattiva),
                 React.createElement(Button, { variant: "fantasma", size: "sm", onClick: () => onEsito("abbandona") }, T.abbandona),
                 React.createElement(Button, { variant: "fantasma", size: "sm", onClick: onNuovaIdea }, T.nuovaIdeaSotto),
-                React.createElement("span", { className: "nota" }, c.stato === "idea"
-                    ? React.createElement(React.Fragment, null,
-                        T.notaIdea[0],
-                        React.createElement("code", null,
-                            "/cantiere prendi ",
-                            c.percorso),
-                        T.notaIdea[1])
-                    : T.notaCompletato))))));
+                c.stato !== "idea" && React.createElement("span", { className: "nota" }, T.notaCompletato))))));
 }
 export function SchedaProgetto({ p, committente, onNuovaIdea }) {
     const n = (s) => p.cantieri.filter((c) => c.stato === s).length;

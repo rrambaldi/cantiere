@@ -166,7 +166,8 @@ che l'ha già iniettato non lo ripete. 404 progetto inesistente; 413; 422.
 ### `POST /api/v1/progetti/<progetto>/cantieri/<percorso>/prendi`
 
 `<percorso>` sono i segmenti del cantiere separati da `/`, ciascuno codificato con
-`encodeURIComponent`. Corpo:
+`encodeURIComponent`, oppure `#<id>` (codificato `%23<id>`): il riferimento che la dashboard fa
+copiare, che vale anche dopo un cambio di nome. Corpo:
 
 ```json
 {"session_id": "...", "host": "...", "cwd": "...", "repo": "... | null", "branch": "... | null"}
@@ -178,7 +179,7 @@ se serve). Su un cantiere già `aperto` associa la sessione e risponde allo stes
 200 → `{"cantiere": {...come nella risposta degli eventi}, "change": "idoc-converter", "file": [{"nome": "nota.md", "contenuto": "..."}]}`
 
 404 progetto o cantiere inesistente; 409 (`{"errore": "..."}`) se il cantiere è `sospeso`,
-`completato` o `abbandonato`.
+`completato` o `abbandonato`, o se `#<id>` è di un altro progetto (l'errore dice quale).
 
 ## Ramo in un altro progetto
 

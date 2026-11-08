@@ -81,8 +81,9 @@ function Modifica({ cantiere, esegui, onChiudi }) {
     const [nome, setNome] = React.useState(cantiere.nome);
     const [descrizione, setDescrizione] = React.useState(cantiere.descrizione ?? "");
     const { occupato, errore, invia } = useInvio(onChiudi);
-    return (React.createElement(Dialog, { titolo: T.modificaIdea, onChiudi: onChiudi, azioni: React.createElement(Azioni, { conferma: T.salva, occupato: occupato, disabilitato: !nome.trim(), onChiudi: onChiudi, onConferma: () => invia(() => esegui(cantiere, nome.trim(), descrizione.trim() || null)) }) },
-        React.createElement(Input, { label: T.nome, value: nome, onChange: setNome, hint: T.suggModifica, error: errore, autoFocus: true }),
+    const idea = cantiere.stato === "idea";
+    return (React.createElement(Dialog, { titolo: idea ? T.modificaIdea : T.modificaCantiere, onChiudi: onChiudi, azioni: React.createElement(Azioni, { conferma: T.salva, occupato: occupato, disabilitato: !nome.trim(), onChiudi: onChiudi, onConferma: () => invia(() => esegui(cantiere, nome.trim(), descrizione.trim() || null)) }) },
+        React.createElement(Input, { label: T.nome, value: nome, onChange: setNome, hint: idea ? T.suggModifica : T.suggModificaCantiere(cantiere.change), error: errore, autoFocus: true }),
         React.createElement(Input, { label: T.descrizione, value: descrizione, onChange: setDescrizione, multilinea: true })));
 }
 function Esito({ cantiere, azione, discendenti, esegui, onChiudi }) {

@@ -5,6 +5,7 @@ import { Button, Checkbox } from "./ds/core.tsx";
 import { StatoBadge } from "./ds/feedback.tsx";
 import { eta, finale, giorno, quando } from "./formato.ts";
 import { T } from "./testi.ts";
+import { BottoneCopia } from "./lavori.tsx";
 import { Avanzamento, BottoneIcona, Campi, Etichetta, Vuoto } from "./ui.tsx";
 
 const ARTEFATTI = ["proposal", "design", "specs", "tasks"] as const;
@@ -50,6 +51,8 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea, onAggiorna
   const attive = new Set(c.sessioni.map((s) => s.session_id));
   const diSessione = d.comandi.filter((x) => x.task === null && x.session_id !== null);
   const ferme = diSessione.filter((x) => !attive.has(x.session_id!));
+  // Per numero: il comando vale anche dopo un cambio di nome.
+  const comando = `/cantiere prendi #${c.id}`;
   return (
     <aside className="scheda" aria-label={T.schedaTecnica}>
       <Blocco titolo={T.schedaTecnicaEt}>
@@ -62,6 +65,12 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea, onAggiorna
           [T.aggiornato, quando(c.aggiornato_il)],
         ]} />
       </Blocco>
+      {(c.stato === "idea" || c.stato === "aperto") && (
+        <Blocco titolo={T.perClaude}>
+          <div className="comando-claude"><code>{comando}</code><BottoneCopia testo={comando} /></div>
+          <span className="nota">{T.notaPerClaude(c.progetto)}</span>
+        </Blocco>
+      )}
       {c.stato !== "idea" && (
         <Blocco titolo={T.avanzamento}>
           {c.task ? <Campi righe={[[T.task, <Avanzamento fatti={c.task.fatti} totali={c.task.totali} attivo={c.stato === "aperto"} />]]} />
@@ -109,16 +118,14 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea, onAggiorna
       )}
       <div className="blocco azioni">
         <Etichetta>{T.esito}</Etichetta>
+        <Button variant="secondario" size="sm" onClick={onModifica}>{T.modificaNomeDescr}</Button>
         {finale(c.stato) ? <StatoBadge stato={c.stato} /> : (
           <>
-            {c.stato === "idea" && <Button variant="secondario" size="sm" onClick={onModifica}>{T.modificaNomeDescr}</Button>}
             {c.stato === "aperto" && <Button variant="secondario" size="sm" onClick={() => onEsito("sospendi")}>{T.sospendi}</Button>}
             {c.stato === "sospeso" && <Button size="sm" onClick={() => onEsito("riattiva")}>{T.riattiva}</Button>}
             <Button variant="fantasma" size="sm" onClick={() => onEsito("abbandona")}>{T.abbandona}</Button>
             <Button variant="fantasma" size="sm" onClick={onNuovaIdea}>{T.nuovaIdeaSotto}</Button>
-            <span className="nota">{c.stato === "idea"
-              ? <>{T.notaIdea[0]}<code>/cantiere prendi {c.percorso}</code>{T.notaIdea[1]}</>
-              : T.notaCompletato}</span>
+            {c.stato !== "idea" && <span className="nota">{T.notaCompletato}</span>}
           </>
         )}
       </div>

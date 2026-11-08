@@ -109,8 +109,14 @@ token una sola volta, subito dopo la creazione o la rigenerazione, con l'invito 
 
 ### Requirement: Progetti e idee dalla dashboard
 La dashboard MUST permettere di creare un progetto sotto un committente e un'idea sotto un progetto o
-un cantiere, con nome, descrizione e file caricati dal browser, e di modificare un'idea finché è in
-stato `idea`.
+un cantiere, con nome, descrizione e file caricati dal browser, di modificare i file di un'idea finché
+è in stato `idea`, e di cambiare nome e descrizione di un cantiere in ogni stato. La scheda di un'idea o
+di un cantiere aperto MUST mostrare il comando `/cantiere prendi #<id>`, con un pulsante per copiarlo,
+da incollare in una sessione di Claude Code nella cartella del progetto.
+
+#### Scenario: Comando da copiare
+- **WHEN** si apre la scheda del cantiere aperto 42 di `poker`
+- **THEN** c'è `/cantiere prendi #42` con il pulsante per copiarlo; incollato in una sessione in `poker`, la sessione entra nel cantiere anche dopo un cambio di nome
 
 #### Scenario: Idea con file
 - **WHEN** in `poker` si crea l'idea `iDOC converter` trascinando 10 file `.md`

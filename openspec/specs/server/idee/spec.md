@@ -33,12 +33,31 @@ con un errore che lo nomina, senza toccare gli altri.
 - **THEN** il file è rifiutato e l'idea resta com'era
 
 ### Requirement: Modifica solo in stato idea
-Nome, descrizione e file MUST essere modificabili solo finché il cantiere è in stato `idea`. Dopo la
-presa in lavorazione i file sul server MUST essere solo la copia mandata dal plugin.
+I file MUST essere modificabili solo finché il cantiere è in stato `idea`. Dopo la presa in
+lavorazione i file sul server MUST essere solo la copia mandata dal plugin.
 
 #### Scenario: File aggiunto dopo la presa
 - **WHEN** il cantiere `idoc-converter` è `aperto` e la dashboard prova ad aggiungergli un file
 - **THEN** la richiesta è rifiutata con 409 e un errore che dice che il cantiere è già in lavorazione
+
+### Requirement: Nome e descrizione in ogni stato
+Nome e descrizione di un cantiere MUST essere modificabili dalla dashboard in ogni stato. Il nome nuovo
+MUST valere anche nei percorsi dei discendenti e MUST essere libero nel progetto. Nelle idee, anche
+discendenti, il nome del change MUST seguire il percorso nuovo e MUST essere libero; dopo la presa MUST
+restare quello di prima, perché la sua cartella nel repo
+non cambia nome, e il nome vecchio non MUST aprire un cantiere nuovo finché il change è di questo.
+
+#### Scenario: Idea rinominata
+- **WHEN** l'idea `bozza`, con l'idea figlia `fase`, diventa `Report mensile`
+- **THEN** il suo change è `report-mensile` e si prende con `/cantiere prendi report-mensile`; la sua idea figlia `fase` ha il change `report-mensile-fase`
+
+#### Scenario: Cantiere aperto rinominato
+- **WHEN** il cantiere aperto `analisi`, con la fase `fase`, diventa `Analisi dei costi`
+- **THEN** il change resta `analisi`, `analisi-dei-costi` e `analisi-dei-costi/fase` si prendono, e aprire `analisi` è rifiutato perché il change `analisi` è già di `Analisi dei costi`
+
+#### Scenario: Nome già preso
+- **WHEN** l'idea `due` diventa `Uno` e nel progetto c'è già `uno`
+- **THEN** la dashboard riceve 409 e il nome resta `due`
 
 ### Requirement: Presa in lavorazione
 `POST /api/v1/progetti/<progetto>/cantieri/<percorso>/prendi` con un `session_id` MUST portare
@@ -53,6 +72,10 @@ gli stessi dati.
 #### Scenario: Seconda macchina
 - **WHEN** `idoc-converter` è già `aperto` e una sessione su un'altra macchina lo prende
 - **THEN** la sessione è associata al cantiere e riceve lo stesso change e gli stessi file
+
+#### Scenario: Presa per numero
+- **WHEN** una sessione in `poker` prende `#42`, il riferimento copiato dalla dashboard per il cantiere 42 di `poker`, anche rinominato
+- **THEN** la presa va come per percorso; se il cantiere 42 è di un altro progetto il server risponde 409 con un errore che nomina quel progetto
 
 #### Scenario: Cantiere chiuso
 - **WHEN** una sessione prova a prendere un cantiere `completato` o `abbandonato`

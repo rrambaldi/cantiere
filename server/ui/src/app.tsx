@@ -259,7 +259,7 @@ function App() {
       setSelezione({ tipo: "cantiere", id: r.cantiere.id });
     },
     async modifica(c, nome, descrizione) {
-      await api.modificaIdea(c.id, { nome, descrizione });
+      await api.modifica(c.id, { nome, descrizione });
       await aggiorna();
     },
     async esito(c, azione) {

@@ -49,7 +49,7 @@ const rango = (p) => {
     const i = ORDINE_FILE.indexOf(p);
     return i >= 0 ? i : p.startsWith("specs/") ? 3 : p.startsWith("idee/") ? 4 : 5;
 };
-function BottoneCopia({ testo }) {
+export function BottoneCopia({ testo }) {
     const [riuscita, setRiuscita] = React.useState(null);
     const copia = () => navigator.clipboard.writeText(testo).then(() => setRiuscita(true), () => setRiuscita(false));
     React.useEffect(() => {

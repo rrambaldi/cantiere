@@ -190,7 +190,7 @@ export const api = {
     richiesta<{ progetto: Progetto }>(`committenti/${committente}/progetti`, { nome }),
   creaIdea: (progetto: number, idea: { nome: string; descrizione: string | null; padre_id: number | null }) =>
     richiesta<{ cantiere: Cantiere }>(`progetti/${progetto}/idee`, idea),
-  modificaIdea: (cantiere: number, campi: { nome: string; descrizione: string | null }) =>
+  modifica: (cantiere: number, campi: { nome: string; descrizione: string | null }) =>
     richiesta<{ cantiere: Cantiere }>(`cantieri/${cantiere}/modifica`, campi),
   caricaFile: (cantiere: number, nome: string, contenuto: string) =>
     richiesta<{ file: { nome: string; byte: number } }>(`cantieri/${cantiere}/file`, { nome, contenuto }),

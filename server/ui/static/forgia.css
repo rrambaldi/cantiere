@@ -241,6 +241,8 @@ button{font:inherit;color:inherit}
 .blocco{display:flex;flex-direction:column;gap:10px;min-width:0}
 .blocco.azioni{margin-top:auto;gap:8px}
 .blocco.azioni > button{width:100%}
+.comando-claude{display:flex;align-items:center;gap:6px;min-width:0}
+.comando-claude code{overflow-wrap:anywhere}
 .campi{display:grid;grid-template-columns:88px minmax(0,1fr);row-gap:6px;column-gap:8px;margin:0;font:400 12px/1.4 var(--font-mono)}
 .campi dt{color:var(--testo-2)}
 .campi dd{margin:0;min-width:0;overflow-wrap:anywhere}

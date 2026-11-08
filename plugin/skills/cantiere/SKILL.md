@@ -1,7 +1,7 @@
 ---
 name: cantiere
 description: Collega la cartella a un progetto di cantiere forgia, apre o prende un cantiere per questa sessione, mostra lo stato e configura il plugin.
-argument-hint: "[[padre/]nome [--padre p] | prendi <percorso> | dirama <progetto>/<nome> [--task N] | fork <nome> --task N | collega <progetto> [url] | stato | permessi | on | off | comandi on|off]"
+argument-hint: "[[padre/]nome [--padre p] | prendi <percorso>|#id | dirama <progetto>/<nome> [--task N] | fork <nome> --task N | collega <progetto> [url] | stato | permessi | on | off | comandi on|off]"
 disable-model-invocation: true
 allowed-tools: Bash(forgia *), mcp__forgia__apri_cantiere, mcp__forgia__elenca_cantieri, mcp__forgia__stato_sessione
 ---
@@ -17,7 +17,7 @@ Se un comando `forgia` fallisce dicendo che serve Node.js, rispondi in una riga 
    - Se dice che manca il token, riporta le due strade che indica: impostare `FORGIA_TOKEN` e rilanciare, oppure il comando da terminale con il percorso intero.
 3. `chiudi ...` o `server ...` (forme della versione 1): non lanciare nulla. Rispondi in poche righe: completato arriva da `openspec archive <change>`; sospeso e abbandonato si decidono dalla dashboard; per collegare la cartella si usa `/cantiere collega <progetto> <url>`.
 4. Ogni altra forma: lancia prima `forgia status --json`. Se `in_area` è false rispondi solo, in una riga, di lanciare `/cantiere collega <progetto> <url>` con `FORGIA_TOKEN` impostata.
-5. `prendi <percorso>`: lancia `forgia prendi "<percorso>" --session-id ${CLAUDE_SESSION_ID}`. Poi di' in poche righe quale change è nato, quanti file sono finiti in `openspec/changes/<change>/idee/` e come proseguire: partire da quei file con `/opsx:explore` oppure `/opsx:propose <change>`. Se il comando fallisce, riporta il motivo in una riga.
+5. `prendi <percorso>` (anche `prendi #<numero>`, il riferimento copiato dalla dashboard): lancia `forgia prendi "<percorso>" --session-id ${CLAUDE_SESSION_ID}`, con le virgolette. Poi di' in poche righe quale change è nato, quanti file sono finiti in `openspec/changes/<change>/idee/` e come proseguire: partire da quei file con `/opsx:explore` oppure `/opsx:propose <change>`. Se il comando fallisce, riporta il motivo in una riga.
 5a. `fork <nome> --task N` senza la conferma del punto 1: non lanciare nulla. Rispondi in una riga che il fork non è partito. Se la conferma arriva più tardi, nel contesto di un prompt dopo, scrivi il change come dice.
 5b. `dirama <progetto>/<nome> [--task N]`: lancia `forgia dirama "<progetto>/<nome>" [--task N] --session-id ${CLAUDE_SESSION_ID}`. Rispondi con una riga: la conferma che stampa, o il motivo del rifiuto.
 6. `permessi`: `forgia permetti-mcp`. `on` / `off`: `forgia on` / `forgia off`. `comandi on` / `comandi off`: `forgia comandi on|off`, poi riporta in una riga quel che stampa. `stato` o nessun argomento: riassumi `forgia status` (committente/progetto della cartella, server, token mascherato, comandi dalla dashboard accesi o spenti) e, se il tool c'è, `stato_sessione` (session_id `${CLAUDE_SESSION_ID}`): cantiere corrente o lavoro diretto, in poche righe. Se il server MCP dell'area non è registrato, si registra rifacendo `/cantiere collega <progetto>`.

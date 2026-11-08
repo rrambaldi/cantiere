@@ -61,6 +61,16 @@ test("scheda: storico e sessioni attive senza valori grezzi", () => {
   assert.match(scheda, /pronta · adesso/);
 });
 
+test("scheda: comando per Claude con il numero del cantiere su idee e aperti; Modifica nome e descrizione in ogni stato", () => {
+  const scheda = (stato: string) => html(SchedaCantiere, { d: dettaglio({ id: 42, stato }), onEsito: niente, onModifica: niente, onNuovaIdea: niente });
+  for (const stato of ["idea", "aperto"]) {
+    assert.match(scheda(stato), /<code>\/cantiere prendi #42<\/code>/);
+    assert.match(scheda(stato), /cartella di mercurius/);
+  }
+  for (const stato of ["sospeso", "completato", "abbandonato"]) assert.doesNotMatch(scheda(stato), /cantiere prendi/);
+  for (const stato of ["idea", "aperto", "sospeso", "completato"]) assert.match(scheda(stato), />Modifica nome e descrizione</);
+});
+
 test("giornale vuoto: un cantiere nato dal repo dice da dove viene, le altre origini restano come prima", () => {
   const lavoro = (origine: string) => html(LavoroCantiere, { d: dettaglio({ origine }), cantieri: [], onScegli: niente, onFile: niente, onTogliFile: niente });
   assert.match(lavoro("repo"), /Cantiere creato dalla copia di openspec\/changes\/ del repo/);

@@ -62,7 +62,7 @@ const FORK_DICHIARATO = "Il fork parte dal cantiere della sessione e ha un nome 
 const FORK_VALIDO_MS = 5 * 60_000;
 const FORK_SCADUTO = "Il fork è arrivato al server più di 5 minuti dopo il comando: non parte. Se serve ancora, rifallo con /cantiere fork.";
 const forkEsistente = (percorso: string) => `Il cantiere "${percorso}" esiste già: il fork ne apre uno nuovo, scegli un altro nome.`;
-const changePreso = (change: string, percorso: string) => `Il change "${change}" è già del cantiere "${percorso}": scegli un altro nome.`;
+export const changePreso = (change: string, percorso: string) => `Il change "${change}" è già del cantiere "${percorso}": scegli un altro nome.`;
 
 // Sessione creata da un client senza hook (MCP): host e cwd non si conoscono.
 const LUOGO_MCP: Luogo = { host: "mcp", cwd: "", repo: null, branch: null };

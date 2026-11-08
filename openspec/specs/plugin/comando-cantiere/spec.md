@@ -128,7 +128,8 @@ percorso intero dello script, che chiede il token senza mostrarlo.
 ### Requirement: Presa di un'idea da comando
 `/cantiere prendi <percorso>` MUST lanciare `forgia prendi <percorso>` per la sessione corrente e poi
 dire in poche righe quale change è nato, quanti file sono finiti in `idee/` e come proseguire: partire
-dai file di `idee/` con `/opsx:explore` o `/opsx:propose <change>`.
+dai file di `idee/` con `/opsx:explore` o `/opsx:propose <change>`. `<percorso>` MAY essere `#<id>`, il
+riferimento copiato dalla dashboard.
 
 #### Scenario: Idea presa da comando
 - **WHEN** in `~/lavori/poker` l'utente scrive `/cantiere prendi idoc-converter`

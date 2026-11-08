@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { di, TUTTI } from "../src/ambito.ts";
 import { cambiaEsito, creaProgetto } from "../src/dominio.ts";
-import { aggiungiFile, creaIdea, eliminaFile, modificaIdea } from "../src/idee.ts";
+import { aggiungiFile, creaIdea, eliminaFile, modificaCantiere } from "../src/idee.ts";
 import { Rifiuto } from "../src/modelli.ts";
 import { apri, avvia, cantiere, evento, invia, richiesta, sessione, type Banco } from "./aiuto.ts";
 
@@ -48,15 +48,58 @@ test("file: solo .md e .txt in UTF-8, entro max_file e max_file_idea, l'errore n
   assert.equal((await b.db.selectFrom("idee_file").select("nome").execute()).length, 11);
 });
 
-test("modifiche solo in stato idea; un'idea con figli non si rinomina", async () => {
+test("idea rinominata: il change segue il nome, i figli seguono nel percorso; i file solo finché è un'idea", async () => {
   const c = await idea("bozza");
-  const rinominata = await modificaIdea(b, TUTTI, c.id, { nome: "Report mensile", descrizione: "numeri del mese" });
+  const rinominata = await modificaCantiere(b, TUTTI, c.id, { nome: "Report mensile", descrizione: "numeri del mese" });
   assert.deepEqual([rinominata.nome, rinominata.change, rinominata.descrizione], ["Report mensile", "report-mensile", "numeri del mese"]);
-  await idea("fase", { padre_id: c.id });
-  await rifiutato(() => modificaIdea(b, TUTTI, c.id, { nome: "altro" }), 409, /con figli/);
-  await prendi("report-mensile");
+  const fase = await idea("fase", { padre_id: c.id });
+  const ancora = await modificaCantiere(b, TUTTI, c.id, { nome: "Report annuale" });
+  assert.equal(ancora.change, "report-annuale");
+  const presa = await prendi("report-annuale/fase");
+  assert.deepEqual([presa.corpo.cantiere.id, presa.corpo.change], [fase.id, "report-annuale-fase"], "anche il change della figlia segue");
   await rifiutato(() => aggiungiFile(b, TUTTI, c.id, { nome: "tardi.md", contenuto: "x" }), 409, /già in lavorazione/);
-  await rifiutato(() => modificaIdea(b, TUTTI, c.id, { descrizione: "x" }), 409);
+});
+
+test("cantiere in lavorazione rinominato: il change resta, il nome nuovo si prende, quello vecchio no", async () => {
+  const c = (await apri(b, "s1", "analisi")).corpo.cantiere;
+  const fase = await idea("fase", { padre_id: c.id });
+  const r = await modificaCantiere(b, TUTTI, c.id, { nome: "Analisi dei costi", descrizione: "per il preventivo" });
+  assert.deepEqual([r.nome, r.percorso, r.change, r.stato, r.descrizione], ["Analisi dei costi", "Analisi dei costi", "analisi", "aperto", "per il preventivo"]);
+  const presa = await prendi("analisi-dei-costi", "s2");
+  assert.deepEqual([presa.status, presa.corpo.change], [200, "analisi"]);
+  assert.equal((await prendi("analisi-dei-costi/fase", "s3")).corpo.cantiere.id, fase.id);
+  assert.equal((await prendi("analisi", "s4")).status, 404);
+  // Il nome vecchio non apre un cantiere nuovo: il suo change è ancora di questo.
+  assert.match((await apri(b, "s5", "analisi")).corpo.errore, /change "analisi" è già del cantiere "Analisi dei costi"/);
+  await modificaCantiere(b, TUTTI, c.id, { nome: "analisi" });
+  assert.equal((await prendi("analisi", "s6")).status, 200, "si torna al nome di prima");
+  await cambiaEsito(b, TUTTI, c.id, "abbandona");
+  assert.equal((await modificaCantiere(b, TUTTI, c.id, { nome: "analisi vecchia" })).percorso, "analisi vecchia");
+});
+
+test("nome già di un altro cantiere, o change nuovo di una figlia già preso: 409; nome vuoto: 422", async () => {
+  await idea("uno");
+  const due = await idea("due");
+  await rifiutato(() => modificaCantiere(b, TUTTI, due.id, { nome: "Uno" }), 409, /Esiste già il cantiere "uno"/);
+  await rifiutato(() => modificaCantiere(b, TUTTI, due.id, { nome: "  " }), 422);
+  await idea("x", { padre_id: due.id });
+  await idea("tre x");
+  await rifiutato(() => modificaCantiere(b, TUTTI, due.id, { nome: "tre" }), 409, /change "tre-x" è già del cantiere "tre x"/);
+  assert.equal((await prendi("due/x")).status, 200, "rifiutato, niente è cambiato");
+});
+
+test("presa per #id: vale anche dopo un cambio di nome; di un altro progetto 409 col progetto; inesistente o altrui 404", async () => {
+  const c = await idea("da prendere");
+  await modificaCantiere(b, TUTTI, c.id, { nome: "preso per numero" });
+  const r = await prendi(`#${c.id}`);
+  assert.deepEqual([r.status, r.corpo.cantiere.percorso, r.corpo.change], [200, "preso per numero", "preso-per-numero"]);
+  const venus = await creaProgetto(b.db, b.committente.id, "venus");
+  const altrove = await creaIdea(b, TUTTI, venus.id, { nome: "lontana" });
+  const r2 = await prendi(`#${altrove.id}`);
+  assert.deepEqual([r2.status, r2.corpo.errore], [409, "Il cantiere \"lontana\" è del progetto venus: prendilo da una sessione nella cartella di venus."]);
+  assert.equal((await prendi("#999999")).status, 404);
+  const priv = await b.altroCommittente(`PRIV${Date.now()}`, ["app"]);
+  assert.equal((await prendi(`#${c.id}`, "s9", priv.token)).status, 404);
 });
 
 test("prima presa: aperto, sessione con origine utente, change e file; seconda macchina: stessi dati", async () => {

@@ -131,11 +131,12 @@ function Modifica({ cantiere, esegui, onChiudi }: { cantiere: Cantiere; esegui: 
   const [nome, setNome] = React.useState(cantiere.nome);
   const [descrizione, setDescrizione] = React.useState(cantiere.descrizione ?? "");
   const { occupato, errore, invia } = useInvio(onChiudi);
+  const idea = cantiere.stato === "idea";
   return (
-    <Dialog titolo={T.modificaIdea} onChiudi={onChiudi}
+    <Dialog titolo={idea ? T.modificaIdea : T.modificaCantiere} onChiudi={onChiudi}
       azioni={<Azioni conferma={T.salva} occupato={occupato} disabilitato={!nome.trim()} onChiudi={onChiudi}
         onConferma={() => invia(() => esegui(cantiere, nome.trim(), descrizione.trim() || null))} />}>
-      <Input label={T.nome} value={nome} onChange={setNome} hint={T.suggModifica} error={errore} autoFocus />
+      <Input label={T.nome} value={nome} onChange={setNome} hint={idea ? T.suggModifica : T.suggModificaCantiere(cantiere.change)} error={errore} autoFocus />
       <Input label={T.descrizione} value={descrizione} onChange={setDescrizione} multilinea />
     </Dialog>
   );

@@ -8,6 +8,7 @@ import {
   cantiereDellaSessione,
   cantieriDelProgetto,
   changeOccupato,
+  changePreso,
   creaCantiere,
   leggiCantieri,
   nonApribile,
@@ -43,10 +44,11 @@ const nomeValido = (nome: unknown) => {
 /** Slug del percorso di un figlio: quello del padre più il suo. */
 const slugFiglio = (padre: { percorso_slug: string } | undefined, nome: string) => [...(padre ? padre.percorso_slug.split("/") : []), slugifica(nome)];
 
-async function nomeLibero(amb: Ambiente, progettoId: number, slugPercorso: string[]) {
+/** Il percorso è libero e, se `change`, anche il nome di change che ne viene. */
+async function nomeLibero(amb: Ambiente, progettoId: number, slugPercorso: string[], change = true) {
   const fratello = await cantieriDelProgetto(amb.db, progettoId).where("cantieri.percorso_slug", "=", slugPercorso.join("/")).executeTakeFirst();
   if (fratello) throw new Rifiuto(409, `Esiste già il cantiere "${await percorsoDi(amb.db, fratello.id)}".`);
-  const occupato = await changeOccupato(amb.db, progettoId, slugPercorso);
+  const occupato = change && (await changeOccupato(amb.db, progettoId, slugPercorso));
   if (occupato) throw new Rifiuto(409, occupato);
 }
 
@@ -75,29 +77,51 @@ export async function creaIdea(amb: Ambiente, ambito: Ambito, progettoId: number
   return unoLetto(amb, ambito, c.id);
 }
 
-/** Nome e descrizione si cambiano solo finché il cantiere è un'idea. */
-export async function modificaIdea(amb: Ambiente, ambito: Ambito, id: number, dati: { nome?: unknown; descrizione?: unknown }) {
-  const c = await soloIdea(amb, ambito, id);
+/**
+ * Nome e descrizione si cambiano in ogni stato. Il nome nuovo vale anche nei percorsi dei discendenti.
+ * Il change segue il percorso solo nelle idee: dopo la presa la sua cartella nel repo resta com'è.
+ */
+export async function modificaCantiere(amb: Ambiente, ambito: Ambito, id: number, dati: { nome?: unknown; descrizione?: unknown }) {
+  const c = await cantiereDi(amb, ambito, id);
   const modifiche: { nome?: string; slug?: string; percorso_slug?: string; change?: string; descrizione?: string | null } = {};
   if (dati.descrizione !== undefined) {
     const d = campi.descrizione.safeParse(dati.descrizione);
     if (!d.success) throw errore422(d.error);
     modifiche.descrizione = d.data ?? null;
   }
+  const discendenti: { id: number; percorso_slug: string; change: string }[] = [];
   if (dati.nome !== undefined) {
     const nome = nomeValido(dati.nome);
     const padre = c.padre_id === null ? undefined : await cantieriDelProgetto(amb.db, c.progetto_id).where("cantieri.id", "=", c.padre_id).executeTakeFirstOrThrow();
     const slugPercorso = slugFiglio(padre, nome);
-    if (slugPercorso.join("/") !== c.percorso_slug) {
-      // I percorsi dei figli dipendono da questo: si rinomina solo un'idea senza figli.
-      const figli = await cantieriDelProgetto(amb.db, c.progetto_id).where("cantieri.padre_id", "=", c.id).executeTakeFirst();
-      if (figli) throw new Rifiuto(409, "Un'idea con figli non si rinomina.");
-      await nomeLibero(amb, c.progetto_id, slugPercorso);
-      Object.assign(modifiche, { slug: slugPercorso[slugPercorso.length - 1], percorso_slug: slugPercorso.join("/"), change: nomeChange(slugPercorso) });
+    const percorso = slugPercorso.join("/");
+    if (percorso !== c.percorso_slug) {
+      await nomeLibero(amb, c.progetto_id, slugPercorso, false);
+      const prima = `${c.percorso_slug}/`;
+      const tutti = await cantieriDelProgetto(amb.db, c.progetto_id).execute();
+      const nuovi = tutti
+        .filter((x) => x.id === c.id || x.percorso_slug.startsWith(prima))
+        .map((x) => {
+          const p = x.id === c.id ? percorso : `${percorso}/${x.percorso_slug.slice(prima.length)}`;
+          return { id: x.id, percorso_slug: p, change: x.stato === "idea" ? nomeChange(p.split("/")) : x.change };
+        });
+      // Un change nuovo non deve essere di nessun altro, nemmeno col nome di prima: gli aggiornamenti vanno uno alla volta.
+      const presi = new Map(tutti.map((x) => [x.change, x.id]));
+      for (const n of nuovi) {
+        const chi = presi.get(n.change);
+        if (chi !== undefined && chi !== n.id) throw new Rifiuto(409, changePreso(n.change, await percorsoDi(amb.db, chi)));
+        presi.set(n.change, n.id);
+      }
+      const [suo] = nuovi.filter((n) => n.id === c.id);
+      Object.assign(modifiche, { slug: slugPercorso[slugPercorso.length - 1], percorso_slug: percorso, change: suo.change });
+      discendenti.push(...nuovi.filter((n) => n.id !== c.id));
     }
     modifiche.nome = nome;
   }
-  await amb.db.updateTable("cantieri").set({ ...modifiche, aggiornato_il: adesso() }).where("id", "=", c.id).execute();
+  await amb.db.transaction().execute(async (trx) => {
+    await trx.updateTable("cantieri").set({ ...modifiche, aggiornato_il: adesso() }).where("id", "=", c.id).execute();
+    for (const { id, ...d } of discendenti) await trx.updateTable("cantieri").set(d).where("id", "=", id).execute();
+  });
   return unoLetto(amb, ambito, c.id);
 }
 
@@ -129,9 +153,27 @@ export async function eliminaFile(amb: Ambiente, ambito: Ambito, id: number, nom
 }
 
 const corpoPresa = luogo.extend({ session_id: campi.sessionId });
+/** `#<id>`: il riferimento che la dashboard fa copiare, valido anche dopo un cambio di nome. */
+const PER_ID = /^#(\d+)$/;
+
+/** Il cantiere da prendere, per percorso o per `#<id>`; quello di un altro progetto si prende dalla sua cartella. */
+async function daPrendere(amb: Ambiente, committente: Committente, progetto: { id: number; nome: string }, nomi: string[]) {
+  const numero = nomi.length === 1 ? PER_ID.exec(nomi[0])?.[1] : undefined;
+  if (numero === undefined) {
+    const c = await cantieriDelProgetto(amb.db, progetto.id).where("cantieri.percorso_slug", "=", nomi.map(slugifica).join("/")).executeTakeFirst();
+    if (!c) throw new Rifiuto(404, `Il cantiere "${nomi.join("/")}" non esiste in ${progetto.nome}.`);
+    return c;
+  }
+  const c = await cantieriDi(amb.db, di(committente.id)).selectAll("cantieri").select("progetti.nome as progetto").where("cantieri.id", "=", Number(numero)).executeTakeFirst();
+  if (!c) throw new Rifiuto(404, `Il cantiere #${numero} non esiste.`);
+  if (c.progetto_id !== progetto.id) {
+    throw new Rifiuto(409, `Il cantiere "${await percorsoDi(amb.db, c.id)}" è del progetto ${c.progetto}: prendilo da una sessione nella cartella di ${c.progetto}.`);
+  }
+  return c;
+}
 
 /**
- * POST /api/v1/progetti/<progetto>/cantieri/<percorso>/prendi: un'idea passa ad aperto (con gli
+ * POST /api/v1/progetti/<progetto>/cantieri/<percorso o #id>/prendi: un'idea passa ad aperto (con gli
  * antenati ancora idee) e la sessione ci entra con origine utente. Su un cantiere già aperto la
  * sessione entra e riceve gli stessi dati: la presa è idempotente.
  */
@@ -141,8 +183,7 @@ export async function prendi(amb: Ambiente, committente: Committente, nomeProget
   const valido = corpoPresa.safeParse(corpo);
   if (!valido.success) throw errore422(valido.error);
   const { session_id, ...luogoSessione } = valido.data;
-  const c = await cantieriDelProgetto(amb.db, progetto.id).where("cantieri.percorso_slug", "=", nomi.map(slugifica).join("/")).executeTakeFirst();
-  if (!c) throw new Rifiuto(404, `Il cantiere "${nomi.join("/")}" non esiste in ${progetto.nome}.`);
+  const c = await daPrendere(amb, committente, progetto, nomi);
   const percorso = await percorsoDi(amb.db, c.id);
   if (c.stato !== "idea" && c.stato !== "aperto") throw new Rifiuto(409, nonApribile(percorso, c.stato));
 
