@@ -1,6 +1,6 @@
 // Finestre di dialogo delle azioni. Raccolgono i dati e chiamano `esegui`; se fallisce, l'errore resta nella finestra.
 import type { ReactNode } from "react";
-import type { Azione, Cantiere, Committente, Progetto } from "./api.ts";
+import { api, linkCollegamento, type Azione, type Cantiere, type Committente, type Destinazione, type Progetto } from "./api.ts";
 import { Button, Input } from "./ds/core.tsx";
 import { Dialog } from "./ds/feedback.tsx";
 import { finale } from "./formato.ts";
@@ -15,7 +15,8 @@ export type Richiesta =
   | { tipo: "idea"; progetto: Progetto; padre: Cantiere | null }
   | { tipo: "modifica"; cantiere: Cantiere }
   | { tipo: "esito"; cantiere: Cantiere; azione: Azione; discendenti: string[] }
-  | { tipo: "togli"; cantiere: Cantiere; nome: string };
+  | { tipo: "togli"; cantiere: Cantiere; nome: string }
+  | { tipo: "link"; destinazione: Destinazione; dove: string };
 
 export interface Esecutori {
   creaCommittente: (nome: string) => Promise<void>;
@@ -84,6 +85,28 @@ function Token({ committente, token, onChiudi }: { committente: string; token: s
       <p>{T.copiaOra}</p>
       <input ref={campo} className="token" readOnly value={token} onFocus={(e) => e.target.select()} aria-label="token" />
       <p>{T.tokenIstruzioni(committente)[0]}<code>FORGIA_TOKEN</code>{T.tokenIstruzioni(committente)[1]}<code>/cantiere collega &lt;{T.progetto}&gt; &lt;url&gt;</code>{T.tokenIstruzioni(committente)[2]}</p>
+    </Dialog>
+  );
+}
+
+/** Chiede al server un codice nuovo appena si apre: ogni link vale una volta sola. */
+function Link({ destinazione, dove, onChiudi }: { destinazione: Destinazione; dove: string; onChiudi: () => void }) {
+  const campo = React.useRef<HTMLInputElement>(null);
+  const [comando, setComando] = React.useState<string>();
+  const [errore, setErrore] = React.useState<string>();
+  const [copiato, setCopiato] = React.useState(false);
+  React.useEffect(() => {
+    api.collegamento(destinazione).then((r) => setComando(`/cantiere collega ${linkCollegamento(r.codice)}`), (e: Error) => setErrore(e.message));
+  }, [destinazione]);
+  const copia = () => comando && navigator.clipboard.writeText(comando).then(() => setCopiato(true), () => campo.current?.select());
+  const extra = "committente_id" in destinazione ? T.linkCommittente : "cantiere_id" in destinazione ? T.linkCantiere : "";
+  return (
+    <Dialog titolo={T.linkClaude} onChiudi={onChiudi}
+      azioni={<><Button variant="secondario" size="sm" disabled={!comando} onClick={copia}>{copiato ? T.copiato : T.copia}</Button><Button size="sm" onClick={onChiudi}>{T.chiudi}</Button></>}>
+      <p>{T.linkTesto(dove)}{extra}</p>
+      <input ref={campo} className="token" readOnly value={comando ?? T.unMomento} onFocus={(e) => e.target.select()} aria-label={T.linkClaude} />
+      <p className="nota">{T.linkVale}</p>
+      <Errore testo={errore} />
     </Dialog>
   );
 }
@@ -193,6 +216,8 @@ export function Dialoghi({ r, esecutori, onChiudi }: { r: Richiesta; esecutori: 
       return <Esito cantiere={r.cantiere} azione={r.azione} discendenti={r.discendenti} esegui={esecutori.esito} onChiudi={onChiudi} />;
     case "togli":
       return <Togli cantiere={r.cantiere} nome={r.nome} esegui={esecutori.togli} onChiudi={onChiudi} />;
+    case "link":
+      return <Link destinazione={r.destinazione} dove={r.dove} onChiudi={onChiudi} />;
   }
 }
 

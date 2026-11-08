@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { hostname } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { PROGETTI, ambiente, esegui, finto, hook, DATI, RISPOSTA, serverFinto, TOKEN } from "./aiuti.ts";
+import { PROGETTI, ambiente, esegui, fileSotto, finto, hook, DATI, RISPOSTA, serverFinto, TOKEN } from "./aiuti.ts";
 
 // Ambiente con un finto `claude` nel PATH che registra cartella e argomenti.
 async function preparato(t: { after: (f: () => unknown) => void }, rispondi?: Parameters<typeof serverFinto>[0]) {
@@ -18,6 +19,8 @@ async function preparato(t: { after: (f: () => unknown) => void }, rispondi?: Pa
 
 const progetti = (...nomi: string[]) => ({ progetti: nomi.map((nome, i) => ({ ...PROGETTI.progetti[0], id: i + 1, nome, slug: nome.toLowerCase() })) });
 const config = (amb: ReturnType<typeof ambiente>) => JSON.parse(readFileSync(amb.fileConfig, "utf8"));
+// Un `openspec` finto che crea il change come `openspec new change`.
+const OPENSPEC = `[ "$1" = new ] && mkdir -p "openspec/changes/$3" && printf 'schema: spec-driven\\n' > "openspec/changes/$3/.openspec.yaml"\nexit 0`;
 
 describe("collega", () => {
   test("verifica, salva l'area della radice git con permessi 0600 e toglie il vecchio server MCP della cartella", async (t) => {
@@ -119,6 +122,127 @@ describe("collega", () => {
     assert.match(r.stderr, /FORGIA_TOKEN/);
     assert.match(r.stderr, /\/bin\/forgia collega prova --url /);
     assert.ok(!existsSync(amb.fileConfig));
+  });
+});
+
+describe("collega con il link della dashboard", () => {
+  const CODICE = randomBytes(32).toString("base64url");
+  const [LEGGI, USA] = ["/api/v1/collegamenti/leggi", "/api/v1/collegamenti/usa"];
+  const DI_PROGETTO = { committente: "PRIV", progetto: "poker" as string | null, cantiere: null as object | null, progetti: ["poker", "admin"] };
+  // Server con il link: leggi lo legge, ogni usa dà un token nuovo (tok-link-1, tok-link-2, ...); `altro` risponde al resto.
+  async function conLink(t: { after: (f: () => unknown) => void }, letto: typeof DI_PROGETTO, altro?: Parameters<typeof serverFinto>[0]) {
+    let scambi = 0;
+    const p = await preparato(t, (r) => {
+      if (r.percorso !== LEGGI && r.percorso !== USA) return altro?.(r);
+      if (r.corpo?.codice !== CODICE) return { codice: 404, corpo: { errore: "codice sbagliato" } };
+      return { corpo: r.percorso === LEGGI ? letto : { ...letto, token: `tok-link-${++scambi}` } };
+    });
+    return { ...p, link: `${p.srv.url}/collega#${CODICE}` };
+  }
+  const usi = (srv: Awaited<ReturnType<typeof serverFinto>>) => srv.richieste.filter((x) => x.percorso === USA);
+
+  test("link di un progetto: collega senza token e salva l'id della macchina, che il collegamento dopo riusa", async (t) => {
+    const { srv, amb, opz, link } = await conLink(t, DI_PROGETTO);
+    const r = await esegui(["collega", "--link", link], opz);
+    assert.equal(r.codice, 0, r.stderr);
+    assert.match(r.stdout, /collegata a PRIV\/poker/);
+    assert.ok(!(r.stdout + r.stderr).includes("tok-link-1"));
+    assert.equal(statSync(amb.fileConfig).mode & 0o777, 0o600);
+    const { macchina, aree } = config(amb);
+    assert.match(macchina, /^[0-9a-f-]{36}$/);
+    assert.deepEqual(aree, [{ cartella: amb.progetto, url: srv.url, token: "tok-link-1", committente: "PRIV", progetto: "poker" }]);
+    assert.deepEqual(srv.richieste.map((x) => [x.metodo, x.percorso, x.auth, x.corpo]), [
+      ["POST", LEGGI, undefined, { codice: CODICE }], ["POST", USA, undefined, { codice: CODICE, macchina, host: hostname() }], ["GET", "/api/v1/salute", "Bearer tok-link-1", null],
+    ]);
+
+    const ancora = await esegui(["collega", "Poker", "--link", link], opz);
+    assert.equal(ancora.codice, 0, ancora.stderr);
+    assert.equal(usi(srv)[1].corpo.macchina, macchina);
+    assert.deepEqual([config(amb).macchina, config(amb).aree.map((a: any) => a.token)], [macchina, ["tok-link-2"]]);
+
+    const altro = await esegui(["collega", "admin", "--link", link], opz);
+    assert.equal(altro.codice, 1);
+    assert.match(altro.stderr, /il link è del progetto poker di PRIV, non di "admin"/);
+    assert.equal(usi(srv).length, 2);
+  });
+
+  test("link di un committente: senza progetto o con uno che non c'è non lo consuma; con --crea crea il progetto", async (t) => {
+    const { srv, amb, opz, link } = await conLink(t, { ...DI_PROGETTO, progetto: null });
+    const senza = await esegui(["collega", "--link", link], opz);
+    assert.deepEqual([senza.codice, senza.stderr.trim()], [1,
+      `il link è del committente PRIV: scegli il progetto. Progetti: poker, admin. Rilancia: forgia collega <progetto> --link ${link} (con --crea per uno nuovo)`]);
+    const sbagliato = await esegui(["collega", "pokr", "--link", link], opz);
+    assert.equal(sbagliato.codice, 1);
+    assert.ok(sbagliato.stderr.includes(`"pokr" non esiste in PRIV. Progetti: poker, admin. Per crearlo: forgia collega pokr --link ${link} --crea`), sbagliato.stderr);
+    assert.deepEqual([usi(srv).length, existsSync(amb.fileConfig)], [0, false]);
+
+    const esistente = await esegui(["collega", "Admin", "--link", link], opz);
+    assert.equal(esistente.codice, 0, esistente.stderr);
+    assert.equal(config(amb).aree[0].progetto, "admin");
+    const nuovo = await esegui(["collega", "mercurius", "--crea", "--link", link], opz);
+    assert.equal(nuovo.codice, 0, nuovo.stderr);
+    assert.deepEqual(srv.richieste.filter((x) => x.metodo === "POST" && x.percorso !== LEGGI).map((x) => [x.percorso, x.auth]),
+      [[USA, undefined], [USA, undefined], ["/api/v1/progetti", "Bearer tok-link-2"]]);
+    assert.equal(config(amb).aree[0].progetto, "mercurius");
+  });
+
+  test("il token nuovo va nelle altre aree dello stesso server e committente, non in quelle di un altro, anche se dopo lo scambio qualcosa fallisce", async (t) => {
+    let giu = true;
+    const { srv, amb, opz, link } = await conLink(t, DI_PROGETTO, (r) => (giu && r.percorso === "/api/v1/salute" ? { codice: 503, corpo: { errore: "giù" } } : undefined));
+    const area = (cartella: string, url: string, committente: string, token: string) => ({ cartella: join(amb.dir, cartella), url, token, committente, progetto: "admin" });
+    amb.configura({ aree: [area("admin", srv.url, "PRIV", "tok-vecchio"), area("cv", srv.url, "CVSTUDIO", "tok-cv"), area("altrove", "https://forgia.example.org/cantiere", "PRIV", "tok-altrove")] });
+    const fallito = await esegui(["collega", "--link", link], opz);
+    assert.deepEqual([fallito.codice, fallito.stderr.trim()], [1, "il server risponde 503: giù"]);
+    assert.deepEqual(config(amb).aree.map((a: any) => [a.cartella, a.token]), [
+      [join(amb.dir, "admin"), "tok-link-1"], [join(amb.dir, "cv"), "tok-cv"], [join(amb.dir, "altrove"), "tok-altrove"],
+    ]);
+    giu = false;
+    assert.equal((await esegui(["collega", "--link", link], opz)).codice, 0);
+    assert.deepEqual(config(amb).aree.map((a: any) => [a.cartella, a.token]), [
+      [join(amb.dir, "admin"), "tok-link-2"], [join(amb.dir, "cv"), "tok-cv"], [join(amb.dir, "altrove"), "tok-altrove"], [amb.progetto, "tok-link-2"],
+    ]);
+  });
+
+  test("link di un cantiere: collega e lo prende per la sessione; se la presa fallisce la cartella resta collegata", async (t) => {
+    const cantiere = { id: 42, percorso: "analisi/fase" };
+    const presa = { cantiere: { ...RISPOSTA.cantiere, ...cantiere, nome: "fase", change: "analisi-fase" }, change: "analisi-fase", file: [{ nome: "nota.md", contenuto: "# nota" }] };
+    const { srv, amb, opz, link } = await conLink(t, { ...DI_PROGETTO, cantiere }, (r) => (r.percorso.endsWith("/prendi") ? { corpo: presa } : undefined));
+    finto(amb, "openspec", OPENSPEC);
+    const sid = randomUUID();
+    const env = { ...amb.env, FORGIA_DEBUG: "1" };
+    const senza = await esegui(["collega", "--link", link, "--session-id", sid], { ...opz, env });
+    assert.equal(senza.codice, 1);
+    assert.match(senza.stderr, /manca openspec\/.*\nLa cartella è collegata a PRIV\/poker: per riprovare la presa del cantiere "analisi\/fase", \/cantiere prendi #42/);
+    assert.ok(!(senza.stdout + senza.stderr).includes("tok-link-"));
+    assert.equal(config(amb).aree[0].progetto, "poker");
+
+    mkdirSync(join(amb.progetto, "openspec", "changes"), { recursive: true });
+    const r = await esegui(["collega", "--link", link, "--session-id", sid], { ...opz, env });
+    assert.equal(r.codice, 0, r.stderr);
+    assert.match(r.stdout, /collegata a PRIV\/poker[\s\S]*Cantiere "analisi\/fase" preso: change analisi-fase/);
+    assert.deepEqual(srv.richieste.filter((x) => x.percorso.endsWith("/prendi")).map((x) => [x.percorso, x.auth, x.corpo.session_id]),
+      [["/api/v1/progetti/poker/cantieri/%2342/prendi", "Bearer tok-link-2", sid]]);
+    assert.ok(existsSync(join(amb.progetto, "openspec", "changes", "analisi-fase", "idee", "nota.md")));
+    assert.ok(!fileSotto(amb.dir).some((f) => f.testo.includes(CODICE)), "il codice del link non resta su disco");
+  });
+
+  test("link scaduto, server vecchio o link malformato: errore chiaro, niente salvato", async (t) => {
+    const motivo = "Link non valido, già usato o scaduto: copiane uno nuovo dalla dashboard.";
+    let vecchio = 0;
+    const { srv, amb, opz } = await preparato(t, () => (vecchio ? { codice: vecchio, vuoto: true } : { codice: 404, corpo: { errore: motivo } }));
+    const link = `${srv.url}/collega#${CODICE}`;
+    const scaduto = await esegui(["collega", "--link", link], opz);
+    assert.deepEqual([scaduto.codice, scaduto.stderr.trim()], [1, `il server risponde 404: ${motivo}`]);
+    // Un server vecchio non conosce la rotta (404 senza corpo) o vuole il token anche lì (401 senza corpo).
+    for (vecchio of [404, 401]) {
+      const r = await esegui(["collega", "--link", link], opz);
+      assert.deepEqual([r.codice, r.stderr.trim()], [1, `il server ${srv.url} non conosce questa richiesta: va aggiornato alla versione del plugin`], String(vecchio));
+    }
+    for (const male of [`${srv.url}/collega#corto`, `${srv.url}/collega/${CODICE}`]) {
+      const m = await esegui(["collega", "--link", male], opz);
+      assert.deepEqual([m.codice, m.stderr.trim()], [1, "link non valido: serve <url del server>/collega#<codice>, copiato dalla dashboard"]);
+    }
+    assert.deepEqual([srv.richieste.length, existsSync(amb.fileConfig)], [3, false]);
   });
 });
 
@@ -235,8 +359,7 @@ describe("prendi", () => {
     const p = await preparato(t, (r) => (r.percorso.endsWith("/prendi") ? { corpo: PRESA } : undefined));
     p.amb.configura({ url: p.srv.url });
     mkdirSync(join(p.amb.progetto, "openspec", "changes"), { recursive: true });
-    const chiamateOpenspec = finto(p.amb, "openspec",
-      `[ "$1" = new ] && mkdir -p "openspec/changes/$3" && printf 'schema: spec-driven\\n' > "openspec/changes/$3/.openspec.yaml"\nexit 0`);
+    const chiamateOpenspec = finto(p.amb, "openspec", OPENSPEC);
     return { ...p, chiamateOpenspec, change: join(p.amb.progetto, "openspec", "changes", "idoc-converter") };
   }
 

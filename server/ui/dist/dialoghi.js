@@ -1,3 +1,4 @@
+import { api, linkCollegamento } from "./api.js";
 import { Button, Input } from "./ds/core.js";
 import { Dialog } from "./ds/feedback.js";
 import { finale } from "./formato.js";
@@ -52,6 +53,27 @@ function Token({ committente, token, onChiudi }) {
                 T.progetto,
                 "> <url>"),
             T.tokenIstruzioni(committente)[2])));
+}
+/** Chiede al server un codice nuovo appena si apre: ogni link vale una volta sola. */
+function Link({ destinazione, dove, onChiudi }) {
+    const campo = React.useRef(null);
+    const [comando, setComando] = React.useState();
+    const [errore, setErrore] = React.useState();
+    const [copiato, setCopiato] = React.useState(false);
+    React.useEffect(() => {
+        api.collegamento(destinazione).then((r) => setComando(`/cantiere collega ${linkCollegamento(r.codice)}`), (e) => setErrore(e.message));
+    }, [destinazione]);
+    const copia = () => comando && navigator.clipboard.writeText(comando).then(() => setCopiato(true), () => campo.current?.select());
+    const extra = "committente_id" in destinazione ? T.linkCommittente : "cantiere_id" in destinazione ? T.linkCantiere : "";
+    return (React.createElement(Dialog, { titolo: T.linkClaude, onChiudi: onChiudi, azioni: React.createElement(React.Fragment, null,
+            React.createElement(Button, { variant: "secondario", size: "sm", disabled: !comando, onClick: copia }, copiato ? T.copiato : T.copia),
+            React.createElement(Button, { size: "sm", onClick: onChiudi }, T.chiudi)) },
+        React.createElement("p", null,
+            T.linkTesto(dove),
+            extra),
+        React.createElement("input", { ref: campo, className: "token", readOnly: true, value: comando ?? T.unMomento, onFocus: (e) => e.target.select(), "aria-label": T.linkClaude }),
+        React.createElement("p", { className: "nota" }, T.linkVale),
+        React.createElement(Errore, { testo: errore })));
 }
 function Idea({ progetto, padre, esegui, onChiudi }) {
     const [nome, setNome] = React.useState("");
@@ -137,6 +159,8 @@ export function Dialoghi({ r, esecutori, onChiudi }) {
             return React.createElement(Esito, { cantiere: r.cantiere, azione: r.azione, discendenti: r.discendenti, esegui: esecutori.esito, onChiudi: onChiudi });
         case "togli":
             return React.createElement(Togli, { cantiere: r.cantiere, nome: r.nome, esegui: esecutori.togli, onChiudi: onChiudi });
+        case "link":
+            return React.createElement(Link, { destinazione: r.destinazione, dove: r.dove, onChiudi: onChiudi });
     }
 }
 function RigeneraConferma({ committente, esegui, onChiudi }) {

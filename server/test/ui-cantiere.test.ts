@@ -65,7 +65,8 @@ test("scheda: comando per Claude con il numero del cantiere su idee e aperti; Mo
   const scheda = (stato: string) => html(SchedaCantiere, { d: dettaglio({ id: 42, stato }), onEsito: niente, onModifica: niente, onNuovaIdea: niente });
   for (const stato of ["idea", "aperto"]) {
     assert.match(scheda(stato), /<code>\/cantiere prendi #42<\/code>/);
-    assert.match(scheda(stato), /cartella di mercurius/);
+    assert.match(scheda(stato), /già collegata a mercurius/);
+    assert.match(scheda(stato), />Link per Claude Code</);
   }
   for (const stato of ["sospeso", "completato", "abbandonato"]) assert.doesNotMatch(scheda(stato), /cantiere prendi/);
   for (const stato of ["idea", "aperto", "sospeso", "completato"]) assert.match(scheda(stato), />Modifica nome e descrizione</);

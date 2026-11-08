@@ -36,7 +36,7 @@ function Blocco({ titolo, children }) {
         React.createElement(Etichetta, null, titolo),
         children);
 }
-export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea, onAggiorna }) {
+export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea, onAggiorna, onLink }) {
     const c = d.cantiere;
     // Gli esiti dei task stanno sui task; quelli delle sessioni attive sotto la loro sessione.
     const attive = new Set(c.sessioni.map((s) => s.session_id));
@@ -57,7 +57,8 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea, onAggiorna
             React.createElement("div", { className: "comando-claude" },
                 React.createElement("code", null, comando),
                 React.createElement(BottoneCopia, { testo: comando })),
-            React.createElement("span", { className: "nota" }, T.notaPerClaude(c.progetto)))),
+            React.createElement("span", { className: "nota" }, T.notaPerClaude(c.progetto)),
+            React.createElement(Button, { variant: "secondario", size: "sm", onClick: onLink }, T.linkClaude))),
         c.stato !== "idea" && (React.createElement(Blocco, { titolo: T.avanzamento },
             c.task ? React.createElement(Campi, { righe: [[T.task, React.createElement(Avanzamento, { fatti: c.task.fatti, totali: c.task.totali, attivo: c.stato === "aperto" })]] })
                 : React.createElement(Vuoto, null, T.nessunTasks),
@@ -100,7 +101,7 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea, onAggiorna
                 React.createElement(Button, { variant: "fantasma", size: "sm", onClick: onNuovaIdea }, T.nuovaIdeaSotto),
                 c.stato !== "idea" && React.createElement("span", { className: "nota" }, T.notaCompletato))))));
 }
-export function SchedaProgetto({ p, committente, onNuovaIdea }) {
+export function SchedaProgetto({ p, committente, onNuovaIdea, onLink }) {
     const n = (s) => p.cantieri.filter((c) => c.stato === s).length;
     return (React.createElement("aside", { className: "scheda", "aria-label": T.schedaProgetto },
         React.createElement(Blocco, { titolo: T.progetto }, React.createElement(Campi, { righe: [
@@ -116,15 +117,17 @@ export function SchedaProgetto({ p, committente, onNuovaIdea }) {
         React.createElement("div", { className: "blocco azioni" },
             React.createElement(Etichetta, null, T.azioni),
             React.createElement(Button, { size: "sm", onClick: onNuovaIdea }, T.nuovaIdea),
+            React.createElement(Button, { variant: "secondario", size: "sm", onClick: onLink }, T.linkClaude),
             React.createElement("span", { className: "nota" }, T.notaProgetto))));
 }
-export function SchedaCommittente({ cm, onNuovoProgetto, onRigenera }) {
+export function SchedaCommittente({ cm, onNuovoProgetto, onRigenera, onLink }) {
     return (React.createElement("aside", { className: "scheda", "aria-label": T.schedaCommittente },
         React.createElement(Blocco, { titolo: T.committente },
             React.createElement(Campi, { righe: [[T.nome, cm.nome], [T.creato, quando(cm.creato_il)], [T.tokenDel, quando(cm.token_il)], [T.progetti, cm.progetti.length]] })),
         React.createElement("div", { className: "blocco azioni" },
             React.createElement(Etichetta, null, T.azioni),
             React.createElement(Button, { size: "sm", onClick: onNuovoProgetto }, T.nuovoProgetto),
+            React.createElement(Button, { variant: "secondario", size: "sm", onClick: onLink }, T.linkClaude),
             React.createElement(Button, { variant: "secondario", size: "sm", onClick: onRigenera }, T.rigeneraToken),
             React.createElement("span", { className: "nota" }, T.notaCommittente(cm.nome)))));
 }

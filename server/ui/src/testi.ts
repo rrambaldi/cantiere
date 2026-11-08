@@ -124,8 +124,12 @@ const it = {
   abbandona: "Abbandona",
   nuovaIdeaSotto: "Nuova idea qui sotto",
   perClaude: "per Claude Code",
-  notaPerClaude: (progetto: string) =>
-    `Incollalo in una sessione di Claude Code nella cartella di ${progetto}: la sessione entra qui. Vale anche dopo un cambio di nome.`,
+  notaPerClaude: (progetto: string) => `In una cartella già collegata a ${progetto}: la sessione entra qui, anche dopo un cambio di nome.`,
+  linkClaude: "Link per Claude Code",
+  linkTesto: (dove: string) => `Incollalo in Claude Code nella cartella da collegare a ${dove}: non serve il token.`,
+  linkCommittente: " Claude ti chiede a quale progetto.",
+  linkCantiere: " La sessione entra anche nel cantiere.",
+  linkVale: "Vale un'ora e una volta sola: per un'altra cartella o macchina copiane uno nuovo.",
   notaCompletato: "Completato arriva dal repo, con openspec archive.",
   schedaProgetto: "Scheda del progetto",
   slug: "slug",
@@ -141,7 +145,7 @@ const it = {
   progetti: "progetti",
   nuovoProgetto: "Nuovo progetto",
   rigeneraToken: "Rigenera token",
-  notaCommittente: (nome: string) => `Il token serve a /cantiere collega su ogni macchina che lavora per ${nome}.`,
+  notaCommittente: (nome: string) => `Con «Link per Claude Code» una cartella si collega a ${nome} senza il token; il token serve a /cantiere collega con FORGIA_TOKEN.`,
 
   // lavori
   giornaleLavori: "giornale dei lavori",
@@ -261,7 +265,7 @@ const it = {
   togliFileTit: "Togliere il file?",
   togliTesto: [" esce dall'idea ", "."],
   rigeneraTit: "Rigenerare il token?",
-  rigeneraTesto: ["Il token attuale di ", " smette di funzionare subito, su tutte le macchine. Andrà ricollegata ogni cartella con il token nuovo."],
+  rigeneraTesto: ["Il token attuale di ", " smette di funzionare subito, su tutte le macchine, anche quelle collegate con un link. Andrà ricollegata ogni cartella, con il token nuovo o con un link."],
   rigenera: "Rigenera",
 };
 
@@ -377,7 +381,12 @@ const en: Testi = {
   abbandona: "Abandon",
   nuovaIdeaSotto: "New idea below this",
   perClaude: "for Claude Code",
-  notaPerClaude: (progetto) => `Paste it into a Claude Code session in the ${progetto} folder: the session joins here. It still works after a rename.`,
+  notaPerClaude: (progetto) => `In a folder already linked to ${progetto}: the session joins here, even after a rename.`,
+  linkClaude: "Link for Claude Code",
+  linkTesto: (dove) => `Paste it into Claude Code in the folder to link to ${dove}: no token needed.`,
+  linkCommittente: " Claude asks you which project.",
+  linkCantiere: " The session also joins the worksite.",
+  linkVale: "It works once, within an hour: for another folder or machine copy a new one.",
   notaCompletato: "Completed comes from the repo, via openspec archive.",
   schedaProgetto: "Project data sheet",
   slug: "slug",
@@ -393,7 +402,7 @@ const en: Testi = {
   progetti: "projects",
   nuovoProgetto: "New project",
   rigeneraToken: "Regenerate token",
-  notaCommittente: (nome) => `The token is used by /cantiere collega on every machine that works for ${nome}.`,
+  notaCommittente: (nome) => `With «Link for Claude Code» a folder links to ${nome} without the token; the token is for /cantiere collega with FORGIA_TOKEN.`,
 
   giornaleLavori: "worklog",
   nessunResoconto: "No report yet. It arrives when Claude closes a turn with aggiorna_stato.",
@@ -511,7 +520,7 @@ const en: Testi = {
   togliFileTit: "Remove the file?",
   togliTesto: [" is removed from the idea ", "."],
   rigeneraTit: "Regenerate the token?",
-  rigeneraTesto: ["The current token of ", " stops working immediately, on every machine. Every folder will need to be linked again with the new token."],
+  rigeneraTesto: ["The current token of ", " stops working immediately, on every machine, including those linked with a link. Every folder will need to be linked again, with the new token or a link."],
   rigenera: "Regenerate",
 };
 

@@ -1,4 +1,9 @@
 import { T } from "./testi.js";
+/**
+ * Il link che `/cantiere collega` usa: l'URL del server è quello della dashboard, che ha lo stesso prefisso. Il codice
+ * sta dopo `#`, che un browser non manda: aperto per sbaglio, il link non lo scrive nei log del proxy.
+ */
+export const linkCollegamento = (codice) => `${new URL(".", location.href).href}collega#${codice}`;
 const BASE = "ui/api/";
 /** Nome del committente della vista ristretta, scritto dal server nella pagina; vuoto per la vista di tutti. */
 export function committenteDellaPagina() {
@@ -49,6 +54,7 @@ export const api = {
     togliFile: (cantiere, nome) => richiesta(`cantieri/${cantiere}/file/elimina`, { nome }),
     mettiNatoDa: (cantiere, da, task) => richiesta(`cantieri/${cantiere}/nato-da`, { da, task }),
     togliNatoDa: (cantiere, da) => richiesta(`cantieri/${cantiere}/nato-da/togli`, { da }),
+    collegamento: (d) => richiesta("collegamenti", d),
     esito: (cantiere, azione) => richiesta(`cantieri/${cantiere}/esito`, { azione }),
     scriviComando: (session_id, testo) => richiesta("comandi", { session_id, testo }),
     annullaComando: (id) => richiesta(`comandi/${id}/annulla`, {}),

@@ -110,7 +110,8 @@ sudo -u forgia node --env-file=/etc/forgia/forgia.env src/admin.ts committente c
 Il proxy deve:
 
 - inoltrare tutto il percorso pubblico al server, togliendo il prefisso: il server risponde su
-  `/api/v1/*` e `/mcp` (Bearer del committente), `/`, `/<committente>` e `/ui/*` (dashboard);
+  `/api/v1/*` e `/mcp` (Bearer del committente o di una sua macchina; senza token solo
+  `/api/v1/collegamenti/leggi` e `/usa`, con il codice del link nel corpo), `/`, `/<committente>` e `/ui/*` (dashboard);
 - non bufferizzare le risposte, perché quelle MCP possono essere stream SSE;
 - chiedere il certificato client in modo **facoltativo** e passare l'esito al server
   nell'header `X-SSL-Client-Verify`, **sovrascrivendolo sempre**: il server apre la dashboard solo

@@ -141,6 +141,14 @@ export interface NonCensita {
 }
 
 export type Azione = "sospendi" | "riattiva" | "abbandona";
+/** Dove porta un link per Claude Code. */
+export type Destinazione = { committente_id: number } | { progetto_id: number } | { cantiere_id: number };
+
+/**
+ * Il link che `/cantiere collega` usa: l'URL del server è quello della dashboard, che ha lo stesso prefisso. Il codice
+ * sta dopo `#`, che un browser non manda: aperto per sbaglio, il link non lo scrive nei log del proxy.
+ */
+export const linkCollegamento = (codice: string) => `${new URL(".", location.href).href}collega#${codice}`;
 
 const BASE = "ui/api/";
 
@@ -197,6 +205,7 @@ export const api = {
   togliFile: (cantiere: number, nome: string) => richiesta<object>(`cantieri/${cantiere}/file/elimina`, { nome }),
   mettiNatoDa: (cantiere: number, da: number, task: string | null) => richiesta<object>(`cantieri/${cantiere}/nato-da`, { da, task }),
   togliNatoDa: (cantiere: number, da: number) => richiesta<object>(`cantieri/${cantiere}/nato-da/togli`, { da }),
+  collegamento: (d: Destinazione) => richiesta<{ codice: string; scade_il: string }>("collegamenti", d),
   esito: (cantiere: number, azione: Azione) => richiesta<{ cantieri: Cantiere[] }>(`cantieri/${cantiere}/esito`, { azione }),
   scriviComando: (session_id: string, testo: string) => richiesta<{ comando: Comando }>("comandi", { session_id, testo }),
   annullaComando: (id: number) => richiesta<{ comando: Comando }>(`comandi/${id}/annulla`, {}),

@@ -14,7 +14,11 @@ La guida completa, server e proxy compresi, è in [`../docs/installazione.md`](.
 
 1. In Claude Code: `/plugin marketplace add <percorso o URL git di questa repo>`
 2. `/plugin install forgia@forgia`, poi riavvia Claude Code.
-3. Nella cartella dei sorgenti di un progetto, con `FORGIA_TOKEN` impostata al token del committente:
+3. Nella cartella dei sorgenti di un progetto, incolla il comando copiato dalla dashboard:
+   `/cantiere collega <url>/collega#<codice>`. Il link vale un'ora e una volta sola e il token non serve:
+   il plugin lo scambia con un token per questa macchina. Se il link è di un committente Claude chiede
+   il progetto, o di crearne uno con il nome della cartella; se è di un cantiere, dopo il collegamento lo
+   prende come `/cantiere prendi`. Oppure, con `FORGIA_TOKEN` impostata al token del committente:
    `/cantiere collega <progetto> <url>`, per esempio
    `/cantiere collega poker https://priv.progettazionisoftware.it/cantiere`. Verifica URL e token e
    salva l'area (la radice git, o la cartella se non c'è git). Se il progetto non esiste nel
@@ -69,6 +73,7 @@ non si legge, con il motivo.
 | `/cantiere prendi <percorso>` | prende un'idea della dashboard: crea il change OpenSpec e scrive i suoi file in `openspec/changes/<change>/idee/` |
 | `/cantiere dirama <progetto>/<nome> [--task N]` | fa partire un ramo senza lasciare il cantiere: un'idea in quel progetto, legata al cantiere della sessione e al suo task |
 | `/cantiere fork <nome> --task N [— descrizione]` | lascia il cantiere per un lavoro nato dal task N: un cantiere nuovo con il suo change piccolo; quando lo archivi la sessione torna da sola al cantiere di partenza, al task N |
+| `/cantiere collega <link>` | collega la cartella con il link copiato dalla dashboard, senza token; un link di cantiere lo prende anche |
 | `/cantiere collega <progetto> [url]` | collega la cartella (o cambia URL e token di un'area già collegata) |
 | `/cantiere` o `/cantiere stato` | area della cartella, server, ultima sessione |
 | `/cantiere cerca <parole>` / `/cantiere leggi <percorso> [file]` | come `forgia cerca` e `forgia leggi` ([Leggere i cantieri](#leggere-i-cantieri)): non aprono né prendono nulla |
@@ -115,7 +120,9 @@ default), il plugin non li chiede e ignora quelli che trova in una risposta.
   prompt e messaggi dell'assistente oscurati.
 
 Configurazione: `$XDG_CONFIG_HOME/forgia/config.json` (di default `~/.config/forgia/`, su Windows
-`%APPDATA%\forgia\`), permessi 0600, con le aree collegate. Una configurazione della versione 1 vale
+`%APPDATA%\forgia\`), permessi 0600, con le aree collegate e `macchina`, l'id della macchina nato al primo
+collegamento con un link: il server tiene un token per committente e macchina, e un link nuovo lo
+sostituisce in tutte le aree con lo stesso server e committente. Una configurazione della versione 1 vale
 come "nessuna area": si ricollega con `/cantiere collega`. Cache, coda e log:
 `$XDG_CACHE_HOME/forgia/` (di default `~/.cache/forgia/`, su Windows `%LOCALAPPDATA%\forgia\`). La
 coda tiene la cartella dell'area di ogni evento, mai il token; `strumenti.json` è l'ultimo elenco dei

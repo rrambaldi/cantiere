@@ -84,3 +84,12 @@ test("la lingua si sceglie da una tendina con i nomi delle lingue", async () => 
   assert.equal(window.document.documentElement.lang, "en");
   assert.equal(window.localStorage.getItem("forgia-lingua"), "en");
 });
+
+// Dopo il test della lingua la pagina è in inglese.
+test("«Link for Claude Code» nella scheda del progetto: il comando con l'URL della dashboard e un codice nuovo", async () => {
+  await naviga(() => (window.location.hash = "#/PRIV/mercurius"));
+  await clic(".scheda button", "Link for Claude Code");
+  const campo = $('input[aria-label="Link for Claude Code"]') as HTMLInputElement;
+  assert.equal(campo.value, "/cantiere collega http://x/cantiere/collega#codice-del-link");
+  assert.match(window.document.body.textContent!, /folder to link to PRIV\/mercurius: no token needed/);
+});

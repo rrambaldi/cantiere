@@ -8,8 +8,9 @@ Bearer su REST e MCP, rate limit, dimensione del corpo e log che non espongono s
 
 ### Requirement: Bearer obbligatorio su REST e MCP
 Ogni richiesta a `/api/v1/*` e a `/mcp` MUST portare `Authorization: Bearer <token>` con il token
-attivo di un committente. Il server MUST rispondere 401 senza dettagli quando l'header manca, è
-malformato, il token è sconosciuto o è stato sostituito da una rigenerazione. Il controllo MUST
+attivo di un committente o di una sua macchina, tranne le due rotte del link (`/api/v1/collegamenti/leggi`
+e `/usa`), dove fa da credenziale il codice. Il server MUST rispondere 401 senza dettagli quando l'header
+manca, è malformato, il token è sconosciuto o è stato revocato da una rigenerazione. Il controllo MUST
 essere lo stesso per REST e MCP. Le rotte della dashboard MUST non accettare il Bearer.
 
 #### Scenario: Nessun token su REST
@@ -32,6 +33,30 @@ sull'hash.
 #### Scenario: Database senza token in chiaro
 - **WHEN** si crea il committente `PRIV`
 - **THEN** il suo token compare una volta sola e nel database c'è solo il suo hash
+
+### Requirement: Collegamento con un link
+La dashboard MUST poter creare per un committente, un suo progetto o un'idea o cantiere aperto un link
+con un codice casuale di almeno 32 byte, che vale un'ora e una volta sola e di cui il server salva solo
+l'hash. Il codice MUST viaggiare nel corpo, mai nell'indirizzo. `POST /api/v1/collegamenti/leggi` MUST
+dire, senza token e senza usarlo, committente, progetto, cantiere e progetti del committente.
+`POST /api/v1/collegamenti/usa` con `macchina` e `host` MUST usarlo, anche con richieste insieme una
+volta sola, e rispondere con un token nuovo che vale come quello del committente. Il server MUST tenere
+un solo token per committente e macchina: lo scambio nuovo sostituisce quello vecchio. Un link usato,
+scaduto o inventato MUST dare 404. Il log MUST avere il committente dello scambio e MUST non avere il
+codice. Rigenerare il token del committente MUST revocare anche i token delle macchine e i link non
+usati; la pulizia MUST togliere i link scaduti.
+
+#### Scenario: Link di un progetto
+- **WHEN** la dashboard crea un link per `PRIV/poker` e il plugin lo usa dalla macchina `m-1`
+- **THEN** il plugin riceve un token che passa `GET /api/v1/salute` come `PRIV`, e lo stesso link usato di nuovo dà 404
+
+#### Scenario: Stessa macchina
+- **WHEN** la macchina `m-1` usa un secondo link di `PRIV`
+- **THEN** il token che aveva prima riceve 401, quello nuovo vale, e i token delle altre macchine restano
+
+#### Scenario: Rigenerazione
+- **WHEN** si rigenera il token di `PRIV`
+- **THEN** i token delle sue macchine ricevono 401 e i suoi link non usati danno 404
 
 ### Requirement: Verifica di salute
 `GET /api/v1/salute` con un token valido MUST rispondere 200 con

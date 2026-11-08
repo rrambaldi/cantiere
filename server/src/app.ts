@@ -3,6 +3,7 @@ import { createMcpHandler, type AuthInfo } from "@modelcontextprotocol/server";
 import { hostHeaderValidation, originValidation, toNodeHandler } from "@modelcontextprotocol/node";
 import { autentica, CorpoTroppoGrande, creaRateLimit, leggiCorpo, type Committente } from "./accesso.ts";
 import { di } from "./ambito.ts";
+import { leggiCollegamento, usaCollegamento } from "./collegamenti.ts";
 import { creaProgetto, elencaProgetti, elencaSessioni, formaProgetto, leggiCantieri, riceviEvento, type Ambiente } from "./dominio.ts";
 import { dirama, prendi } from "./idee.ts";
 import { cerca, elencoFile, leggiFile } from "./leggere.ts";
@@ -40,6 +41,8 @@ const ROTTA_COPIA = /^\/api\/v1\/progetti\/([^/]+)\/openspec$/;
 const ROTTA_PRESA = /^\/api\/v1\/progetti\/([^/]+)\/cantieri\/(.+)\/prendi$/;
 const ROTTA_RAMI = /^\/api\/v1\/progetti\/([^/]+)\/rami$/;
 const ROTTA_FILE = /^\/api\/v1\/progetti\/([^/]+)\/cantieri\/(.+)\/file$/;
+// Il link della dashboard: il codice, nel corpo, fa da credenziale al posto del token.
+const ROTTA_COLLEGAMENTO = /^\/api\/v1\/collegamenti\/(leggi|usa)$/;
 const decodifica = (s: string) => {
   try {
     return decodeURIComponent(s);
@@ -118,6 +121,26 @@ export function creaApp(amb: Ambiente, log: Log = logJson, cartellaUi = CARTELLA
     return [404, null, percorso];
   }
 
+  /** Lettura o uso di un link della dashboard: [esito, committente dello scambio per il log]. Il codice non va nel log. */
+  async function collegamento(req: IncomingMessage, res: ServerResponse, metodo: string, azione: string): Promise<[number, string | null]> {
+    try {
+      if (metodo !== "POST") return (rispondi(res, 405), [405, null]);
+      const corpo = await leggiCorpo(req, amb.config.max_body).catch((errore) => {
+        if (errore instanceof CorpoTroppoGrande) return null;
+        throw errore;
+      });
+      if (corpo === null) return (res.setHeader("connection", "close"), rispondi(res, 413, { errore: "Corpo troppo grande." }), [413, null]);
+      if (azione === "leggi") return (rispondi(res, 200, await leggiCollegamento(amb.db, json(corpo))), [200, null]);
+      const risposta = await usaCollegamento(amb.db, json(corpo));
+      rispondi(res, 200, risposta);
+      return [200, risposta.committente];
+    } catch (errore) {
+      if (!(errore instanceof Rifiuto)) throw errore;
+      rispondi(res, errore.codice, { errore: errore.message });
+      return [errore.codice, null];
+    }
+  }
+
   async function gestisci(req: IncomingMessage & { auth?: AuthInfo }, res: ServerResponse) {
     const url = new URL(req.url ?? "/", "http://localhost");
     const metodo = req.method ?? "GET";
@@ -127,6 +150,11 @@ export function creaApp(amb: Ambiente, log: Log = logJson, cartellaUi = CARTELLA
       return log({ tipo, committente: null, esito });
     }
     if (perMcp && !(hostValido(req, res) && originValido(req, res))) return; // la guardia ha già risposto 403
+    const link = ROTTA_COLLEGAMENTO.exec(url.pathname);
+    if (link) {
+      const [esito, committente] = await collegamento(req, res, metodo, link[1]);
+      return log({ tipo: `${metodo} collegamento ${link[1]}`, committente, esito });
+    }
 
     const committente = await autentica(amb.db, req.headers.authorization);
     let esito: number;

@@ -291,16 +291,16 @@ function App() {
         const d = dettaglioDi(trovato.c);
         if (d) {
             centro = React.createElement(LavoroCantiere, { d: d, barra: barra, cantieri: trovato.cm.progetti.flatMap((p) => p.cantieri), onScegli: scegli, onAggiorna: aggiorna, onFile: (f) => void caricaFile(d.cantiere.id, f).then(aggiorna), onSalvaFile: (nome, testo) => salvaFile(d.cantiere.id, nome, testo), onTogliFile: (nome) => setRichiesta({ tipo: "togli", cantiere: d.cantiere, nome }) });
-            destra = React.createElement(SchedaCantiere, { d: d, onAggiorna: aggiorna, onEsito: (azione) => setRichiesta({ tipo: "esito", cantiere: d.cantiere, azione, discendenti: d.discendenti_attivi }), onModifica: () => setRichiesta({ tipo: "modifica", cantiere: d.cantiere }), onNuovaIdea: () => setRichiesta({ tipo: "idea", progetto: trovato.p, padre: d.cantiere }) });
+            destra = React.createElement(SchedaCantiere, { d: d, onAggiorna: aggiorna, onEsito: (azione) => setRichiesta({ tipo: "esito", cantiere: d.cantiere, azione, discendenti: d.discendenti_attivi }), onModifica: () => setRichiesta({ tipo: "modifica", cantiere: d.cantiere }), onNuovaIdea: () => setRichiesta({ tipo: "idea", progetto: trovato.p, padre: d.cantiere }), onLink: () => setRichiesta({ tipo: "link", destinazione: { cantiere_id: d.cantiere.id }, dove: `${trovato.cm.nome}/${trovato.p.nome}` }) });
         }
     }
     else if (trovato?.tipo === "progetto") {
         centro = React.createElement(LavoroProgetto, { p: trovato.p, committente: trovato.cm.nome, nonCensite: nonCensite, onScegli: scegli, onAggiorna: aggiorna, barra: barra });
-        destra = React.createElement(SchedaProgetto, { p: trovato.p, committente: trovato.cm.nome, onNuovaIdea: () => setRichiesta({ tipo: "idea", progetto: trovato.p, padre: null }) });
+        destra = React.createElement(SchedaProgetto, { p: trovato.p, committente: trovato.cm.nome, onNuovaIdea: () => setRichiesta({ tipo: "idea", progetto: trovato.p, padre: null }), onLink: () => setRichiesta({ tipo: "link", destinazione: { progetto_id: trovato.p.id }, dove: `${trovato.cm.nome}/${trovato.p.nome}` }) });
     }
     else if (trovato?.tipo === "committente") {
         centro = React.createElement(LavoroCommittente, { cm: trovato.cm, onScegli: scegli, barra: barra });
-        destra = React.createElement(SchedaCommittente, { cm: trovato.cm, onNuovoProgetto: () => setRichiesta({ tipo: "progetto", committente: trovato.cm }), onRigenera: () => setRichiesta({ tipo: "rigenera", committente: trovato.cm }) });
+        destra = React.createElement(SchedaCommittente, { cm: trovato.cm, onNuovoProgetto: () => setRichiesta({ tipo: "progetto", committente: trovato.cm }), onRigenera: () => setRichiesta({ tipo: "rigenera", committente: trovato.cm }), onLink: () => setRichiesta({ tipo: "link", destinazione: { committente_id: trovato.cm.id }, dove: trovato.cm.nome }) });
     }
     // Con il foglio aperto la pagina sotto il velo è inerte: il fuoco e i lettori di schermo restano nel foglio. Dialoghi e
     // avvisi stanno fuori, così un dialogo aperto dal foglio funziona.

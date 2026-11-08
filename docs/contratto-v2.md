@@ -25,9 +25,42 @@ diventa `-`, senza `-` in testa e in coda. Uno slug vuoto non è un nome valido.
 
 ## Autenticazione
 
-Ogni richiesta a `/api/v1/*` e a `/mcp` porta `Authorization: Bearer <token del committente>`. Un
-token sconosciuto o sostituito da una rigenerazione riceve 401. Le rotte della dashboard (`/`,
-`/<committente>`, `/ui/*`) non fanno parte di questo contratto e non accettano il Bearer.
+Ogni richiesta a `/api/v1/*` e a `/mcp` porta `Authorization: Bearer <token del committente>`, o il
+token di una sua macchina nato da un link (sotto). Un token sconosciuto o revocato da una
+rigenerazione riceve 401. Le rotte della dashboard (`/`, `/<committente>`, `/ui/*`) non fanno parte di
+questo contratto e non accettano il Bearer. Fanno eccezione le due rotte del link, senza token: lì il
+codice del link, nel corpo, fa da credenziale.
+
+## Collegamento con un link
+
+La dashboard crea un link `<url del server>/collega#<codice>` per un committente, un suo progetto o
+un'idea o cantiere aperto; `<url del server>` è quello di `forgia collega --url`, `<codice>` è
+base64url (43 caratteri). Vale un'ora e una volta sola. La dashboard fa copiare `/cantiere collega <link>`.
+Il codice non va mai nell'indirizzo di una richiesta, così non finisce nei log del proxy: nel link sta
+dopo `#`, che un browser non manda, e alle due rotte arriva nel corpo.
+
+### `POST /api/v1/collegamenti/leggi` (senza token)
+
+```json
+{"codice": "<codice>"}
+```
+
+Dove porta il link, senza usarlo:
+`{"committente": "PRIV", "progetto": "poker" | null, "cantiere": {"id": 42, "percorso": "analisi/fase"} | null, "progetti": ["poker", "admin"]}`.
+404 `{"errore": "Link non valido, già usato o scaduto: copiane uno nuovo dalla dashboard."}`.
+
+### `POST /api/v1/collegamenti/usa` (senza token)
+
+```json
+{"codice": "<codice>", "macchina": "<id scelto dal plugin, uno per macchina>", "host": "<hostname>"}
+```
+
+Usa il link: 200 → `{"token": "...", "committente": "PRIV", "progetto": "poker" | null, "cantiere": {...} | null}`.
+Il token vale come quello del committente. C'è un token per committente e macchina: uno scambio nuovo
+dalla stessa macchina sostituisce il precedente, che smette di valere. Il plugin salva il token nelle
+aree di quel server e committente. Rigenerare il token del committente revoca anche questi, e i link
+non ancora usati. Stesso 404 di sopra; 413; 422 se il corpo non va (il link resta buono). Un server
+più vecchio di queste rotte risponde 401 senza corpo.
 
 ## `GET /api/v1/salute`
 

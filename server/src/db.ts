@@ -167,6 +167,29 @@ export interface DB {
     creato_il: string;
     consegnato_il: string | null;
   };
+  /** Link della dashboard: collega una cartella senza il token, una volta sola e prima di `scade_il`. */
+  collegamenti: {
+    id: Generated<number>;
+    committente_id: number;
+    /** Il progetto del link, se non è di tutto il committente. */
+    progetto_id: number | null;
+    /** Il cantiere del link: dopo il collegamento la sessione lo prende. */
+    cantiere_id: number | null;
+    codice_hash: string;
+    creato_il: string;
+    scade_il: string;
+    usato_il: string | null;
+  };
+  /** Token nati da un link: uno per macchina del committente, oltre a quello del committente. */
+  accessi: {
+    id: Generated<number>;
+    committente_id: number;
+    /** Id scelto dal plugin, uno per macchina. */
+    macchina: string;
+    host: string;
+    token_hash: string;
+    creato_il: string;
+  };
   idee_file: {
     cantiere_id: number;
     nome: string;

@@ -69,6 +69,7 @@ export function leggiGenerale() {
     const f = leggiJson(fileConfig()) ?? {};
     return {
         abilitato: f.abilitato ?? true, modalita_resoconto: f.modalita_resoconto ?? null, aree: Array.isArray(f.aree) ? f.aree : [],
+        macchina: f.macchina,
     };
 }
 function salvaArea(gen, area) {
@@ -797,6 +798,7 @@ export function normalizzaUrl(grezzo) {
         errore("serve un URL https (http solo per localhost)");
     return u.origin + u.pathname.replace(/\/+$/, "");
 }
+const daAggiornare = (cfg) => errore(`il server ${cfg.url} non conosce questa richiesta: va aggiornato alla versione del plugin`);
 const nonForgia = (cfg, codice) => errore(`a ${cfg.url} non risponde ${NOME_VISIBILE} (HTTP ${codice}): controlla l'URL, per esempio se manca un percorso come /cantiere`);
 // Una richiesta dei comandi (non degli hook): rete giù e token rifiutato diventano messaggi per l'utente, mai con il token.
 async function richiesta(cfg, metodo, percorso, corpo, accetta, attesa = TIMEOUT_COMANDO) {
@@ -804,7 +806,7 @@ async function richiesta(cfg, metodo, percorso, corpo, accetta, attesa = TIMEOUT
     try {
         r = await fetch(`${cfg.url}${percorso}`, {
             method: metodo,
-            headers: { authorization: `Bearer ${cfg.token}`, ...(corpo === undefined ? {} : { "content-type": "application/json" }), ...(accetta ? { accept: accetta } : {}) },
+            headers: { ...(cfg.token ? { authorization: `Bearer ${cfg.token}` } : {}), ...(corpo === undefined ? {} : { "content-type": "application/json" }), ...(accetta ? { accept: accetta } : {}) },
             body: corpo === undefined ? undefined : JSON.stringify(corpo),
             signal: AbortSignal.timeout(attesa),
         });
@@ -812,8 +814,9 @@ async function richiesta(cfg, metodo, percorso, corpo, accetta, attesa = TIMEOUT
     catch (e) {
         throw new Errore(`server non raggiungibile: ${cfg.url}`, { cause: e });
     }
+    // Senza token il 401 viene da un server più vecchio delle rotte del link, che vuole il token su tutte.
     if (r.status === 401)
-        errore("token non valido: il server risponde 401");
+        return cfg.token ? errore("token non valido: il server risponde 401") : daAggiornare(cfg);
     return r;
 }
 async function chiamaApi(cfg, metodo, percorso, corpo, attesa) {
@@ -821,7 +824,7 @@ async function chiamaApi(cfg, metodo, percorso, corpo, attesa) {
     const tipo = r.headers.get("content-type");
     // Una rotta che il server non conosce dà 404 senza corpo: il server è più vecchio del plugin.
     if (r.status === 404 && !tipo)
-        errore(`il server ${cfg.url} non conosce questa richiesta: va aggiornato alla versione del plugin`);
+        daAggiornare(cfg);
     // Il server risponde sempre JSON: una pagina viene da altro, di solito un proxy con l'URL senza il percorso del server.
     if (!tipo?.includes("json"))
         nonForgia(cfg, r.status);
@@ -896,13 +899,41 @@ function togliMcpDellaCartella(cartella) {
             console.log(`Comando claude non trovato: se in questa cartella c'è il server MCP "${NOME}" di prima, toglilo con claude mcp remove ${NOME} --scope local.`);
     }
 }
-// Collega la cartella (la radice git, o la cwd senza git) a un progetto del committente del token.
+// Il progetto del committente con quel nome (confronto per slug): null se manca e c'è --crea, altrimenti errore.
+function cercaProgetto(progetti, nome, committente, crea, perCrearlo) {
+    const trovato = progetti.find((p) => p.slug === slug(nome))?.nome;
+    if (!trovato && !crea) {
+        errore(`il progetto "${nome}" non esiste in ${committente}. Progetti: ${progetti.map((p) => p.nome).join(", ") || "nessuno"}. Per crearlo: ${perCrearlo}`);
+    }
+    return trovato ?? null;
+}
+const creaProgetto = async (srv, nome) => (await chiamaApi(srv, "POST", "/api/v1/progetti", { nome })).progetto.nome;
+// Salva l'area della cartella (la radice git, o la cwd senza git) con le altre aree di `gen` e toglie il vecchio server MCP.
+function salvaCollegamento(gen, dati) {
+    const area = { cartella: reale(radiceGit(process.cwd()) ?? process.cwd()), ...dati };
+    salvaArea(gen, area);
+    togliMcpDellaCartella(area.cartella);
+    console.log([
+        `${NOME_VISIBILE}: ${area.cartella} collegata a ${area.committente}/${area.progetto} (${area.url}). Il tracciamento è attivo in questa cartella.`,
+        `I tool MCP (${PREFISSI_MCP[0]}*) li dà il plugin: valgono subito, anche nelle sessioni già aperte.`,
+        `I file dei cantieri si leggono anche da terminale: ${NOME} cerca <parole>, ${NOME} leggi <percorso> [file].`,
+        `Per usare tool e lettura senza conferme: /cantiere permessi.`,
+    ].join("\n"));
+}
+// Collega la cartella a un progetto del committente del token, o del link copiato dalla dashboard.
 async function collega(args) {
     const { values, positionals } = parseArgs({
         args, allowPositionals: true,
-        options: { url: { type: "string" }, "token-stdin": { type: "boolean" }, crea: { type: "boolean" } },
+        options: {
+            url: { type: "string" }, "token-stdin": { type: "boolean" }, crea: { type: "boolean" },
+            link: { type: "string" }, "session-id": { type: "string" },
+        },
     });
-    const nome = positionals.join(" ").trim() || errore("manca il nome del progetto: forgia collega <progetto> --url <url>");
+    const nome = positionals.join(" ").trim();
+    if (values.link)
+        return collegaConLink(values.link.trim(), nome, values.crea, values["session-id"]);
+    if (!nome)
+        errore("manca il nome del progetto: forgia collega <progetto> --url <url>");
     const gen = leggiGenerale();
     const qui = areaDi(gen.aree, process.cwd());
     const url = normalizzaUrl(values.url ?? process.env.FORGIA_URL ?? qui?.url ?? errore("manca l'URL del server: /cantiere collega <progetto> <url>"));
@@ -914,23 +945,50 @@ async function collega(args) {
         errore("token vuoto");
     const { cliente: committente } = await salute(url, token);
     const { progetti } = await chiamaApi({ url, token }, "GET", "/api/v1/progetti");
-    let progetto = progetti.find((p) => p.slug === slug(nome))?.nome;
-    if (!progetto) {
-        if (!values.crea) {
-            errore(`il progetto "${nome}" non esiste in ${committente}. Progetti: ${progetti.map((p) => p.nome).join(", ") || "nessuno"}. ` +
-                `Per crearlo: forgia collega ${nome} --crea`);
-        }
-        progetto = (await chiamaApi({ url, token }, "POST", "/api/v1/progetti", { nome })).progetto.nome;
+    const progetto = cercaProgetto(progetti, nome, committente, values.crea, `${NOME} collega ${nome} --crea`) ?? await creaProgetto({ url, token }, nome);
+    salvaCollegamento(gen, { url, token, committente, progetto });
+}
+// Il link della dashboard, <url del server>/collega#<codice>: vale un'ora e una volta sola, ed è di un committente,
+// di un progetto o di un cantiere. Il codice va al server nel corpo, mai nell'indirizzo, e non va nei log.
+const RE_LINK = /^(.+)\/collega#([A-Za-z0-9_-]{43})$/;
+// Si legge il link senza consumarlo, così un progetto da scegliere non lo spreca; poi lo si scambia con un token
+// per questa macchina, che il server tiene uno per committente e macchina.
+async function collegaConLink(link, nome, crea, sid) {
+    const [, base, codice] = RE_LINK.exec(link) ?? errore("link non valido: serve <url del server>/collega#<codice>, copiato dalla dashboard");
+    const url = normalizzaUrl(base);
+    const l = await chiamaApi({ url }, "POST", "/api/v1/collegamenti/leggi", { codice });
+    if (l.progetto && nome && slug(nome) !== slug(l.progetto)) {
+        errore(`il link è del progetto ${l.progetto} di ${l.committente}, non di "${nome}": rilancia senza il progetto, o copia dalla dashboard il link giusto`);
     }
-    const area = { cartella: reale(radiceGit(process.cwd()) ?? process.cwd()), url, token, committente, progetto };
-    salvaArea(gen, area);
-    togliMcpDellaCartella(area.cartella);
-    console.log([
-        `${NOME_VISIBILE}: ${area.cartella} collegata a ${committente}/${progetto} (${url}). Il tracciamento è attivo in questa cartella.`,
-        `I tool MCP (${PREFISSI_MCP[0]}*) li dà il plugin: valgono subito, anche nelle sessioni già aperte.`,
-        `I file dei cantieri si leggono anche da terminale: ${NOME} cerca <parole>, ${NOME} leggi <percorso> [file].`,
-        `Per usare tool e lettura senza conferme: /cantiere permessi.`,
-    ].join("\n"));
+    if (!l.progetto && !nome) {
+        errore(`il link è del committente ${l.committente}: scegli il progetto. Progetti: ${l.progetti.join(", ") || "nessuno"}. ` +
+            `Rilancia: ${NOME} collega <progetto> --link ${link} (con --crea per uno nuovo)`);
+    }
+    const trovato = l.progetto ?? cercaProgetto(l.progetti.map((p) => ({ nome: p, slug: slug(p) })), nome, l.committente, crea, `${NOME} collega ${nome} --link ${link} --crea`);
+    const gen = leggiGenerale();
+    if (!gen.macchina) {
+        gen.macchina = randomUUID();
+        scriviJson(fileConfig(), gen, 0o600); // prima dello scambio: un token dato a un id perso resterebbe valido sul server
+    }
+    const { token, committente } = await chiamaApi({ url }, "POST", "/api/v1/collegamenti/usa", { codice, macchina: gen.macchina, host: hostname() });
+    // Il token vecchio di questa macchina non vale più: si cambia subito in tutte le aree dello stesso server e
+    // committente, prima di quel che può ancora fallire.
+    gen.aree = gen.aree.map((a) => (a.url === url && a.committente === committente ? { ...a, token } : a));
+    scriviJson(fileConfig(), gen, 0o600);
+    await salute(url, token);
+    const progetto = trovato ?? await creaProgetto({ url, token }, nome);
+    salvaCollegamento(gen, { url, token, committente, progetto });
+    if (!l.cantiere)
+        return;
+    const rif = `#${l.cantiere.id}`;
+    try {
+        await prendi([rif, ...(sid ? ["--session-id", sid] : [])]);
+    }
+    catch (e) {
+        if (!(e instanceof Errore))
+            throw e;
+        errore(`${e.message}\nLa cartella è collegata a ${committente}/${progetto}: per riprovare la presa del cantiere "${l.cantiere.percorso}", /cantiere prendi ${rif}`);
+    }
 }
 const maschera = (token) => `…${token.slice(-4)}`;
 async function status(args) {

@@ -123,7 +123,7 @@ Poi apri `https://priv.progettazionisoftware.it/cantiere/` nel browser con il ce
 Dalla dashboard: **Nuovo committente**, il nome (per esempio `CVSTUDIO`), **Crea**. Il token compare
 una volta sola: copialo e passalo a chi lavora per quel committente. Ogni committente ha un token, e
 quel token vede solo i suoi dati. **Rigenera token** lo sostituisce: il vecchio smette subito di
-valere, e le macchine vanno ricollegate (passo 7).
+valere, insieme ai token delle macchine collegate con un link, e le macchine vanno ricollegate (passo 7).
 
 Da terminale, sul server:
 
@@ -148,7 +148,20 @@ quando `forgia-v2` è unito in `main`. Se avevi la v1, aggiornala dal menu `/plu
 
 ## 7. Collegare le cartelle dei sorgenti
 
-Una volta per ogni cartella di progetto, con il token del suo committente:
+Il modo più semplice, senza token: nella dashboard, nella scheda del committente, del progetto o di un
+cantiere, premi **Link per Claude Code** e copia il comando. Incollalo in Claude Code, aperto nella
+cartella da collegare:
+
+```
+/cantiere collega https://priv.progettazionisoftware.it/cantiere/collega#<codice>
+```
+
+Il link vale un'ora e una volta sola: per un'altra cartella o un'altra macchina copiane uno nuovo. Con
+il link di un committente Claude chiede a quale progetto collegare la cartella; con quello di un
+cantiere la sessione entra anche nel cantiere. Il plugin riceve un token per quella macchina e lo
+tiene nella sua configurazione.
+
+In alternativa, una volta per ogni cartella di progetto, con il token del suo committente:
 
 ```sh
 cd ~/lavori/poker

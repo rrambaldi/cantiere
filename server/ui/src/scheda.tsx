@@ -43,8 +43,8 @@ function Blocco({ titolo, children }: { titolo: string; children: React.ReactNod
   return <div className="blocco"><Etichetta>{titolo}</Etichetta>{children}</div>;
 }
 
-export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea, onAggiorna }: {
-  d: Dettaglio; onEsito: (a: Azione) => void; onModifica: () => void; onNuovaIdea: () => void; onAggiorna: () => Promise<unknown>;
+export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea, onAggiorna, onLink }: {
+  d: Dettaglio; onEsito: (a: Azione) => void; onModifica: () => void; onNuovaIdea: () => void; onAggiorna: () => Promise<unknown>; onLink: () => void;
 }) {
   const c = d.cantiere;
   // Gli esiti dei task stanno sui task; quelli delle sessioni attive sotto la loro sessione.
@@ -69,6 +69,7 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea, onAggiorna
         <Blocco titolo={T.perClaude}>
           <div className="comando-claude"><code>{comando}</code><BottoneCopia testo={comando} /></div>
           <span className="nota">{T.notaPerClaude(c.progetto)}</span>
+          <Button variant="secondario" size="sm" onClick={onLink}>{T.linkClaude}</Button>
         </Blocco>
       )}
       {c.stato !== "idea" && (
@@ -133,7 +134,7 @@ export function SchedaCantiere({ d, onEsito, onModifica, onNuovaIdea, onAggiorna
   );
 }
 
-export function SchedaProgetto({ p, committente, onNuovaIdea }: { p: Progetto; committente: string; onNuovaIdea: () => void }) {
+export function SchedaProgetto({ p, committente, onNuovaIdea, onLink }: { p: Progetto; committente: string; onNuovaIdea: () => void; onLink: () => void }) {
   const n = (s: string) => p.cantieri.filter((c) => c.stato === s).length;
   return (
     <aside className="scheda" aria-label={T.schedaProgetto}>
@@ -152,13 +153,16 @@ export function SchedaProgetto({ p, committente, onNuovaIdea }: { p: Progetto; c
       <div className="blocco azioni">
         <Etichetta>{T.azioni}</Etichetta>
         <Button size="sm" onClick={onNuovaIdea}>{T.nuovaIdea}</Button>
+        <Button variant="secondario" size="sm" onClick={onLink}>{T.linkClaude}</Button>
         <span className="nota">{T.notaProgetto}</span>
       </div>
     </aside>
   );
 }
 
-export function SchedaCommittente({ cm, onNuovoProgetto, onRigenera }: { cm: Committente; onNuovoProgetto: () => void; onRigenera: () => void }) {
+export function SchedaCommittente({ cm, onNuovoProgetto, onRigenera, onLink }: {
+  cm: Committente; onNuovoProgetto: () => void; onRigenera: () => void; onLink: () => void;
+}) {
   return (
     <aside className="scheda" aria-label={T.schedaCommittente}>
       <Blocco titolo={T.committente}>
@@ -167,6 +171,7 @@ export function SchedaCommittente({ cm, onNuovoProgetto, onRigenera }: { cm: Com
       <div className="blocco azioni">
         <Etichetta>{T.azioni}</Etichetta>
         <Button size="sm" onClick={onNuovoProgetto}>{T.nuovoProgetto}</Button>
+        <Button variant="secondario" size="sm" onClick={onLink}>{T.linkClaude}</Button>
         <Button variant="secondario" size="sm" onClick={onRigenera}>{T.rigeneraToken}</Button>
         <span className="nota">{T.notaCommittente(cm.nome)}</span>
       </div>

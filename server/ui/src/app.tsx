@@ -306,15 +306,18 @@ function App() {
       destra = <SchedaCantiere d={d} onAggiorna={aggiorna}
         onEsito={(azione) => setRichiesta({ tipo: "esito", cantiere: d.cantiere, azione, discendenti: d.discendenti_attivi })}
         onModifica={() => setRichiesta({ tipo: "modifica", cantiere: d.cantiere })}
-        onNuovaIdea={() => setRichiesta({ tipo: "idea", progetto: trovato.p, padre: d.cantiere })} />;
+        onNuovaIdea={() => setRichiesta({ tipo: "idea", progetto: trovato.p, padre: d.cantiere })}
+        onLink={() => setRichiesta({ tipo: "link", destinazione: { cantiere_id: d.cantiere.id }, dove: `${trovato.cm.nome}/${trovato.p.nome}` })} />;
     }
   } else if (trovato?.tipo === "progetto") {
     centro = <LavoroProgetto p={trovato.p} committente={trovato.cm.nome} nonCensite={nonCensite} onScegli={scegli} onAggiorna={aggiorna} barra={barra} />;
-    destra = <SchedaProgetto p={trovato.p} committente={trovato.cm.nome} onNuovaIdea={() => setRichiesta({ tipo: "idea", progetto: trovato.p, padre: null })} />;
+    destra = <SchedaProgetto p={trovato.p} committente={trovato.cm.nome} onNuovaIdea={() => setRichiesta({ tipo: "idea", progetto: trovato.p, padre: null })}
+      onLink={() => setRichiesta({ tipo: "link", destinazione: { progetto_id: trovato.p.id }, dove: `${trovato.cm.nome}/${trovato.p.nome}` })} />;
   } else if (trovato?.tipo === "committente") {
     centro = <LavoroCommittente cm={trovato.cm} onScegli={scegli} barra={barra} />;
     destra = <SchedaCommittente cm={trovato.cm} onNuovoProgetto={() => setRichiesta({ tipo: "progetto", committente: trovato.cm })}
-      onRigenera={() => setRichiesta({ tipo: "rigenera", committente: trovato.cm })} />;
+      onRigenera={() => setRichiesta({ tipo: "rigenera", committente: trovato.cm })}
+      onLink={() => setRichiesta({ tipo: "link", destinazione: { committente_id: trovato.cm.id }, dove: trovato.cm.nome })} />;
   }
 
   // Con il foglio aperto la pagina sotto il velo è inerte: il fuoco e i lettori di schermo restano nel foglio. Dialoghi e

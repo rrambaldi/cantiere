@@ -9,12 +9,12 @@ un hook in modo deterministico, con il session_id giusto.
 
 ### Requirement: Forme del comando
 Il plugin MUST offrire `/cantiere` (anche come `/forgia:cantiere`) con queste forme: `[padre/]<nome> [--padre <padre>] [— descrizione]`,
-`prendi <percorso>`, `cerca <parole>`, `leggi <percorso> [file]`, `collega <progetto> [url]`, `stato`, `permessi`, `on`, `off` e nessun argomento. Il
-comando MUST dichiarare come suggerimento `[[padre/]nome [--padre p] | prendi <percorso> | collega <progetto> [url] | stato | permessi | on | off]`.
+`prendi <percorso>`, `cerca <parole>`, `leggi <percorso> [file]`, `collega <link>`, `collega <progetto> [url]`, `stato`, `permessi`, `on`, `off` e nessun argomento. Il
+comando MUST dichiarare come suggerimento `[[padre/]nome [--padre p] | prendi <percorso> | collega <link> | collega <progetto> [url] | stato | permessi | on | off]`.
 
 #### Scenario: Suggerimento degli argomenti
 - **WHEN** l'utente digita `/cantiere` nel prompt
-- **THEN** Claude Code mostra il suggerimento `[[padre/]nome [--padre p] | prendi <percorso> | collega <progetto> [url] | stato | permessi | on | off]`
+- **THEN** Claude Code mostra il suggerimento `[[padre/]nome [--padre p] | prendi <percorso> | collega <link> | collega <progetto> [url] | stato | permessi | on | off]`
 
 ### Requirement: Strumenti consentiti al comando
 Il comando MUST poterlo lanciare solo l'utente (`disable-model-invocation: true`) e MUST poter usare
@@ -116,7 +116,7 @@ una riga, con la versione minima richiesta, invece di tentare il setup.
 approvazione, salvo la domanda sul progetto inesistente. Alla fine MUST dire che il tracciamento è
 attivo nella cartella, che i tool MCP valgono subito, che i file dei cantieri si leggono con `forgia
 cerca` e `forgia leggi` e che `/cantiere permessi` li consente senza conferme.
-Fuori da un'area, ogni altra forma MUST rispondere in una riga con `/cantiere collega <progetto> <url>`.
+Fuori da un'area, ogni altra forma MUST rispondere in una riga con i due modi di collegarla.
 
 #### Scenario: Primo uso con nome
 - **WHEN** la cartella non è collegata, `FORGIA_TOKEN` contiene il token di `CVSTUDIO` e l'utente scrive `/cantiere collega poker https://priv.progettazionisoftware.it/cantiere`
@@ -124,7 +124,22 @@ Fuori da un'area, ogni altra forma MUST rispondere in una riga con `/cantiere co
 
 #### Scenario: Comando senza configurazione
 - **WHEN** la cartella non è collegata e l'utente scrive `/cantiere pdfconverter`
-- **THEN** Claude risponde in una riga di lanciare `/cantiere collega <progetto> <url>`
+- **THEN** Claude risponde in una riga di lanciare `/cantiere collega <link>` con il link della dashboard, o `/cantiere collega <progetto> <url>`
+
+### Requirement: Collegamento con un link da comando
+`/cantiere collega <link>`, con un URL che contiene `/collega#`, MUST lanciare `forgia collega --link <link>`
+con il session_id della sessione, senza token. Se il link è di un committente MUST chiedere il progetto con una
+domanda a scelta tra i progetti che il comando elenca e «crea un progetto con il nome della cartella», e
+rilanciare con il progetto scelto (e `--crea` per quello nuovo). Se il link era di un cantiere MUST riassumere
+anche la presa, come `/cantiere prendi`.
+
+#### Scenario: Link di un committente
+- **WHEN** l'utente scrive `/cantiere collega https://priv.progettazionisoftware.it/cantiere/collega#<codice>` con un link del committente `PRIV`, che ha `poker` e `admin`
+- **THEN** Claude chiede di scegliere tra `poker`, `admin` e un progetto nuovo con il nome della cartella; con `poker` lancia `forgia collega "poker" --link <link>` e conferma il collegamento
+
+#### Scenario: Link di un cantiere
+- **WHEN** l'utente incolla il comando copiato dalla scheda dell'idea `#42` di `poker`
+- **THEN** nello stesso turno la cartella viene collegata a `poker`, l'idea viene presa per la sessione e Claude dice quale change è nato e come proseguire
 
 ### Requirement: Token mai in chat
 `/cantiere` MUST non chiedere il token in chat. Senza `FORGIA_TOKEN`, MUST indicare in poche righe le due

@@ -28,8 +28,9 @@ chiedere il token senza mostrarlo.
 ### Requirement: Configurazione utente protetta
 La configurazione MUST stare in `$XDG_CONFIG_HOME/forgia/config.json` (default `~/.config/forgia/`, su
 Windows `%APPDATA%\forgia\config.json`) con permessi 0600, con i campi `abilitato`,
-`modalita_resoconto` (null = quella del server) e `aree`: per ognuna `cartella`, `url`, `token`,
-`committente`, `progetto`.
+`modalita_resoconto` (null = quella del server), `aree`: per ognuna `cartella`, `url`, `token`,
+`committente`, `progetto`, e `macchina`: l'id della macchina che il primo collegamento con un link crea e
+salva prima dello scambio, e che i collegamenti dopo riusano.
 
 #### Scenario: Permessi
 - **WHEN** il collegamento finisce su Linux
@@ -38,6 +39,10 @@ Windows `%APPDATA%\forgia\config.json`) con permessi 0600, con i campi `abilitat
 #### Scenario: Stessa cartella collegata di nuovo
 - **WHEN** `~/lavori/poker` è già un'area e si lancia di nuovo `forgia collega poker` con un altro token
 - **THEN** la configurazione ha una sola area per `~/lavori/poker`, con il token nuovo
+
+#### Scenario: Id della macchina riusato
+- **WHEN** si collega una cartella con un link e poi un'altra con un altro link
+- **THEN** i due scambi mandano lo stesso `macchina`, quello salvato nella configurazione
 
 ### Requirement: Server MCP dichiarato dal plugin
 Il plugin MUST dichiarare in `plugin.json` il server MCP `forgia`, lanciato con `node

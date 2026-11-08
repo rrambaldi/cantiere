@@ -6,6 +6,7 @@ import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CorpoTroppoGrande, creaCommittente, elencaCommittenti, leggiCorpo, rigeneraToken, trovaCommittente } from "./accesso.ts";
 import { di, progettiDi, sessioniDi, TUTTI, type Ambito } from "./ambito.ts";
+import { creaCollegamento } from "./collegamenti.ts";
 import { annullaComando, creaComando, esitoSuDomanda, esitoSuTask, leggiComandi, taskDiVerifica } from "./comandi.ts";
 import { AZIONI, cambiaEsito, creaProgetto, discendentiAttivi, elencaSessioni, formaProgetto, leggiCantieri, percorsoDi, ultimiStati, type Ambiente, type Azione } from "./dominio.ts";
 import { domandeInAttesa } from "./domande.ts";
@@ -186,6 +187,7 @@ const SCRITTURE: [RegExp, Rotta][] = [
   [/^\/ui\/api\/cantieri\/(\d+)\/file\/elimina$/, async (amb, ambito, id, corpo) => (await eliminaFile(amb, ambito, id, corpo.nome), {})],
   [/^\/ui\/api\/cantieri\/(\d+)\/nato-da$/, async (amb, ambito, id, corpo) => (await mettiNatoDa(amb, ambito, id, corpo), {})],
   [/^\/ui\/api\/cantieri\/(\d+)\/nato-da\/togli$/, async (amb, ambito, id, corpo) => (await togliNatoDa(amb, ambito, id, corpo), {})],
+  [/^\/ui\/api\/collegamenti$/, async (amb, ambito, _id, corpo) => creaCollegamento(amb.db, ambito, corpo)],
   [/^\/ui\/api\/comandi$/, async (amb, ambito, _id, corpo) => ({ comando: await creaComando(amb, ambito, corpo) })],
   [/^\/ui\/api\/comandi\/(\d+)\/annulla$/, async (amb, ambito, id) => ({ comando: await annullaComando(amb, ambito, id) })],
   [/^\/ui\/api\/domande\/esito$/, async (amb, ambito, _id, corpo) => ({ comando: await esitoSuDomanda(amb, ambito, corpo) })],

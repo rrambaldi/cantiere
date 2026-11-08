@@ -11,14 +11,21 @@ export interface Committente {
 
 export const adesso = () => new Date().toISOString();
 export const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
-const nuovoToken = () => randomBytes(32).toString("base64url");
+export const nuovoToken = () => randomBytes(32).toString("base64url");
 
-/** Committente del token nell'header Authorization, o null. */
+/** Committente del token nell'header Authorization, o null: il token del committente o quello di una sua macchina. */
 export async function autentica(db: Kysely<DB>, authorization: string | undefined): Promise<Committente | null> {
   const token = /^Bearer (\S+)$/.exec(authorization ?? "")?.[1];
   if (!token) return null;
   const hash = hashToken(token);
-  const riga = await db.selectFrom("committenti").select(["id", "nome", "token_hash"]).where("token_hash", "=", hash).executeTakeFirst();
+  const riga =
+    (await db.selectFrom("committenti").select(["id", "nome", "token_hash"]).where("token_hash", "=", hash).executeTakeFirst()) ??
+    (await db
+      .selectFrom("accessi")
+      .innerJoin("committenti", "committenti.id", "accessi.committente_id")
+      .select(["committenti.id", "committenti.nome", "accessi.token_hash"])
+      .where("accessi.token_hash", "=", hash)
+      .executeTakeFirst());
   if (!riga || !timingSafeEqual(Buffer.from(riga.token_hash), Buffer.from(hash))) return null;
   return { id: riga.id, nome: riga.nome };
 }
@@ -80,13 +87,20 @@ export async function creaCommittente(db: Kysely<DB>, nome: string) {
   }
 }
 
-/** Token nuovo per il committente: quello vecchio smette di valere subito. */
+/** Token nuovo per il committente: quello vecchio e quelli delle macchine collegate con un link smettono di valere subito. */
 export async function rigeneraToken(db: Kysely<DB>, committente: { id: number } | { nome: string }): Promise<string> {
   const token = nuovoToken();
-  const q = db.updateTable("committenti").set({ token_hash: hashToken(token), token_il: adesso() });
-  const esito = await ("id" in committente ? q.where("id", "=", committente.id) : q.where("nome_chiave", "=", committente.nome.trim().toLowerCase())).executeTakeFirst();
-  if (esito.numUpdatedRows === 0n) throw new Rifiuto(404, "Committente inesistente.");
-  return token;
+  return db.transaction().execute(async (trx) => {
+    const q = trx.updateTable("committenti").set({ token_hash: hashToken(token), token_il: adesso() });
+    const riga = await ("id" in committente ? q.where("id", "=", committente.id) : q.where("nome_chiave", "=", committente.nome.trim().toLowerCase()))
+      .returning("id")
+      .executeTakeFirst();
+    if (!riga) throw new Rifiuto(404, "Committente inesistente.");
+    // Prima i link: uno scambio in corso tiene la riga del suo link, e la delete di accessi dopo vede il token che ha scritto.
+    await trx.deleteFrom("collegamenti").where("committente_id", "=", riga.id).execute();
+    await trx.deleteFrom("accessi").where("committente_id", "=", riga.id).execute();
+    return token;
+  });
 }
 
 export function elencaCommittenti(db: Kysely<DB>) {

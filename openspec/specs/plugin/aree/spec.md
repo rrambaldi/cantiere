@@ -33,6 +33,47 @@ creare il progetto e poi collegare la cartella.
 - **WHEN** l'utente conferma e si lancia `forgia collega mercurius --crea` con il token di `PRIV`
 - **THEN** il progetto `mercurius` nasce sotto `PRIV` e la cartella viene collegata
 
+### Requirement: Collegamento con il link della dashboard
+`forgia collega --link <url>/collega#<codice> [<progetto>] [--crea]` MUST collegare la cartella senza token:
+leggere il link con `POST <url>/api/v1/collegamenti/leggi` e `{codice}`, che non lo consuma, poi scambiarlo
+con `POST <url>/api/v1/collegamenti/usa` e `{codice, macchina, host}` per un token di questa macchina, tutte e
+due senza `Authorization` e con il codice solo nel corpo, e salvare l'area dopo `salute`. Il token MUST NOT finire nell'output, il codice MUST NOT finire nei log.
+
+#### Scenario: Link di un progetto
+- **WHEN** in `~/lavori/poker` si lancia `forgia collega --link https://priv.progettazionisoftware.it/cantiere/collega#<codice>` con il link del progetto `poker` di `PRIV`
+- **THEN** l'area `~/lavori/poker` viene salvata con committente `PRIV`, progetto `poker` e il token dello scambio, che non compare nell'output
+
+#### Scenario: Link già usato o scaduto
+- **WHEN** il server risponde 404 al link
+- **THEN** il comando esce con il messaggio del server e non salva nulla
+
+### Requirement: Progetto di un link di committente
+Il progetto è quello del link. Per un link di committente `forgia collega` MUST avere `<progetto>`, tra i
+progetti del committente o con `--crea`; altrimenti MUST uscire con i progetti del committente prima dello
+scambio, così che il link resti valido.
+
+#### Scenario: Link di un committente senza progetto
+- **WHEN** il link è del committente `PRIV`, che ha `poker` e `admin`, e si lancia `forgia collega --link <link>` senza progetto
+- **THEN** il comando esce con errore, elenca `poker` e `admin` e dice di rilanciare con il progetto; il link resta valido
+
+### Requirement: Token della macchina in tutte le sue aree
+Il server tiene un token per committente e macchina, e lo scambio sostituisce quello di prima. Subito dopo
+lo scambio, prima di `salute` e della creazione del progetto, `forgia collega` MUST mettere il token nuovo
+in tutte le aree con lo stesso URL e committente.
+
+#### Scenario: Altre aree dello stesso committente
+- **WHEN** `~/lavori/admin` è collegata allo stesso server con `PRIV` e si collega `~/lavori/poker` con un link di `PRIV`
+- **THEN** anche `~/lavori/admin` ha il token nuovo, e le aree di altri committenti o di altri server restano com'erano
+
+### Requirement: Presa del cantiere del link
+Per un link di cantiere, dopo il collegamento `forgia collega` MUST prendere il cantiere come `forgia prendi
+#<id>`, con `--session-id` se c'è. Se la presa fallisce la cartella MUST restare collegata e l'errore MUST
+indicare `/cantiere prendi #<id>`.
+
+#### Scenario: Presa che non riesce
+- **WHEN** il link è del cantiere `#42` di `poker` e la cartella non ha `openspec/`
+- **THEN** l'area resta salvata e l'errore dice che manca `openspec/` e di riprovare con `/cantiere prendi #42`
+
 ### Requirement: Area della sessione
 Ogni hook MUST cercare l'area della cwd: l'area la cui cartella contiene la cwd, la più specifica se
 sono più d'una. Gli eventi della sessione MUST usare URL e token di quell'area e portare il suo

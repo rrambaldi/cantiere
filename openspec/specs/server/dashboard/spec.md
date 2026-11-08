@@ -107,6 +107,16 @@ token una sola volta, subito dopo la creazione o la rigenerazione, con l'invito 
 - **WHEN** si crea il committente `CVSTUDIO`
 - **THEN** la dashboard mostra il token una volta e, dopo aver chiuso la finestra, non lo mostra più
 
+### Requirement: Link per Claude Code
+Le schede di un committente, di un progetto e di un'idea o cantiere aperto MUST avere «Link per Claude
+Code». Il pulsante MUST chiedere al server un link nuovo e mostrare, con un pulsante per copiarlo,
+`/cantiere collega <link>`, con l'URL del server preso dall'indirizzo della dashboard, e dire che vale
+un'ora e una volta sola. Nella vista di un committente MUST non esserci link per gli altri.
+
+#### Scenario: Link di un progetto
+- **WHEN** nella scheda di `PRIV/mercurius`, aperta da `https://h/cantiere/`, si preme «Link per Claude Code»
+- **THEN** la finestra mostra `/cantiere collega https://h/cantiere/collega#<codice>` e dice che non serve il token
+
 ### Requirement: Progetti e idee dalla dashboard
 La dashboard MUST permettere di creare un progetto sotto un committente e un'idea sotto un progetto o
 un cantiere, con nome, descrizione e file caricati dal browser, di modificare i file di un'idea finché

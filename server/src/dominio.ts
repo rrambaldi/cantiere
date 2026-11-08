@@ -2,6 +2,7 @@ import type { Kysely, Selectable, Transaction } from "kysely";
 import { adesso, type Committente } from "./accesso.ts";
 import { cantieriDi, di, progettiDi, sessioniDi, TUTTI, type Ambito } from "./ambito.ts";
 import type { Config } from "./config.ts";
+import { puliziaCollegamenti } from "./collegamenti.ts";
 import { consegna, puliziaComandi } from "./comandi.ts";
 import * as testi from "./contesto.ts";
 import type { CantiereRisposta } from "./contesto.ts";
@@ -912,7 +913,7 @@ async function sessioniAttive(db: Db, config: Config, ambito: Ambito, cantieri: 
   }));
 }
 
-export async function pulizia(amb: Ambiente): Promise<{ eventi: number; stati: number; domande: number; comandi: number }> {
+export async function pulizia(amb: Ambiente): Promise<{ eventi: number; stati: number; domande: number; comandi: number; collegamenti: number }> {
   const limite = new Date(Date.now() - amb.config.retention_giorni * 86_400_000).toISOString();
   const eventi = await amb.db.deleteFrom("eventi").where("ricevuto_il", "<", limite).executeTakeFirst();
   const stati = await amb.db.deleteFrom("stati").where("ts", "<", limite).executeTakeFirst();
@@ -921,5 +922,6 @@ export async function pulizia(amb: Ambiente): Promise<{ eventi: number; stati: n
     stati: Number(stati.numDeletedRows),
     domande: await puliziaDomande(amb.db, limite),
     comandi: await puliziaComandi(amb.db, limite),
+    collegamenti: await puliziaCollegamenti(amb.db),
   };
 }
