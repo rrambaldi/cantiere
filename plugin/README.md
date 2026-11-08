@@ -59,6 +59,7 @@ da sola, con i tool o da terminale:
 | tool `cerca_cantieri(testo, progetto?)` | i cantieri del committente con quelle parole nel percorso, nella descrizione o nei nomi dei file, senza maiuscole né accenti, con i file che combaciano |
 | tool `leggi_cantiere(percorso, file?, progetto?)` | senza `file` l'elenco dei file, con `file` il contenuto |
 | `forgia cerca <parole> [--progetto p] [--json]` | come `cerca_cantieri`, con il token dell'area della cartella |
+| `forgia list [stati] [--progetto p \| --ovunque] [--json]` / `forgia list #<id>` | i cantieri divisi per stato, o la scheda di uno, come `/cantiere list` |
 | `forgia leggi <percorso> [file] [--progetto p] [--json]` | senza file l'elenco e il contenuto di tutti, con `file` solo quello; il progetto è quello dell'area se non dici altro |
 
 I comandi da terminale non mostrano mai il token, neanche negli errori. Un file oltre 256 KB o binario
@@ -76,6 +77,8 @@ non si legge, con il motivo.
 | `/cantiere collega <link>` | collega la cartella con il link copiato dalla dashboard, senza token; un link di cantiere lo prende anche |
 | `/cantiere collega <progetto> [url]` | collega la cartella (o cambia URL e token di un'area già collegata) |
 | `/cantiere` o `/cantiere stato` | area della cartella, server, ultima sessione |
+| `/cantiere list [idee\|aperti\|sospesi\|chiusi\|tutti] [--ovunque]` | i cantieri del progetto (o di tutti con `--ovunque`) divisi per stato, con numero, task, fasi, sessioni e domande; senza stati idee, aperti e sospesi |
+| `/cantiere list #<numero>` | la scheda di un cantiere: stato e da quando, fasi, «nato da», sessioni attive, domande, e i comandi per entrarci o leggerlo |
 | `/cantiere cerca <parole>` / `/cantiere leggi <percorso> [file]` | come `forgia cerca` e `forgia leggi` ([Leggere i cantieri](#leggere-i-cantieri)): non aprono né prendono nulla |
 | `/cantiere permessi` | aggiunge ai permessi consentiti `mcp__plugin_forgia_forgia`, `mcp__forgia`, `Bash(forgia cerca:*)` e `Bash(forgia leggi:*)`, con un backup di `settings.json` |
 | `/cantiere on` / `off` | accende o spegne il tracciamento, in modo persistente |

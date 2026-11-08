@@ -37,7 +37,7 @@ const OSCURATI = new Set(["prompt", "last_assistant_message", "token"]);
 export const RE_CANTIERE = /^\/(\S+:)?cantiere(\s|$)/;
 // Prime parole di /cantiere che gestisce il comando, non l'hook. `chiudi` e `server` erano di v1:
 // il comando spiega cosa usare adesso.
-const RISERVATE = ["prendi", "dirama", "collega", "chiudi", "server", "stato", "permessi", "on", "off", "comandi", "cerca", "leggi"];
+const RISERVATE = ["prendi", "dirama", "collega", "chiudi", "server", "stato", "permessi", "on", "off", "comandi", "cerca", "leggi", "list"];
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), NOME);
 const NON_COLLEGATA = `questa cartella non è collegata a ${NOME_VISIBILE}: lancia /cantiere collega <progetto> <url>`;
 // Il server MCP lo dichiara il plugin (plugin.json): Claude Code ne chiama i tool mcp__plugin_forgia_forgia__*.
@@ -1232,6 +1232,90 @@ async function leggi(args: string[]) {
   ].join("\n"));
 }
 
+// ---- elenco dei cantieri con i loro stati: forgia list
+
+// Il cantiere come lo dà GET /api/v1/cantieri, nei campi che l'elenco mostra.
+type CantiereElenco = {
+  id: number; progetto: string; percorso: string; padre_id: number | null; stato: string; stato_il: string; change: string;
+  descrizione: string | null; task: { fatti: number; totali: number } | null; fasi: { completate: number; totali: number } | null;
+  domande_in_attesa: number; nato_da: { progetto: string; percorso: string; task: string | null }[]; file_idea_nomi?: string[];
+  sessioni?: { host: string; branch: string | null; stato: string; fatto: string | null; prossimo: string | null }[];
+};
+const ORDINE_STATI = ["aperto", "idea", "sospeso", "completato", "abbandonato"];
+const TITOLI_STATI: Record<string, string> = { aperto: "Aperti", idea: "Idee", sospeso: "Sospesi", completato: "Completati", abbandonato: "Abbandonati" };
+// Le parole di forgia list per gli stati: singolare, plurale e gruppi. Senza parole: idee, aperti e sospesi.
+const FILTRI_STATI: Record<string, string[]> = {
+  idea: ["idea"], idee: ["idea"], aperto: ["aperto"], aperti: ["aperto"], sospeso: ["sospeso"], sospesi: ["sospeso"],
+  completato: ["completato"], completati: ["completato"], abbandonato: ["abbandonato"], abbandonati: ["abbandonato"],
+  chiusi: ["completato", "abbandonato"], tutti: ORDINE_STATI,
+};
+const quanti = (n: number, uno: string, tanti: string) => `${n} ${n === 1 ? uno : tanti}`;
+
+/** Una riga dell'elenco: numero, percorso (col progetto se sono più d'uno) e quel che c'è da sapere. */
+function rigaCantiere(c: CantiereElenco, conProgetto: boolean): string {
+  return [
+    `#${c.id} ${conProgetto ? `${c.progetto}/` : ""}${c.percorso}`,
+    c.task && `task ${c.task.fatti}/${c.task.totali}`,
+    c.fasi && `fasi ${c.fasi.completate}/${c.fasi.totali}`,
+    c.sessioni?.length && quanti(c.sessioni.length, "sessione attiva", "sessioni attive"),
+    c.domande_in_attesa > 0 && quanti(c.domande_in_attesa, "domanda in attesa", "domande in attesa"),
+    c.file_idea_nomi?.length && quanti(c.file_idea_nomi.length, "file", "file"),
+    `dal ${c.stato_il.slice(0, 10)}`,
+  ].filter(Boolean).join(" · ");
+}
+
+/** La scheda di un cantiere, con le fasi e i comandi per entrarci o leggerlo. */
+function schedaCantiere(c: CantiereElenco, tutti: CantiereElenco[], progettoArea: string): string {
+  const fasi = tutti.filter((f) => f.padre_id === c.id);
+  const qui = c.progetto === progettoArea;
+  const prendibile = c.stato === "idea" || c.stato === "aperto";
+  return [
+    `#${c.id} ${c.percorso} (${c.progetto})`,
+    `stato: ${c.stato} dal ${c.stato_il.slice(0, 10)} · change ${c.change}`,
+    c.descrizione && `descrizione: ${c.descrizione}`,
+    (c.task || c.fasi) && [c.task && `task ${c.task.fatti}/${c.task.totali}`, c.fasi && `fasi ${c.fasi.completate}/${c.fasi.totali}`].filter(Boolean).join(" · "),
+    ...fasi.map((f) => `  fase #${f.id} ${f.percorso} (${f.stato})`),
+    ...c.nato_da.map((n) => `nato da: ${n.progetto}/${n.percorso}${n.task ? ` (task ${n.task})` : ""}`),
+    ...(c.sessioni ?? []).map((s) => `sessione: ${s.host}${s.branch ? ` · ${s.branch}` : ""} · ${s.stato}${s.fatto ? ` · fatto: ${s.fatto}` : ""}${s.prossimo ? ` · prossimo: ${s.prossimo}` : ""}`),
+    c.domande_in_attesa > 0 && quanti(c.domande_in_attesa, "domanda in attesa", "domande in attesa"),
+    c.file_idea_nomi?.length && `file dell'idea: ${c.file_idea_nomi.join(", ")}`,
+    prendibile && (qui ? `Per entrarci: /cantiere prendi #${c.id}` : `Per entrarci: /cantiere prendi #${c.id} da una cartella di ${c.progetto}`),
+    `Per leggerne i file: /cantiere leggi "${c.percorso}"${qui ? "" : ` --progetto "${c.progetto}"`}`,
+  ].filter(Boolean).join("\n");
+}
+
+// I cantieri del progetto dell'area (o di tutti i progetti con --ovunque) divisi per stato; con #<id> la scheda di uno.
+async function list(args: string[]) {
+  const { values, positionals } = parseArgs({ args, allowPositionals: true, options: { ...opzioniLettura, ovunque: { type: "boolean" } } });
+  const cfg = areaCorrente();
+  const rif = positionals.length === 1 ? /^#(\d+)$/.exec(positionals[0])?.[1] : undefined;
+  // La scheda cerca in tutto il committente: il numero viene dalla dashboard, il cantiere può essere di un altro progetto.
+  const progetto = rif || values.ovunque ? null : values.progetto ?? cfg.progetto;
+  const { cantieri } = await chiamaApi(cfg, "GET", `/api/v1/cantieri${progetto ? `?${new URLSearchParams({ progetto })}` : ""}`) as { cantieri: CantiereElenco[] };
+  if (rif) {
+    const c = cantieri.find((x) => x.id === Number(rif)) ?? errore(`il cantiere #${rif} non c'è tra quelli di ${cfg.committente}`);
+    return console.log(values.json ? JSON.stringify(c, null, 2) : schedaCantiere(c, cantieri, cfg.progetto));
+  }
+  const parole = positionals.map((p) => p.toLowerCase());
+  const sconosciuta = parole.find((p) => !FILTRI_STATI[p]);
+  if (sconosciuta) errore(`stato sconosciuto: ${sconosciuta}. Usa idee, aperti, sospesi, chiusi, completati, abbandonati o tutti, oppure #<numero>`);
+  const stati = parole.length ? parole.flatMap((p) => FILTRI_STATI[p]) : ["aperto", "idea", "sospeso"];
+  const scelti = cantieri.filter((c) => stati.includes(c.stato)).sort((a, b) => `${a.progetto}/${a.percorso}`.localeCompare(`${b.progetto}/${b.percorso}`));
+  if (values.json) return console.log(JSON.stringify(scelti, null, 2));
+  const dove = progetto ? `${cfg.committente}/${progetto}` : cfg.committente;
+  const chiusi = cantieri.filter((c) => !stati.includes(c.stato)).length;
+  const ambito = values.ovunque ? " --ovunque" : values.progetto ? ` --progetto "${values.progetto}"` : "";
+  console.log([
+    `${dove}: ${quanti(scelti.length, "cantiere", "cantieri")}${chiusi ? ` (${quanti(chiusi, "altro", "altri")} in altri stati: ${NOME} list tutti${ambito})` : ""}.`,
+    ...ORDINE_STATI.filter((s) => stati.includes(s)).flatMap((s) => {
+      const diQuesto = scelti.filter((c) => c.stato === s);
+      return diQuesto.length ? ["", TITOLI_STATI[s], ...diQuesto.map((c) => `  ${rigaCantiere(c, !progetto)}`)] : [];
+    }),
+    "",
+    `Scheda di uno: ${NOME} list #<numero>. Per entrarci: /cantiere prendi #<numero>.`,
+  ].join("\n"));
+}
+
 // Il server MCP stdio dichiarato in plugin.json, uno per sessione di Claude Code: a ogni richiesta cerca l'area
 // della cartella della sessione e inoltra al suo server con il suo token, così i tool valgono anche in una
 // cartella collegata dopo l'avvio. L'elenco dei tool è quello del server dell'area (o di un'altra), altrimenti l'ultimo visto;
@@ -1316,7 +1400,7 @@ function permettiMcp() {
 }
 
 const COMANDI: Record<string, (args: string[]) => unknown> = {
-  collega, prendi, dirama, status, apri, comandi, cerca, leggi, mcp, on: () => imposta(true), off: () => imposta(false), "permetti-mcp": permettiMcp,
+  collega, prendi, dirama, status, apri, comandi, cerca, leggi, list, mcp, on: () => imposta(true), off: () => imposta(false), "permetti-mcp": permettiMcp,
 };
 
 export async function principale(argv: string[]) {

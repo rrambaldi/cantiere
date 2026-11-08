@@ -9,7 +9,7 @@ un hook in modo deterministico, con il session_id giusto.
 
 ### Requirement: Forme del comando
 Il plugin MUST offrire `/cantiere` (anche come `/forgia:cantiere`) con queste forme: `[padre/]<nome> [--padre <padre>] [— descrizione]`,
-`prendi <percorso>`, `cerca <parole>`, `leggi <percorso> [file]`, `collega <link>`, `collega <progetto> [url]`, `stato`, `permessi`, `on`, `off` e nessun argomento. Il
+`prendi <percorso>`, `list [stati]`, `list #<id>`, `cerca <parole>`, `leggi <percorso> [file]`, `collega <link>`, `collega <progetto> [url]`, `stato`, `permessi`, `on`, `off` e nessun argomento. Il
 comando MUST dichiarare come suggerimento `[[padre/]nome [--padre p] | prendi <percorso> | collega <link> | collega <progetto> [url] | stato | permessi | on | off]`.
 
 #### Scenario: Suggerimento degli argomenti

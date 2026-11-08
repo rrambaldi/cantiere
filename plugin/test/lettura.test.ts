@@ -209,3 +209,78 @@ describe("server MCP del plugin", () => {
     await mcp.chiudi();
   });
 });
+
+describe("list", () => {
+  const C = (id: number, percorso: string, stato: string, altro: object = {}) => ({
+    id, progetto: "prova", percorso, padre_id: null, stato, stato_il: "2026-11-01T10:00:00.000Z", change: percorso.replaceAll("/", "-"), descrizione: null,
+    task: null, fasi: null, domande_in_attesa: 0, nato_da: [], file_idea_nomi: [], sessioni: [], ...altro,
+  });
+  const CANTIERI = [
+    C(12, "analisi", "aperto", {
+      descrizione: "costi", task: { fatti: 3, totali: 7 }, fasi: { completate: 0, totali: 1 }, domande_in_attesa: 1,
+      nato_da: [{ progetto: "altro", percorso: "partenza", task: "2.1" }],
+      sessioni: [{ host: "mine", branch: "main", stato: "attiva", fatto: "scritto il server", prossimo: "la UI" }],
+    }),
+    C(13, "analisi/fase", "idea", { padre_id: 12, file_idea_nomi: ["a.md", "b.md"] }),
+    C(14, "vecchio", "completato"),
+    C(15, "remoto", "idea", { progetto: "altro" }),
+  ];
+  // Come il server: con ?progetto= solo i cantieri di quel progetto.
+  const conCantieri = (t: Parameters<typeof preparato>[0]) => preparato(t, (r) => {
+    if (!r.percorso.startsWith("/api/v1/cantieri")) return undefined;
+    const progetto = new URL(r.percorso, "http://x").searchParams.get("progetto");
+    return { corpo: { cantieri: CANTIERI.filter((c) => !progetto || c.progetto === progetto) } };
+  });
+
+  test("senza argomenti: idee, aperti e sospesi del progetto dell'area, per stato, col token dell'area mai nell'output", async (t) => {
+    const { srv, amb, opz } = await conCantieri(t);
+    amb.configura({ url: srv.url });
+    const r = await esegui(["list"], opz);
+    assert.equal(r.codice, 0, r.stderr);
+    assert.deepEqual(srv.richieste.map((x) => [x.percorso, x.auth]), [["/api/v1/cantieri?progetto=prova", `Bearer ${TOKEN}`]]);
+    assert.equal(r.stdout, [
+      "PRIV/prova: 2 cantieri (1 altro in altri stati: forgia list tutti).", "",
+      "Aperti", "  #12 analisi · task 3/7 · fasi 0/1 · 1 sessione attiva · 1 domanda in attesa · dal 2026-11-01", "",
+      "Idee", "  #13 analisi/fase · 2 file · dal 2026-11-01", "",
+      "Scheda di uno: forgia list #<numero>. Per entrarci: /cantiere prendi #<numero>.", "",
+    ].join("\n"));
+    assert.ok(!r.stdout.includes(TOKEN));
+  });
+
+  test("stati scelti e tutti i progetti; --json; uno stato che non c'è", async (t) => {
+    const { srv, amb, opz } = await conCantieri(t);
+    amb.configura({ url: srv.url });
+    const chiusi = await esegui(["list", "chiusi", "--ovunque"], opz);
+    assert.equal(srv.richieste[0].percorso, "/api/v1/cantieri");
+    assert.match(chiusi.stdout, /^PRIV: 1 cantiere \(3 altri in altri stati: forgia list tutti --ovunque\)\./);
+    assert.match(chiusi.stdout, /\nCompletati\n  #14 prova\/vecchio · dal 2026-11-01\n\n/);
+    assert.doesNotMatch(chiusi.stdout, /Abbandonati|Idee/);
+    assert.deepEqual(JSON.parse((await esegui(["list", "Idee", "--ovunque", "--json"], opz)).stdout).map((c: any) => c.id), [15, 13]);
+    const male = await esegui(["list", "finiti"], opz);
+    assert.deepEqual([male.codice, male.stderr.trim()], [1, "stato sconosciuto: finiti. Usa idee, aperti, sospesi, chiusi, completati, abbandonati o tutti, oppure #<numero>"]);
+  });
+
+  test("#<numero>: la scheda, cercata in tutto il committente, con fasi, sessioni e i comandi per entrarci o leggerlo", async (t) => {
+    const { srv, amb, opz } = await conCantieri(t);
+    amb.configura({ url: srv.url });
+    const r = await esegui(["list", "#12"], opz);
+    assert.equal(r.codice, 0, r.stderr);
+    assert.equal(srv.richieste[0].percorso, "/api/v1/cantieri");
+    assert.equal(r.stdout, [
+      "#12 analisi (prova)", "stato: aperto dal 2026-11-01 · change analisi", "descrizione: costi", "task 3/7 · fasi 0/1",
+      "  fase #13 analisi/fase (idea)", "nato da: altro/partenza (task 2.1)", "sessione: mine · main · attiva · fatto: scritto il server · prossimo: la UI",
+      "1 domanda in attesa", "Per entrarci: /cantiere prendi #12", 'Per leggerne i file: /cantiere leggi "analisi"', "",
+    ].join("\n"));
+    const remoto = (await esegui(["list", "#15"], opz)).stdout;
+    assert.match(remoto, /Per entrarci: \/cantiere prendi #15 da una cartella di altro\nPer leggerne i file: \/cantiere leggi "remoto" --progetto "altro"/);
+    assert.doesNotMatch((await esegui(["list", "#14"], opz)).stdout, /Per entrarci/);
+    const assente = await esegui(["list", "#99"], opz);
+    assert.deepEqual([assente.codice, assente.stderr.trim()], [1, "il cantiere #99 non c'è tra quelli di PRIV"]);
+  });
+
+  test("fuori da un'area: errore che indica /cantiere collega, nessuna richiesta", async (t) => {
+    const { srv, opz } = await conCantieri(t);
+    const r = await esegui(["list"], opz);
+    assert.deepEqual([r.codice, r.stderr.trim(), srv.richieste.length], [1, NON_COLLEGATA, 0]);
+  });
+});

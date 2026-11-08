@@ -42,6 +42,31 @@ chiedere le virgolette attorno al percorso.
 - **WHEN** si lancia `forgia leggi tassi BCE x.md`
 - **THEN** il comando esce con errore e dice di mettere il percorso tra virgolette
 
+### Requirement: Elenco dei cantieri con i loro stati
+`forgia list [stati] [--progetto <p> | --ovunque] [--json]` MUST elencare, con il token dell'area e
+`GET /api/v1/cantieri`, i cantieri del progetto dell'area (di un altro con `--progetto`, di tutti quelli
+del committente con `--ovunque`) divisi per stato: aperti, idee, sospesi, completati, abbandonati. Senza
+stati MUST mostrare idee, aperti e sospesi e dire quanti sono negli altri stati. Gli stati MUST
+accettare singolare e plurale, più `chiusi` (completati e abbandonati) e `tutti`. Ogni riga MUST avere
+`#<id>`, il percorso, task, fasi, sessioni attive, domande in attesa e file dell'idea quando ci sono, e
+da quando è in quello stato. `forgia list #<id>` MUST mostrare la scheda del cantiere, cercata in tutto il
+committente: stato e da quando, change, descrizione, task, fasi con il loro stato, «nato da», sessioni
+attive con fatto e prossimo, domande, file dell'idea, `/cantiere prendi #<id>` per un'idea o un aperto
+(dalla cartella del suo progetto) e `/cantiere leggi`. `/cantiere list` MUST lanciarlo e mostrarne
+l'uscita senza prendere né aprire nulla.
+
+#### Scenario: Elenco del progetto
+- **WHEN** in una cartella di `PRIV/prova` si lancia `forgia list`, con l'aperto `analisi`, l'idea `analisi/fase` e il completato `vecchio`
+- **THEN** l'uscita ha «Aperti» con `#12 analisi · task 3/7 · …`, «Idee» con `#13 analisi/fase · …` e dice che 1 altro è in altri stati
+
+#### Scenario: Scheda di un cantiere
+- **WHEN** si lancia `forgia list #12`
+- **THEN** l'uscita ha stato e data, la fase `#13 analisi/fase (idea)`, la sessione attiva con fatto e prossimo e `Per entrarci: /cantiere prendi #12`
+
+#### Scenario: Stato sconosciuto
+- **WHEN** si lancia `forgia list finiti`
+- **THEN** il comando esce con 1 ed elenca le parole ammesse
+
 ### Requirement: Errori della lettura senza token
 Fuori da un'area `forgia cerca` e `forgia leggi` MUST uscire con errore e indicare `/cantiere collega
 <progetto> <url>`, senza chiamare il server. Un rifiuto del server MUST arrivare all'utente con il

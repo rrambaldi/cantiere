@@ -40,7 +40,7 @@ describe("riconosci /cantiere", () => {
     for (const p of ["/cantiere", "/cantiere stato", "/cantiere server", "/cantiere server https://x.example nome",
       "/cantiere permessi", "/cantiere on", "/forgia:cantiere off", "/cantiere prendi idoc-converter", "/cantiere dirama mercurius/info-extra --task 3.2",
       "/cantiere collega poker https://priv.progettazionisoftware.it/cantiere", "/cantiere chiudi -f sospeso", "/cantiere chiudi finito",
-      "/cantiere cerca istruzioni adonis", "/cantiere leggi adonis idee/appunti.md"]) {
+      "/cantiere cerca istruzioni adonis", "/cantiere leggi adonis idee/appunti.md", "/cantiere list aperti", "/cantiere list #12"]) {
       assert.deepEqual(riconosci(p), { op: null }, p);
     }
   });
