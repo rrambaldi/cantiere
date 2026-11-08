@@ -846,12 +846,10 @@ export async function leggiCantieri(db: Db, config: Config, ambito: Ambito, filt
   const ids = righe.map((r) => r.id);
   const percorsi = mappaPercorsi(righe);
   const copie = new Map((ids.length ? await db.selectFrom("change_copie").selectAll().where("cantiere_id", "in", ids).execute() : []).map((c) => [c.cantiere_id, c]));
-  const fileIdea = new Map(
-    (ids.length
-      ? await db.selectFrom("idee_file").select(["cantiere_id", (eb) => eb.fn.countAll<number>().as("n")]).where("cantiere_id", "in", ids).groupBy("cantiere_id").execute()
-      : []
-    ).map((r) => [r.cantiere_id, Number(r.n)]),
-  );
+  const fileIdea = new Map<number, string[]>();
+  for (const f of ids.length ? await db.selectFrom("idee_file").select(["cantiere_id", "nome"]).where("cantiere_id", "in", ids).orderBy("nome").execute() : []) {
+    fileIdea.set(f.cantiere_id, [...(fileIdea.get(f.cantiere_id) ?? []), f.nome]);
+  }
   const scelti = righe.filter((r) => (!filtro.stati || filtro.stati.includes(r.stato)) && (!filtro.ids || filtro.ids.includes(r.id)));
   const sessioni = filtro.sessioni === false ? [] : await sessioniAttive(db, config, ambito, scelti.map((r) => r.id));
   const nati = await legamiVerso(db, ambito, scelti.map((r) => r.id), percorsi);
@@ -875,7 +873,8 @@ export async function leggiCantieri(db: Db, config: Config, ambito: Ambito, filt
       fasi: figli.length ? { completate: figli.filter((f) => f.stato === "completato").length, totali: figli.filter((f) => f.stato !== "abbandonato").length } : null,
       change_mancante: c.stato === "aperto" && openspec_il !== null && !visto,
       da_archiviare: c.stato === "abbandonato" && visto && copia!.archiviato_il === null,
-      file_idea: fileIdea.get(c.id) ?? 0,
+      file_idea: fileIdea.get(c.id)?.length ?? 0,
+      file_idea_nomi: fileIdea.get(c.id) ?? [],
       domande_in_attesa: sotto.get(c.id) ?? 0,
       domande: domande.filter((d) => d.cantiere_id === c.id).map((d) => d.domanda),
       nato_da: nati.filter((n) => n.a_id === c.id).map((n) => n.nato),

@@ -33,6 +33,7 @@ Progetto: <committente>/<progetto>
 Cantiere: <percorso> (<origine>) | nessuno, lavoro diretto sul progetto
 Cantieri aperti: <percorsi> | nessuno
 Idee: <percorsi> | nessuna
+Cantieri del committente <committente>: i loro file si leggono con la skill cantiere-leggi (tool cerca_cantieri e leggi_cantiere, o forgia cerca / forgia leggi).
 [se ci sono abbandonati da archiviare] Da archiviare: <change>
 Regole:
 [se lavoro diretto] - Al primo messaggio dell'utente, prima di rispondere, chiedi con una domanda a scelta dove va questa sessione: un cantiere aperto, un'idea (si prende con /cantiere prendi <percorso>), un cantiere nuovo (apri_cantiere con origine "utente"), oppure lavoro diretto sul progetto.
@@ -42,7 +43,7 @@ Regole:
 
 #### Scenario: Sessione nuova in un progetto
 - **WHEN** parte una sessione `abc` in `CVSTUDIO/poker`, con il cantiere aperto `pdfconverter` e l'idea `idoc-converter`
-- **THEN** `contesto` ha le righe `Progetto: CVSTUDIO/poker`, `Cantiere: nessuno, lavoro diretto sul progetto`, `Cantieri aperti: pdfconverter`, `Idee: idoc-converter` e la regola della domanda iniziale
+- **THEN** `contesto` ha le righe `Progetto: CVSTUDIO/poker`, `Cantiere: nessuno, lavoro diretto sul progetto`, `Cantieri aperti: pdfconverter`, `Idee: idoc-converter`, `Cantieri del committente CVSTUDIO: i loro file si leggono con la skill cantiere-leggi (tool cerca_cantieri e leggi_cantiere, o forgia cerca / forgia leggi).` e la regola della domanda iniziale
 
 #### Scenario: Ripresa di una sessione in un cantiere
 - **WHEN** arriva `session_start` con `source: "resume"` per una sessione associata a `idoc-converter/prototipo` con origine `utente`

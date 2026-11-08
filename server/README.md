@@ -145,8 +145,8 @@ le migrazioni sono le stesse.
 
 ## Registrare il server in Claude Code a mano
 
-Il plugin lo fa da solo con `/cantiere collega <progetto> <url>`, per la cartella del progetto. Per
-le prove, dalla cartella del progetto:
+Con il plugin non serve: il suo server MCP inoltra a quello dell'area della cartella. Per le prove senza
+plugin, dalla cartella del progetto:
 
 ```sh
 claude mcp add --transport http --scope local forgia https://<host>/cantiere/mcp --header "Authorization: Bearer <token del committente>"

@@ -1,9 +1,18 @@
 {
   "name": "forgia",
-  "version": "26.11.0",
+  "version": "26.11.1",
   "description": "cantiere forgia: tiene traccia del lavoro con Claude Code, raggruppato in cantieri.",
   "author": {
     "name": "rrambaldi"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "mcpServers": {
+    "forgia": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bin/forgia.mjs",
+        "mcp"
+      ]
+    }
+  }
 }

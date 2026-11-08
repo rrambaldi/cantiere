@@ -2,8 +2,8 @@
 
 ## Purpose
 Porta il plugin forgia da installato a funzionante con un solo setup: URL e token verificati,
-configurazione salvata a livello utente, server MCP registrato in Claude Code, e da lì tracciamento
-sempre attivo finché l'utente non lo spegne.
+configurazione salvata a livello utente, tool MCP che valgono subito, e da lì tracciamento sempre
+attivo finché l'utente non lo spegne.
 
 ## Requirements
 
@@ -27,9 +27,9 @@ chiedere il token senza mostrarlo.
 
 ### Requirement: Configurazione utente protetta
 La configurazione MUST stare in `$XDG_CONFIG_HOME/forgia/config.json` (default `~/.config/forgia/`, su
-Windows `%APPDATA%\forgia\config.json`) con permessi 0600, con i campi `abilitato`, `nome_server_mcp`
-(default `forgia`), `modalita_resoconto` (null = quella del server) e `aree`: per ognuna `cartella`,
-`url`, `token`, `committente`, `progetto`, `mcp_registrato_il`.
+Windows `%APPDATA%\forgia\config.json`) con permessi 0600, con i campi `abilitato`,
+`modalita_resoconto` (null = quella del server) e `aree`: per ognuna `cartella`, `url`, `token`,
+`committente`, `progetto`.
 
 #### Scenario: Permessi
 - **WHEN** il collegamento finisce su Linux
@@ -39,35 +39,35 @@ Windows `%APPDATA%\forgia\config.json`) con permessi 0600, con i campi `abilitat
 - **WHEN** `~/lavori/poker` è già un'area e si lancia di nuovo `forgia collega poker` con un altro token
 - **THEN** la configurazione ha una sola area per `~/lavori/poker`, con il token nuovo
 
-### Requirement: Registrazione del server MCP
-Il collegamento MUST registrare il server MCP con nome `nome_server_mcp`, per la sola cartella
-dell'area, transport HTTP, URL `<url>/mcp` e header `Authorization: Bearer <token>`, sostituendo una
-registrazione precedente con lo stesso nome nella stessa cartella. Il token MUST passare solo dallo
-script, mai da un comando scritto da Claude. Dopo una registrazione riuscita MUST salvare
-`mcp_registrato_il` nell'area.
+### Requirement: Server MCP dichiarato dal plugin
+Il plugin MUST dichiarare in `plugin.json` il server MCP `forgia`, lanciato con `node
+${CLAUDE_PLUGIN_ROOT}/bin/forgia.mjs mcp`: in Claude Code i suoi tool si chiamano
+`mcp__plugin_forgia_forgia__<tool>`. Il collegamento MUST NOT registrare server MCP: MUST togliere la
+vecchia registrazione per cartella (`claude mcp remove forgia --scope local`), ignorando l'errore di una
+registrazione che non c'è, e dire che i tool valgono subito. Il token MUST NOT finire nei comandi `claude` né nell'output.
 
-#### Scenario: Registrazione già presente
-- **WHEN** esiste già un server MCP `forgia` per la cartella `~/lavori/poker`
-- **THEN** il collegamento lo sostituisce con il nuovo URL e token e salva `mcp_registrato_il` nell'area
-
-### Requirement: Registrazione a mano senza Claude Code nel PATH
-Se il comando `claude` non si trova, il collegamento MUST stampare la configurazione MCP da aggiungere a
-mano per quella cartella, senza il token in chiaro, e salvare comunque l'area. `mcp_registrato_il`
-dell'area MUST restare null.
+#### Scenario: Vecchia registrazione per cartella
+- **WHEN** si collega `~/lavori/poker`, che ha ancora il server MCP `forgia` registrato per cartella
+- **THEN** il collegamento lancia `claude mcp remove forgia --scope local` in `~/lavori/poker`, salva l'area e dice che i tool `mcp__plugin_forgia_forgia__*` li dà il plugin e valgono subito
 
 #### Scenario: Claude Code non nel PATH
 - **WHEN** il comando `claude` non si trova
-- **THEN** il collegamento stampa il JSON da aggiungere a mano con un segnaposto al posto del token, salva l'area e lascia il suo `mcp_registrato_il` a null
+- **THEN** il collegamento salva comunque l'area, dice di togliere a mano un vecchio server `forgia` con `claude mcp remove forgia --scope local` ed esce senza errori, senza il token nell'output
 
-### Requirement: Permesso per i tool MCP su richiesta
-Il setup MUST proporre di aggiungere `mcp__<nome_server_mcp>` ai permessi consentiti in
-`~/.claude/settings.json` con `/cantiere permessi`, senza farlo da solo. Solo `forgia permetti-mcp` (che
-`/cantiere permessi` lancia) MUST unire la regola al JSON esistente, dopo averne fatto un backup, senza
-mai sovrascrivere le altre impostazioni.
+### Requirement: Permessi per i tool MCP e la lettura su richiesta
+Il setup MUST proporre `/cantiere permessi`, senza aggiungere permessi da solo. Solo `forgia
+permetti-mcp` (che `/cantiere permessi` lancia) MUST unire a `~/.claude/settings.json` le regole
+`mcp__plugin_forgia_forgia`, `mcp__forgia`, `Bash(forgia cerca:*)` e `Bash(forgia leggi:*)` che
+mancano, dopo averne fatto un backup, senza mai sovrascrivere le altre impostazioni. Se ci sono già
+tutte MUST dirlo e non toccare il file.
 
 #### Scenario: Utente accetta
-- **WHEN** l'utente lancia `/cantiere permessi` e `settings.json` ha già altre regole
-- **THEN** il file contiene le regole di prima più `mcp__forgia`, e accanto c'è il backup
+- **WHEN** l'utente lancia `/cantiere permessi` e `settings.json` ha già `Bash(git status)` e `mcp__forgia`
+- **THEN** il file ha `Bash(git status)`, `mcp__forgia`, `mcp__plugin_forgia_forgia`, `Bash(forgia cerca:*)` e `Bash(forgia leggi:*)`, le altre impostazioni di prima, e accanto c'è il backup
+
+#### Scenario: Regole già presenti
+- **WHEN** l'utente lancia di nuovo `/cantiere permessi`
+- **THEN** il comando dice che le regole ci sono già e non fa un altro backup
 
 #### Scenario: Utente non lo chiede
 - **WHEN** il setup finisce e l'utente non lancia `/cantiere permessi`

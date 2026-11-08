@@ -41,7 +41,7 @@ Dettagli del plugin in [`plugin/README.md`](plugin/README.md).
 Il server è TypeScript eseguito direttamente da Node ≥ 22.18. Il plugin è scritto in TypeScript e
 spedito compilato in JavaScript (`plugin/bin/forgia.mjs`), perché parta in fretta a ogni hook.
 
-Il nome tecnico, usato in comandi e identificativi, è `forgia`: `mcp__forgia__*`, `forgia-admin`,
+Il nome tecnico, usato in comandi e identificativi, è `forgia`: `mcp__plugin_forgia_forgia__*`, `forgia-admin`,
 `FORGIA_*`.
 
 ## Release

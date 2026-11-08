@@ -39,6 +39,7 @@ export function contestoAvvio(d: DatiAvvio): string {
     `Cantiere: ${d.cantiere ? `${d.cantiere.percorso} (${d.cantiere.origine})` : "nessuno, lavoro diretto sul progetto"}`,
     `Cantieri aperti: ${elenco(d.aperti, "nessuno")}`,
     `Idee: ${elenco(d.idee, "nessuna")}`,
+    `Cantieri del committente ${d.committente}: i loro file si leggono con la skill cantiere-leggi (tool cerca_cantieri e leggi_cantiere, o forgia cerca / forgia leggi).`,
   ];
   if (d.daArchiviare.length) righe.push(`Da archiviare: ${d.daArchiviare.join(", ")}`);
   const regole = [];

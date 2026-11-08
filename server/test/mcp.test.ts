@@ -33,9 +33,9 @@ for (const [era, versionNegotiation] of [
     });
     const chiama = async (name: string, args: Record<string, unknown>) => (await client.callTool({ name, arguments: args })) as Risultato;
 
-    test("elenco dei quattro tool, senza chiudi_cantiere", async () => {
+    test("elenco dei sei tool, senza chiudi_cantiere", async () => {
       const { tools } = await client.listTools();
-      assert.deepEqual(tools.map((t) => t.name).sort(), ["aggiorna_stato", "apri_cantiere", "elenca_cantieri", "stato_sessione"]);
+      assert.deepEqual(tools.map((t) => t.name).sort(), ["aggiorna_stato", "apri_cantiere", "cerca_cantieri", "elenca_cantieri", "leggi_cantiere", "stato_sessione"]);
     });
 
     test("claude.ai senza progetto: rifiuto che chiede il progetto, niente salvato", async () => {

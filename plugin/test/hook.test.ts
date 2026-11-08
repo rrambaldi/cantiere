@@ -98,8 +98,8 @@ describe("aree", () => {
     const web = join(poker, "web");
     mkdirSync(web, { recursive: true });
     amb.configura({ aree: [
-      { cartella: amb.progetto, url: srv.url, token: "tok-priv-1111", committente: "PRIV", progetto: "cantiere", mcp_registrato_il: null },
-      { cartella: poker, url: srv.url, token: "tok-cvstudio-2222", committente: "CVSTUDIO", progetto: "poker", mcp_registrato_il: null },
+      { cartella: amb.progetto, url: srv.url, token: "tok-priv-1111", committente: "PRIV", progetto: "cantiere" },
+      { cartella: poker, url: srv.url, token: "tok-cvstudio-2222", committente: "CVSTUDIO", progetto: "poker" },
     ] });
     await hook("session_start", input("session_start", { cwd: web }), { env: amb.env, cwd: web });
     const [r] = srv.richieste;
@@ -178,7 +178,7 @@ describe("coda locale", () => {
     const vecchia = join(amb.dir, "vecchia");
     for (const d of [poker, mercurius, vecchia]) mkdirSync(d);
     const area = (cartella: string, url: string, token: string, committente: string, progetto: string) =>
-      ({ cartella, url, token, committente, progetto, mcp_registrato_il: null });
+      ({ cartella, url, token, committente, progetto });
     const chiusa = await portaChiusa();
     amb.configura({ aree: [area(poker, chiusa, "tok-cvstudio", "CVSTUDIO", "poker"), area(mercurius, chiusa, "tok-priv", "PRIV", "mercurius"),
       area(vecchia, chiusa, "tok-vecchio", "DGT", "monitor")] });
@@ -383,7 +383,7 @@ describe("todo, stop, session_end", () => {
 
   test("stop: blocca il turno con 3 strumenti senza resoconto, poi non blocca due volte", async (t) => {
     const { srv, amb, sid, input, opz } = await preparato(t);
-    amb.configura({ url: srv.url, mcp_registrato_il: new Date(Date.now() - 3600_000).toISOString() });
+    amb.configura({ url: srv.url });
     await hook("session_start", input("session_start"), opz);
     const transcript = join(amb.dir, "t.jsonl");
     writeFileSync(transcript, TRANSCRIPT + JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Grep" }] } }) + "\n");
@@ -401,15 +401,14 @@ describe("todo, stop, session_end", () => {
     ]);
   });
 
-  test("stop: MCP registrato dopo l'avvio o modalità leggera locale non bloccano", async (t) => {
+  test("stop: sessione di cui non si è visto l'avvio o modalità leggera locale non bloccano", async (t) => {
     const { srv, amb, input, opz } = await preparato(t);
-    amb.configura({ url: srv.url, mcp_registrato_il: new Date(Date.now() - 3600_000).toISOString() });
-    await hook("session_start", input("session_start"), opz);
-    amb.configura({ url: srv.url, mcp_registrato_il: new Date(Date.now() + 3600_000).toISOString() });
+    amb.configura({ url: srv.url });
     const transcript = join(amb.dir, "t.jsonl");
     writeFileSync(transcript, TRANSCRIPT + JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Grep" }] } }) + "\n");
     assert.equal((await hook("stop", input("stop", { transcript_path: transcript }), opz)).stdout, "");
-    amb.configura({ url: srv.url, mcp_registrato_il: "2000-01-01T00:00:00.000Z", modalita_resoconto: "leggero" });
+    await hook("session_start", input("session_start"), opz);
+    amb.configura({ url: srv.url, modalita_resoconto: "leggero" });
     assert.equal((await hook("stop", input("stop", { transcript_path: transcript }), opz)).stdout, "");
   });
 
@@ -483,7 +482,7 @@ describe("comandi dalla dashboard", () => {
 
   test("comando e resoconto insieme: il blocco porta il comando, il resoconto arriva allo stop dopo", async (t) => {
     const { srv, amb, sid, input, opz } = await conComandi(t, "stop");
-    amb.configura({ url: srv.url, comandi: true, mcp_registrato_il: new Date(Date.now() - 3600_000).toISOString() });
+    amb.configura({ url: srv.url, comandi: true });
     await hook("session_start", input("session_start"), opz);
     const transcript = join(amb.dir, "t.jsonl");
     writeFileSync(transcript, TRANSCRIPT + JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Grep" }] } }) + "\n");

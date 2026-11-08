@@ -212,7 +212,7 @@ Filtri: `progetto=<nome>`, `aperti=1` (solo `aperto`). Senza filtri, tutti gli s
   "artefatti": {"proposal": true, "design": false, "specs": true, "tasks": true} ,
   "task": {"fatti": 7, "totali": 12},
   "fasi": {"completate": 2, "totali": 3},
-  "change_mancante": false, "da_archiviare": false, "file_idea": 0,
+  "change_mancante": false, "da_archiviare": false, "file_idea": 2, "file_idea_nomi": ["appunti.md", "note.txt"],
   "domande_in_attesa": 1,
   "nato_da": [{"id": 3, "progetto": "poker", "percorso": "idoc-converter", "task": "1.1 | null", "tipo": "registrato | citato"}],
   "domande": [{"id": "toolu_01", "session_id": "...", "tipo": "scelta | attesa", "testo": "...", "opzioni": ["..."], "host": "...", "ts": "...", "eta_secondi": 300}],
@@ -220,7 +220,8 @@ Filtri: `progetto=<nome>`, `aperti=1` (solo `aperto`). Senza filtri, tutti gli s
 }]}
 ```
 
-`artefatti` e `task` sono `null` senza una copia del change; `fasi` è `null` senza figli; `sessioni`
+`artefatti` e `task` sono `null` senza una copia del change; `fasi` è `null` senza figli; `file_idea` è
+il numero dei file caricati con l'idea dalla dashboard e `file_idea_nomi` i loro nomi; `sessioni`
 elenca le sessioni attive. `domande_in_attesa` conta le domande aperte e non scadute del cantiere e dei
 suoi discendenti; `domande` elenca solo quelle del cantiere stesso. `nato_da` elenca i cantieri da cui
 questo è nato, anche di altri progetti dello stesso committente; è vuoto se non ce ne sono. `tipo` è
@@ -238,19 +239,72 @@ Filtri: `progetto=<nome>`, `attive=1` (non chiuse). Ogni sessione ha `session_id
 `origine_associazione`, `turni`, `titolo`, `avviata_il`, `ultimo_evento_il`, `eta_secondi`,
 `subagenti` (quanti subagenti ha lanciato, per tipo).
 
+## Lettura dei cantieri
+
+Si leggono i file di un cantiere senza prenderlo: lo stato non cambia, nessun change nasce, e la cartella
+non deve avere `openspec/`. Valgono i limiti di accesso di sempre: un progetto o un cantiere di un altro
+committente risponde come inesistente.
+
+### `GET /api/v1/progetti/<progetto>/cantieri/<percorso>/file`
+
+`<percorso>` come in `prendi`, un segmento per livello. Con `?nome=<nome>` restituisce un file, con
+`?contenuto=1` l'elenco con il contenuto di tutti (vedi sotto). Senza, 200 →
+
+```json
+{"progetto": "poker", "percorso": "adonis", "stato": "idea", "file": [
+  {"nome": "idee/istruzioni.md", "origine": "idea", "byte": 1834, "aggiornato_il": "..."},
+  {"nome": "proposal.md", "origine": "change", "byte": 2210, "aggiornato_il": "..."}
+]}
+```
+
+`origine` è `idea` per un file caricato con l'idea dalla dashboard, con il nome sotto `idee/`, e `change`
+per un file dell'ultima copia del change (con il percorso che ha nel change, `specs/<capability>/spec.md`
+compreso). A parità di nome vince il file del change. `aggiornato_il` è il caricamento del file
+dell'idea o l'ultima modifica del change. Ordine per nome. 404 progetto o cantiere inesistente.
+
+Con `?contenuto=1` ogni voce ha anche `"contenuto": "..."`, oppure `"errore": "..."` per un file che non
+si legge (troppo grande o binario, come sotto): tutto il cantiere in una richiesta.
+
+### `GET /api/v1/progetti/<progetto>/cantieri/<percorso>/file?nome=<nome>`
+
+Il nome sta nella query perché un proxy davanti al server decodifica `%2F` nel percorso. Il nome di un
+file dell'idea vale anche senza `idee/`. 200 → la voce dell'elenco con `progetto`, `percorso`, `stato` e
+`"contenuto": "..."`. 404 se il file non c'è (l'errore elenca quelli che ci sono); 422 se supera
+`max_file` byte (256 KB, come la copia dei change) o se è binario.
+
+### `GET /api/v1/cerca?testo=<parole>[&progetto=<nome>]`
+
+I cantieri del committente, in ogni stato, che hanno tutte le parole del testo nel percorso, nella
+descrizione o nei nomi dei file, confrontati senza maiuscole né accenti; `file` elenca i file il cui
+nome ha almeno una delle parole. Testo vuoto: tutti, con tutti i file. `progetto`
+filtra per progetto (sullo slug). Dal più aggiornato. 200 →
+
+```json
+{"cantieri": [{"progetto": "poker", "percorso": "adonis", "stato": "idea", "descrizione": "... | null", "file": ["idee/istruzioni.md"]}]}
+```
+
 ## Tool MCP (Streamable HTTP su `/mcp`)
 
-Il server viene registrato in Claude Code con il nome `forgia`, quindi i tool si chiamano
-`mcp__forgia__<tool>`.
+Il server è stateless: ogni richiesta JSON-RPC vale da sola, senza handshake, e la risposta arriva in SSE.
+In Claude Code i tool arrivano dal plugin, che dichiara nel suo `plugin.json` un server MCP stdio
+(`forgia mcp`): a ogni richiesta cerca l'area della cartella della sessione e la inoltra a `<url>/mcp`
+con il token di quell'area. Per questo i tool si chiamano `mcp__plugin_forgia_forgia__<tool>` e ci sono
+anche in una cartella collegata a sessione aperta; fuori dalle aree rispondono `ok: false` con il motivo.
+Gli altri client (claude.ai) si collegano direttamente a `/mcp`.
 
 - `apri_cantiere(session_id, nome, descrizione?, origine="claude", padre?, task?, nato_da?, nato_da_progetto?, progetto?)`
 - `aggiorna_stato(session_id, fatto, prossimo, bloccato_da?, percentuale?, progetto?)`
 - `elenca_cantieri(progetto?, stati?)` — default stati `idea`, `aperto`, `sospeso`
 - `stato_sessione(session_id)`
+- `cerca_cantieri(testo, progetto?)` — come `GET /api/v1/cerca`
+- `leggi_cantiere(percorso, file?, progetto?)` — senza `file` l'elenco, con `file` il contenuto (anche
+  come testo del risultato). Senza `progetto` cerca il percorso in tutti i progetti del committente e,
+  se c'è in più di uno, rifiuta chiedendo il progetto.
 
 Valgono le stesse regole di `/api/v1/eventi`. Per una sessione mai vista `progetto` è obbligatorio
 (serve ai client senza hook, per esempio claude.ai). I rifiuti (precedenza, sospeso, idea, nome di
-change preso, progetto mancante) sono risultati normali con `ok: false` e un `motivo`. Ogni tool
+change preso, progetto mancante, cantiere o file inesistente, file troppo grande o binario) sono
+risultati normali con `ok: false` e un `motivo`. Ogni tool
 restituisce JSON strutturato e una riga di testo.
 
 ## Regole sui cantieri

@@ -39,6 +39,7 @@ describe("contesto", () => {
         "Cantiere: nessuno, lavoro diretto sul progetto",
         "Cantieri aperti: pdfconverter",
         "Idee: idoc-converter",
+        "Cantieri del committente CVSTUDIO: i loro file si leggono con la skill cantiere-leggi (tool cerca_cantieri e leggi_cantiere, o forgia cerca / forgia leggi).",
         "Regole:",
         DOMANDA,
         RESOCONTO,
@@ -52,7 +53,7 @@ describe("contesto", () => {
     assert.equal(righe[2], "Cantiere: idoc-converter/prototipo (utente)");
     assert.deepEqual(righe[3].replace("Cantieri aperti: ", "").split(", ").sort(), ["idoc-converter", "idoc-converter/prototipo"]);
     assert.equal(righe[4], "Idee: nessuna");
-    assert.deepEqual(righe.slice(5), ["Regole:", RAMO, RESOCONTO]);
+    assert.deepEqual(righe.slice(6), ["Regole:", RAMO, RESOCONTO]);
   });
 
   test("abbandonato da archiviare: riga e regola con il comando", async () => {

@@ -22,8 +22,9 @@ export const RISPOSTA = {
 export const PROGETTI = { progetti: [{ id: 1, nome: "prova", slug: "prova", creato_il: "2026-10-15T08:00:00.000Z", cantieri: {} }] };
 
 export type Richiesta = { metodo: string; percorso: string; auth?: string; corpo: any };
-// html: una pagina al posto del JSON, come quella di un proxy davanti al server.
-type Rispondi = (r: Richiesta) => { codice?: number; corpo?: unknown; html?: string } | undefined;
+// html: una pagina al posto del JSON, come quella di un proxy davanti al server; sse: il corpo come evento SSE, come /mcp;
+// vuoto: niente corpo, come il server per una rotta che non conosce.
+type Rispondi = (r: Richiesta) => { codice?: number; corpo?: unknown; html?: string; sse?: true; vuoto?: true } | undefined;
 
 // La copia dei change: il percorso può avere ?session_id=.
 const copia = (r: Richiesta) => new URL(r.percorso, "http://x").pathname.endsWith("/openspec");
@@ -40,8 +41,10 @@ export async function serverFinto(rispondi: Rispondi = () => undefined) {
       : r.percorso === "/api/v1/progetti" ? (r.metodo === "POST" ? { progetto: { id: 2, nome: r.corpo.nome, slug: r.corpo.nome } } : PROGETTI)
       : copia(r) ? { cantieri: [] }
       : RISPOSTA;
-    const { codice = 200, corpo = predefinito, html } = rispondi(r) ?? {};
-    if (html !== undefined) res.writeHead(codice, { "content-type": "text/html" }).end(html);
+    const { codice = 200, corpo = predefinito, html, sse, vuoto } = rispondi(r) ?? {};
+    if (vuoto) res.writeHead(codice).end();
+    else if (html !== undefined) res.writeHead(codice, { "content-type": "text/html" }).end(html);
+    else if (sse) res.writeHead(codice, { "content-type": "text/event-stream" }).end(`event: message\ndata: ${JSON.stringify(corpo)}\n\n`);
     else res.writeHead(codice, { "content-type": "application/json" }).end(JSON.stringify(corpo));
   });
   await new Promise<void>((ok) => srv.listen(0, "127.0.0.1", ok));
@@ -78,9 +81,9 @@ export function ambiente(extra: Record<string, string> = {}) {
     // Config v2 con un'area sulla cartella del progetto; `aree` le sostituisce tutte. `comandi` va sull'area,
     // gli altri campi sono le impostazioni generali.
     configura(cfg: Record<string, unknown> = {}) {
-      const { url, token = TOKEN, committente = "PRIV", progetto: nome = "prova", cartella = progetto, mcp_registrato_il = null, comandi, aree, ...generale } = cfg;
+      const { url, token = TOKEN, committente = "PRIV", progetto: nome = "prova", cartella = progetto, comandi, aree, ...generale } = cfg;
       mkdirSync(join(dir, "config", "forgia"), { recursive: true });
-      writeFileSync(this.fileConfig, JSON.stringify({ ...generale, aree: aree ?? [{ cartella, url, token, committente, progetto: nome, mcp_registrato_il, comandi }] }));
+      writeFileSync(this.fileConfig, JSON.stringify({ ...generale, aree: aree ?? [{ cartella, url, token, committente, progetto: nome, comandi }] }));
     },
     pulisci: () => rmSync(dir, { recursive: true, force: true }),
   };

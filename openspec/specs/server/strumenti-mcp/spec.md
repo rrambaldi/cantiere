@@ -59,7 +59,8 @@ cancellare i precedenti. `percentuale`, se presente, MUST stare tra 0 e 100.
 `elenca_cantieri` MUST restituire solo i cantieri del committente del token (tutti i progetti, o quello
 indicato; per default negli stati `idea`, `aperto` e `sospeso`), ciascuno con progetto, `percorso`,
 stato, change e avanzamento, e le sessioni attive con host, branch, stato, ultimo `fatto` e `prossimo`
-ed età dell'ultimo evento.
+ed età dell'ultimo evento. Ogni cantiere MUST avere anche `file_idea`, il numero dei file dell'idea, e
+`file_idea_nomi`, i loro nomi.
 
 #### Scenario: Due macchine sullo stesso cantiere
 - **WHEN** due sessioni da host diversi lavorano su `poker/pdfconverter` e una terza sessione chiama `elenca_cantieri`
@@ -84,16 +85,16 @@ Ogni tool MUST restituire JSON compatto come contenuto strutturato insieme a un 
 - **WHEN** `apri_cantiere` va a buon fine
 - **THEN** il risultato ha un oggetto strutturato con il cantiere e una riga di testo di conferma
 
-### Requirement: Quattro tool su Streamable HTTP
+### Requirement: Sei tool su Streamable HTTP
 Il server MUST esporre su `/mcp`, con transport Streamable HTTP e il Bearer del committente, i tool
 `apri_cantiere(session_id, nome, descrizione?, origine="claude", padre?, progetto?)`,
 `aggiorna_stato(session_id, fatto, prossimo, bloccato_da?, percentuale?, progetto?)`,
-`elenca_cantieri(progetto?, stati?)` e `stato_sessione(session_id)`. Il nome del server MCP MUST
-essere `forgia`.
+`elenca_cantieri(progetto?, stati?)`, `stato_sessione(session_id)`, `cerca_cantieri(testo, progetto?)`
+e `leggi_cantiere(percorso, file?, progetto?)`. Il nome del server MCP MUST essere `forgia`.
 
 #### Scenario: Elenco dei tool
 - **WHEN** un client MCP autenticato chiede l'elenco dei tool
-- **THEN** riceve esattamente questi quattro tool con i parametri indicati, e non `chiudi_cantiere`
+- **THEN** riceve esattamente questi sei tool con i parametri indicati, e non `chiudi_cantiere`
 
 ### Requirement: Progetto nei tool
 Per una sessione già nota i tool MUST usare il suo progetto; un `progetto` diverso MUST spostarla come

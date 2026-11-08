@@ -20,7 +20,7 @@ const progetti = (...nomi: string[]) => ({ progetti: nomi.map((nome, i) => ({ ..
 const config = (amb: ReturnType<typeof ambiente>) => JSON.parse(readFileSync(amb.fileConfig, "utf8"));
 
 describe("collega", () => {
-  test("verifica, salva l'area della radice git con permessi 0600 e registra il server MCP per quella cartella", async (t) => {
+  test("verifica, salva l'area della radice git con permessi 0600 e toglie il vecchio server MCP della cartella", async (t) => {
     const { srv, amb, opz, chiamateClaude } = await preparato(t, (r) => (r.percorso === "/api/v1/progetti" ? { corpo: progetti("poker") } : undefined));
     execFileSync("git", ["init", "-q", amb.progetto]);
     const sotto = join(amb.progetto, "src");
@@ -29,17 +29,14 @@ describe("collega", () => {
     assert.equal(r.codice, 0, r.stderr);
     assert.match(r.stdout, /collegata a PRIV\/poker/);
     assert.match(r.stdout, /\/cantiere permessi/);
+    assert.match(r.stdout, /mcp__plugin_forgia_forgia__\*\) li dà il plugin: valgono subito/);
     assert.ok(!r.stdout.includes("tok-cvstudio-5678"));
     assert.equal(statSync(amb.fileConfig).mode & 0o777, 0o600);
-    const cfg = config(amb);
-    assert.deepEqual({ ...cfg, aree: cfg.aree.map((a: any) => ({ ...a, mcp_registrato_il: !!a.mcp_registrato_il })) }, {
-      abilitato: true, nome_server_mcp: "forgia", modalita_resoconto: null,
-      aree: [{ cartella: amb.progetto, url: srv.url, token: "tok-cvstudio-5678", committente: "PRIV", progetto: "poker", mcp_registrato_il: true }],
+    assert.deepEqual(config(amb), {
+      abilitato: true, modalita_resoconto: null,
+      aree: [{ cartella: amb.progetto, url: srv.url, token: "tok-cvstudio-5678", committente: "PRIV", progetto: "poker" }],
     });
-    assert.deepEqual(chiamateClaude(), [
-      `${amb.progetto}|mcp remove forgia --scope local`,
-      `${amb.progetto}|mcp add --transport http --scope local forgia ${srv.url}/mcp --header Authorization: Bearer tok-cvstudio-5678`,
-    ]);
+    assert.deepEqual(chiamateClaude(), [`${amb.progetto}|mcp remove forgia --scope local`]);
     assert.deepEqual(srv.richieste.map((x) => [x.metodo, x.percorso, x.auth]), [
       ["GET", "/api/v1/salute", "Bearer tok-cvstudio-5678"], ["GET", "/api/v1/progetti", "Bearer tok-cvstudio-5678"],
     ]);
@@ -105,16 +102,14 @@ describe("collega", () => {
     assert.deepEqual([r.codice, existsSync(amb.fileConfig)], [1, false]);
   });
 
-  test("FORGIA_TOKEN e FORGIA_URL bastano; senza claude nel PATH stampa la config a mano senza il token", async (t) => {
+  test("FORGIA_TOKEN e FORGIA_URL bastano, anche senza claude nel PATH", async (t) => {
     const { srv, amb, opz } = await preparato(t);
     const env = { ...amb.env, PATH: amb.dir, FORGIA_TOKEN: "tok-ambiente-4321", FORGIA_URL: srv.url };
     const r = await esegui(["collega", "prova"], { ...opz, env });
     assert.equal(r.codice, 0, r.stderr);
-    assert.match(r.stdout, /"Authorization": "Bearer <token>"/);
-    assert.ok(r.stdout.includes(`"projects" → "${amb.progetto}"`));
     assert.ok(!r.stdout.includes("tok-ambiente-4321"));
-    const [area] = config(amb).aree;
-    assert.deepEqual([area.token, area.mcp_registrato_il], ["tok-ambiente-4321", null]);
+    assert.match(r.stdout, /Comando claude non trovato: .*claude mcp remove forgia --scope local/);
+    assert.equal(config(amb).aree[0].token, "tok-ambiente-4321");
   });
 
   test("token mancante senza terminale: indica FORGIA_TOKEN e il collegamento da terminale, non salva", async (t) => {
@@ -202,15 +197,15 @@ describe("status, on/off, apri, permetti-mcp", () => {
     assert.equal((await esegui(["status", "--sconosciuta"], opz)).codice, 2);
   });
 
-  test("permetti-mcp: unisce la regola con un backup e non duplica", async (t) => {
+  test("permetti-mcp: unisce le regole dei tool MCP e di cerca e leggi con un backup e non duplica", async (t) => {
     const { amb, opz } = await preparato(t);
     const dir = join(amb.dir, "claude");
     mkdirSync(dir);
-    const prima = { permissions: { allow: ["Bash(git status)"], deny: ["Read(.env)"] }, theme: "dark" };
+    const prima = { permissions: { allow: ["Bash(git status)", "mcp__forgia"], deny: ["Read(.env)"] }, theme: "dark" };
     writeFileSync(join(dir, "settings.json"), JSON.stringify(prima));
     assert.equal((await esegui(["permetti-mcp"], opz)).codice, 0);
     assert.deepEqual(JSON.parse(readFileSync(join(dir, "settings.json"), "utf8")),
-      { permissions: { allow: ["Bash(git status)", "mcp__forgia"], deny: ["Read(.env)"] }, theme: "dark" });
+      { permissions: { allow: ["Bash(git status)", "mcp__forgia", "mcp__plugin_forgia_forgia", "Bash(forgia cerca:*)", "Bash(forgia leggi:*)"], deny: ["Read(.env)"] }, theme: "dark" });
     const backup = readdirSync(dir).filter((f) => f.startsWith("settings.json.bak-"));
     assert.equal(backup.length, 1);
     assert.deepEqual(JSON.parse(readFileSync(join(dir, backup[0]), "utf8")), prima);

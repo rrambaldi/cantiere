@@ -3,16 +3,19 @@
 // (npx tsc -p plugin/tsconfig.build.json): il type stripping a ogni hook costava ~280 ms.
 import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { appendFileSync, closeSync, copyFileSync, existsSync, fstatSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, realpathSync, renameSync, rmSync, statSync, writeFileSync, } from "node:fs";
+import { appendFileSync, closeSync, copyFileSync, existsSync, fstatSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, realpathSync, renameSync, rmSync, statSync, unwatchFile, watchFile, writeFileSync, } from "node:fs";
 import { homedir, hostname } from "node:os";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createInterface } from "node:readline";
 import { parseArgs } from "node:util";
 export const NOME = "forgia";
 export const NOME_VISIBILE = "cantiere forgia";
 const VERSIONE_CONTRATTO = 2;
 const TIMEOUT_HTTP = 1500;
 const TIMEOUT_COMANDO = 5000;
+// Leggere un cantiere intero o un tool chiamato da Claude può portare MB: si aspetta di più.
+const TIMEOUT_LETTURA = 30_000;
 const TIMEOUT_GIT = 1000;
 const MAX_CODA = 500;
 const SCADENZA_ATTESA = 10 * 60_000;
@@ -30,9 +33,12 @@ const OSCURATI = new Set(["prompt", "last_assistant_message", "token"]);
 export const RE_CANTIERE = /^\/(\S+:)?cantiere(\s|$)/;
 // Prime parole di /cantiere che gestisce il comando, non l'hook. `chiudi` e `server` erano di v1:
 // il comando spiega cosa usare adesso.
-const RISERVATE = ["prendi", "dirama", "collega", "chiudi", "server", "stato", "permessi", "on", "off", "comandi"];
+const RISERVATE = ["prendi", "dirama", "collega", "chiudi", "server", "stato", "permessi", "on", "off", "comandi", "cerca", "leggi"];
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), NOME);
 const NON_COLLEGATA = `questa cartella non è collegata a ${NOME_VISIBILE}: lancia /cantiere collega <progetto> <url>`;
+// Il server MCP lo dichiara il plugin (plugin.json): Claude Code ne chiama i tool mcp__plugin_forgia_forgia__*.
+// mcp__forgia__* è il server registrato per cartella fino alla 26.11.0, che collega toglie.
+export const PREFISSI_MCP = [`mcp__plugin_${NOME}_${NOME}__`, `mcp__${NOME}__`];
 class Errore extends Error {
 }
 const errore = (msg) => { throw new Errore(msg); };
@@ -62,8 +68,7 @@ function scriviJson(p, v, mode) {
 export function leggiGenerale() {
     const f = leggiJson(fileConfig()) ?? {};
     return {
-        abilitato: f.abilitato ?? true, nome_server_mcp: f.nome_server_mcp ?? NOME,
-        modalita_resoconto: f.modalita_resoconto ?? null, aree: Array.isArray(f.aree) ? f.aree : [],
+        abilitato: f.abilitato ?? true, modalita_resoconto: f.modalita_resoconto ?? null, aree: Array.isArray(f.aree) ? f.aree : [],
     };
 }
 function salvaArea(gen, area) {
@@ -84,7 +89,7 @@ export function areaDi(aree, cwd) {
     const dentro = (a) => qui === a.cartella || qui.startsWith(a.cartella.endsWith(sep) ? a.cartella : a.cartella + sep);
     return aree.filter(dentro).sort((a, b) => b.cartella.length - a.cartella.length)[0] ?? null;
 }
-const configDi = (gen, area) => ({ ...area, nome_server_mcp: gen.nome_server_mcp, modalita_resoconto: gen.modalita_resoconto });
+const configDi = (gen, area) => ({ ...area, modalita_resoconto: gen.modalita_resoconto });
 function areaCorrente() {
     const gen = leggiGenerale();
     return configDi(gen, areaDi(gen.aree, process.cwd()) ?? errore(NON_COLLEGATA));
@@ -374,9 +379,9 @@ export function datiTodo(strumento, inp, ris, noti) {
         return null;
     return { dati: { strumento, completo: false, todos: [{ id: String(id), ...voce }] }, noti: { ...noti, [id]: voce } };
 }
-const esclusoDalConteggio = (nome, server) => nome === "TodoWrite" || nome.startsWith("Task") || nome.startsWith(`mcp__${server}__`);
+const esclusoDalConteggio = (nome) => nome === "TodoWrite" || nome.startsWith("Task") || PREFISSI_MCP.some((p) => nome.startsWith(p));
 // Conta i tool del turno dalla fine del transcript fino all'ultimo messaggio vero dell'utente.
-function contaRighe(righe, server) {
+function contaRighe(righe) {
     const conteggio = { strumenti: 0, resoconto: false };
     for (let i = righe.length - 1; i >= 0; i--) {
         if (!righe[i].trim())
@@ -401,9 +406,9 @@ function contaRighe(righe, server) {
                     continue;
                 if (typeof b.name !== "string")
                     throw new Error("tool_use senza nome");
-                if (b.name === `mcp__${server}__aggiorna_stato`)
+                if (PREFISSI_MCP.some((p) => b.name === `${p}aggiorna_stato`))
                     conteggio.resoconto = true;
-                if (!esclusoDalConteggio(b.name, server))
+                if (!esclusoDalConteggio(b.name))
                     conteggio.strumenti++;
             }
         }
@@ -411,7 +416,7 @@ function contaRighe(righe, server) {
     return { trovato: false, conteggio };
 }
 // Legge il transcript dalla fine, con una finestra che cresce finché trova l'inizio del turno.
-export function contaTurno(percorso, server) {
+export function contaTurno(percorso) {
     try {
         const fd = openSync(percorso, "r");
         try {
@@ -421,7 +426,7 @@ export function contaTurno(percorso, server) {
                 const buf = Buffer.alloc(dim - da);
                 readSync(fd, buf, 0, buf.length, da);
                 const righe = buf.toString("utf8").split("\n");
-                const r = contaRighe(da > 0 ? righe.slice(1) : righe, server);
+                const r = contaRighe(da > 0 ? righe.slice(1) : righe);
                 if (r.trovato || da === 0)
                     return r.conteggio;
             }
@@ -527,9 +532,10 @@ export function copiaChange(cartella) {
     });
     return { attivi, archiviati: archiviati.reverse() };
 }
+// `avvio`: la sessione è partita con il plugin, quindi con il suo server MCP e il tool aggiorna_stato.
 export function decidiBlocco(p) {
     return !p.attivo && !!p.conteggio && p.modalita === "forzato" && p.conteggio.strumenti >= p.soglia &&
-        !p.conteggio.resoconto && !!p.avvio && !!p.registrato && p.avvio > p.registrato;
+        !p.conteggio.resoconto && !!p.avvio;
 }
 // sessionTitle fa come /rename: "progetto · inizio del session_id · cantiere", l'inizio per distinguere due sessioni
 // sullo stesso cantiere. Si manda solo quando cambia, così un /rename fatto a mano dura fino al cambio di cantiere.
@@ -685,7 +691,7 @@ const HOOK = {
         await preliminari(c);
         aggiornaSessione(c.sid, (x) => delete x.domanda_aperta);
         const s = leggiSessione(c.sid);
-        const conteggio = typeof input.transcript_path === "string" ? contaTurno(input.transcript_path, c.cfg.nome_server_mcp) : null;
+        const conteggio = typeof input.transcript_path === "string" ? contaTurno(input.transcript_path) : null;
         const bloccato = decidiBlocco({
             // Dopo un blocco per un comando il resoconto non è ancora stato chiesto: tocca a questo stop (design D4).
             attivo: input.stop_hook_active === true && !s?.blocco_comando,
@@ -693,7 +699,6 @@ const HOOK = {
             modalita: c.cfg.modalita_resoconto ?? s?.config?.modalita_resoconto ?? "forzato",
             soglia: s?.config?.soglia_strumenti ?? 3,
             avvio: s?.avvio_reale_il,
-            registrato: c.cfg.mcp_registrato_il,
         });
         await invia(c, evento(c, "stop", {
             strumenti_nel_turno: conteggio?.strumenti ?? 0, resoconto_inviato: conteggio?.resoconto ?? false, bloccato,
@@ -792,15 +797,16 @@ export function normalizzaUrl(grezzo) {
         errore("serve un URL https (http solo per localhost)");
     return u.origin + u.pathname.replace(/\/+$/, "");
 }
-// Una chiamata ai comandi (non agli hook): errori di rete e HTTP diventano messaggi per l'utente.
-async function chiamaApi(cfg, metodo, percorso, corpo) {
+const nonForgia = (cfg, codice) => errore(`a ${cfg.url} non risponde ${NOME_VISIBILE} (HTTP ${codice}): controlla l'URL, per esempio se manca un percorso come /cantiere`);
+// Una richiesta dei comandi (non degli hook): rete giù e token rifiutato diventano messaggi per l'utente, mai con il token.
+async function richiesta(cfg, metodo, percorso, corpo, accetta, attesa = TIMEOUT_COMANDO) {
     let r;
     try {
         r = await fetch(`${cfg.url}${percorso}`, {
             method: metodo,
-            headers: { authorization: `Bearer ${cfg.token}`, ...(corpo === undefined ? {} : { "content-type": "application/json" }) },
+            headers: { authorization: `Bearer ${cfg.token}`, ...(corpo === undefined ? {} : { "content-type": "application/json" }), ...(accetta ? { accept: accetta } : {}) },
             body: corpo === undefined ? undefined : JSON.stringify(corpo),
-            signal: AbortSignal.timeout(TIMEOUT_COMANDO),
+            signal: AbortSignal.timeout(attesa),
         });
     }
     catch (e) {
@@ -808,14 +814,42 @@ async function chiamaApi(cfg, metodo, percorso, corpo) {
     }
     if (r.status === 401)
         errore("token non valido: il server risponde 401");
+    return r;
+}
+async function chiamaApi(cfg, metodo, percorso, corpo, attesa) {
+    const r = await richiesta(cfg, metodo, percorso, corpo, undefined, attesa);
+    const tipo = r.headers.get("content-type");
+    // Una rotta che il server non conosce dà 404 senza corpo: il server è più vecchio del plugin.
+    if (r.status === 404 && !tipo)
+        errore(`il server ${cfg.url} non conosce questa richiesta: va aggiornato alla versione del plugin`);
     // Il server risponde sempre JSON: una pagina viene da altro, di solito un proxy con l'URL senza il percorso del server.
-    if (!r.headers.get("content-type")?.includes("json")) {
-        errore(`a ${cfg.url} non risponde ${NOME_VISIBILE} (HTTP ${r.status}): controlla l'URL, per esempio se manca un percorso come /cantiere`);
-    }
+    if (!tipo?.includes("json"))
+        nonForgia(cfg, r.status);
     const risposta = await r.json().catch(() => null);
     if (!r.ok)
         errore(`il server risponde ${r.status}${risposta?.errore ? `: ${risposta.errore}` : ""}`);
     return risposta;
+}
+// Un messaggio JSON-RPC al server MCP, senza sessione (il server è stateless): la risposta arriva in SSE o in JSON.
+// Solo il suo result o error: un rifiuto HTTP (429, la guardia sull'host) diventa un Errore con il motivo.
+async function chiamaMcp(cfg, messaggio) {
+    const r = await richiesta(cfg, "POST", "/mcp", messaggio, "application/json, text/event-stream", TIMEOUT_LETTURA);
+    const testo = await r.text();
+    const dati = r.headers.get("content-type")?.includes("text/event-stream")
+        ? testo.split("\n").filter((l) => l.startsWith("data:")).map((l) => l.slice(5)).pop()
+        : testo;
+    let m;
+    try {
+        m = JSON.parse(dati ?? "");
+    }
+    catch {
+        return nonForgia(cfg, r.status);
+    }
+    if (!r.ok || !(m && ("result" in m || "error" in m))) {
+        const motivo = m?.errore ?? m?.error?.message;
+        errore(`il server risponde ${r.status}${motivo ? `: ${motivo}` : ""}`);
+    }
+    return { result: m.result, error: m.error };
 }
 async function salute(url, token) {
     const s = await chiamaApi({ url, token }, "GET", "/api/v1/salute");
@@ -849,29 +883,18 @@ function chiediNascosto(domanda) {
         stdin.on("data", leggi).resume();
     });
 }
-// Registra il server MCP per la sola cartella dell'area (scope local: in un repo git vale anche nelle
-// sottocartelle). Il token passa solo da qui, mai da un comando scritto da Claude.
-function registraMcp(cfg) {
-    const nome = cfg.nome_server_mcp;
-    const opz = { cwd: cfg.cartella, stdio: "ignore" };
+// Fino alla 26.11.0 collega registrava un server MCP per cartella (claude mcp add --scope local): adesso il server
+// lo dichiara il plugin, e quella registrazione darebbe tutti i tool due volte. Senza claude o senza
+// registrazione non c'è niente da togliere.
+function togliMcpDellaCartella(cartella) {
     try {
-        execFileSync("claude", ["mcp", "remove", nome, "--scope", "local"], opz);
+        execFileSync("claude", ["mcp", "remove", NOME, "--scope", "local"], { cwd: cartella, stdio: "ignore" });
     }
     catch (e) {
-        if (assente(e)) {
-            console.log(`Comando claude non trovato. Aggiungi a mano in ~/.claude.json, dentro "projects" → "${cfg.cartella}", con il tuo token:\n${JSON.stringify({ mcpServers: { [nome]: { type: "http", url: `${cfg.url}/mcp`, headers: { Authorization: "Bearer <token>" } } } }, null, 2)}`);
-            return null;
-        }
-        // altrimenti non era registrato: niente da togliere
+        // Con claude che risponde, un errore vuol dire niente da togliere.
+        if (assente(e))
+            console.log(`Comando claude non trovato: se in questa cartella c'è il server MCP "${NOME}" di prima, toglilo con claude mcp remove ${NOME} --scope local.`);
     }
-    try {
-        execFileSync("claude", ["mcp", "add", "--transport", "http", "--scope", "local", nome, `${cfg.url}/mcp`,
-            "--header", `Authorization: Bearer ${cfg.token}`], opz);
-    }
-    catch (e) {
-        throw new Errore(`claude mcp add non è riuscito (codice ${e.status})`, { cause: e });
-    }
-    return adesso();
 }
 // Collega la cartella (la radice git, o la cwd senza git) a un progetto del committente del token.
 async function collega(args) {
@@ -899,16 +922,14 @@ async function collega(args) {
         }
         progetto = (await chiamaApi({ url, token }, "POST", "/api/v1/progetti", { nome })).progetto.nome;
     }
-    const area = { cartella: reale(radiceGit(process.cwd()) ?? process.cwd()), url, token, committente, progetto, mcp_registrato_il: null };
+    const area = { cartella: reale(radiceGit(process.cwd()) ?? process.cwd()), url, token, committente, progetto };
     salvaArea(gen, area);
-    area.mcp_registrato_il = registraMcp(configDi(gen, area));
-    salvaArea(gen, area);
+    togliMcpDellaCartella(area.cartella);
     console.log([
         `${NOME_VISIBILE}: ${area.cartella} collegata a ${committente}/${progetto} (${url}). Il tracciamento è attivo in questa cartella.`,
-        area.mcp_registrato_il
-            ? `Server MCP "${gen.nome_server_mcp}" registrato per questa cartella: i suoi tool arrivano dal prossimo avvio di Claude Code.`
-            : "Server MCP non registrato: il resoconto forzato resta spento finché non lo registri.",
-        `Per usare i tool senza conferme: /cantiere permessi (aggiunge mcp__${gen.nome_server_mcp} ai permessi).`,
+        `I tool MCP (${PREFISSI_MCP[0]}*) li dà il plugin: valgono subito, anche nelle sessioni già aperte.`,
+        `I file dei cantieri si leggono anche da terminale: ${NOME} cerca <parole>, ${NOME} leggi <percorso> [file].`,
+        `Per usare tool e lettura senza conferme: /cantiere permessi.`,
     ].join("\n"));
 }
 const maschera = (token) => `…${token.slice(-4)}`;
@@ -919,8 +940,8 @@ async function status(args) {
     const server = area && await salute(area.url, area.token).then((s) => ({ raggiungibile: true, cliente: s.cliente }), (e) => ({ raggiungibile: false, errore: e.message }));
     const descrivi = (a) => ({ cartella: a.cartella, committente: a.committente, progetto: a.progetto, url: a.url, token: maschera(a.token) });
     const info = {
-        in_area: !!area, abilitato: gen.abilitato, nome_server_mcp: gen.nome_server_mcp, modalita_resoconto: gen.modalita_resoconto,
-        area: area && { ...descrivi(area), mcp_registrato_il: area.mcp_registrato_il, comandi: area.comandi === true }, server,
+        in_area: !!area, abilitato: gen.abilitato, modalita_resoconto: gen.modalita_resoconto,
+        area: area && { ...descrivi(area), comandi: area.comandi === true }, server,
         aree: gen.aree.map(descrivi), ultima_sessione: ultimaSessione(process.cwd()),
     };
     if (values.json)
@@ -937,7 +958,6 @@ async function status(args) {
         `server: ${area.url} (${server?.raggiungibile ? `raggiungibile, cliente ${server.cliente}` : `non raggiungibile: ${server?.errore}`})`,
         `token: ${maschera(area.token)}`,
         `comandi dalla dashboard: ${area.comandi ? "accesi" : "spenti"} (/cantiere comandi on|off)`,
-        `server MCP: ${gen.nome_server_mcp}${area.mcp_registrato_il ? `, registrato il ${area.mcp_registrato_il}` : ", non registrato: rilancia /cantiere collega"}`,
         u ? `ultima sessione qui: ${u.session_id}, ${u.cantiere ? `cantiere ${u.cantiere}` : "lavoro diretto"} (${u.visto_il})` : "nessuna sessione vista in questa cartella",
         elenco,
     ].join("\n"));
@@ -987,6 +1007,8 @@ async function apri(args) {
     const nome = positionals.join(" ").trim() || errore("manca il nome del cantiere");
     await operazione(values["session-id"], "apri_cantiere", { nome, descrizione: values.descrizione ?? null, origine: "utente", padre: values.padre ?? null });
 }
+// /api/v1/progetti/<progetto>/cantieri/<percorso>, un segmento per livello del percorso.
+const rottaCantiere = (progetto, percorso) => `/api/v1/progetti/${encodeURIComponent(progetto)}/cantieri/${percorso.split("/").map((s) => s.trim()).filter(Boolean).map(encodeURIComponent).join("/")}`;
 // Prende in lavorazione un cantiere (di solito un'idea): il server lo porta ad aperto e manda i file
 // dell'idea, che finiscono in openspec/changes/<change>/idee/ senza sovrascrivere nulla (D9).
 async function prendi(args) {
@@ -1004,8 +1026,7 @@ async function prendi(args) {
     const cwd = process.cwd();
     const sid = values["session-id"] ?? process.env.CLAUDE_CODE_SESSION_ID ?? ultimaSessione(cwd)?.session_id
         ?? errore("nessuna sessione di Claude Code vista in questa cartella: lancia /cantiere prendi da Claude Code");
-    const segmenti = percorso.split("/").map((s) => s.trim()).filter(Boolean).map(encodeURIComponent).join("/");
-    const r = await chiamaApi(cfg, "POST", `/api/v1/progetti/${encodeURIComponent(cfg.progetto)}/cantieri/${segmenti}/prendi`, { session_id: sid, host: hostname(), cwd, ...leggiGit(cwd) });
+    const r = await chiamaApi(cfg, "POST", `${rottaCantiere(cfg.progetto, percorso)}/prendi`, { session_id: sid, host: hostname(), cwd, ...leggiGit(cwd) });
     if (!RE_CHANGE.test(r.change))
         errore(`nome di change non valido dal server: ${r.change}`);
     aggiornaSessione(sid, (s) => (s.cantiere = r.cantiere));
@@ -1056,8 +1077,115 @@ async function dirama(args) {
     const [da] = r.cantiere.nato_da;
     console.log(`Idea "${r.cantiere.progetto}/${r.cantiere.percorso}" creata, nata da "${da.progetto}/${da.percorso}"${da.task ? ` (task ${da.task})` : ""}.`);
 }
+const opzioniLettura = { progetto: { type: "string" }, json: { type: "boolean" } };
+// I cantieri del committente dell'area che hanno le parole nel percorso, nella descrizione o nei nomi dei file.
+async function cerca(args) {
+    const { values, positionals } = parseArgs({ args, allowPositionals: true, options: opzioniLettura });
+    const cfg = areaCorrente();
+    const testo = positionals.join(" ").trim();
+    const q = new URLSearchParams({ testo, ...(values.progetto ? { progetto: values.progetto } : {}) });
+    const { cantieri } = await chiamaApi(cfg, "GET", `/api/v1/cerca?${q}`);
+    if (values.json)
+        return console.log(JSON.stringify(cantieri, null, 2));
+    if (!cantieri.length)
+        return console.log(`Nessun cantiere di ${cfg.committente} con "${testo}". Tutti i cantieri: ${NOME} cerca ""`);
+    console.log([
+        ...cantieri.map((c) => [`${c.progetto}/${c.percorso} (${c.stato})${c.descrizione ? `: ${c.descrizione}` : ""}`, ...c.file.map((f) => `  ${f}`)].join("\n")),
+        `Per leggerli: ${NOME} leggi "<percorso>" [file] --progetto <progetto>`,
+    ].join("\n"));
+}
+// I file di un cantiere senza prenderlo: senza file l'elenco e il contenuto di tutti, con file solo quello.
+// Il nome del file va nella query: un proxy davanti al server decodificherebbe le barre nel percorso.
+async function leggi(args) {
+    const { values, positionals } = parseArgs({ args, allowPositionals: true, options: opzioniLettura });
+    if (positionals.length > 2)
+        errore(`troppi argomenti: un percorso con spazi va tra virgolette, ${NOME} leggi "<percorso>" [file]`);
+    const [percorso = errore(`manca il percorso del cantiere: ${NOME} leggi <percorso> [file]`), nome] = positionals;
+    const cfg = areaCorrente();
+    const base = `${rottaCantiere(values.progetto ?? cfg.progetto, percorso)}/file`;
+    if (nome !== undefined) {
+        const f = await chiamaApi(cfg, "GET", `${base}?${new URLSearchParams({ nome })}`, undefined, TIMEOUT_LETTURA);
+        return console.log(values.json ? JSON.stringify(f, null, 2) : f.contenuto);
+    }
+    // Tutto il cantiere in una richiesta; un file che non si legge (troppo grande, binario) ha il motivo e non ferma gli altri.
+    const elenco = await chiamaApi(cfg, "GET", `${base}?contenuto=1`, undefined, TIMEOUT_LETTURA);
+    if (values.json)
+        return console.log(JSON.stringify(elenco, null, 2));
+    const { file } = elenco;
+    console.log([
+        `Cantiere "${elenco.percorso}" (${elenco.progetto}, ${elenco.stato}): ${file.length} file.`,
+        ...file.map((f) => `- ${f.nome} (${f.origine}, ${f.byte} byte)`),
+        ...file.flatMap((f) => ["", `===== ${f.nome} =====`, f.contenuto ?? `(non letto: ${f.errore})`]),
+    ].join("\n"));
+}
+// Il server MCP stdio dichiarato in plugin.json, uno per sessione di Claude Code: a ogni richiesta cerca l'area
+// della cartella della sessione e inoltra al suo server con il suo token, così i tool valgono anche in una
+// cartella collegata dopo l'avvio. L'elenco dei tool è quello del server dell'area (o di un'altra), altrimenti l'ultimo visto;
+// quando la configurazione cambia (collega) Claude Code lo richiede. Fuori dalle aree i tool rispondono ok: false.
+async function mcp() {
+    const cwd = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+    const versione = leggiJson(fileURLToPath(new URL("../.claude-plugin/plugin.json", import.meta.url)))?.version ?? "0";
+    const strumenti = cache("strumenti.json");
+    const scrivi = (m) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...m }) + "\n");
+    const area = () => areaDi(leggiGenerale().aree, cwd);
+    // Come il rifiuto dei tool del server: un risultato con ok: false, non un errore.
+    const rifiuto = (motivo) => ({ result: { content: [{ type: "text", text: `Rifiutato. ${motivo}` }], structuredContent: { ok: false, cantiere: null, motivo } } });
+    async function risposta(m) {
+        switch (m.method) {
+            case "initialize":
+                return { result: { protocolVersion: m.params?.protocolVersion ?? "2025-06-18", capabilities: { tools: { listChanged: true } }, serverInfo: { name: NOME, title: NOME_VISIBILE, version: versione } } };
+            case "ping":
+                return { result: {} };
+            case "tools/list": {
+                // Fuori da un'area l'elenco di un'altra (sono solo definizioni): i tool ci sono e rispondono ok: false.
+                const a = area() ?? leggiGenerale().aree[0];
+                const remoto = a && await chiamaMcp(a, m).catch((e) => {
+                    if (e instanceof Errore)
+                        return null; // server giù: l'ultimo elenco visto
+                    throw e;
+                });
+                if (remoto?.result)
+                    scriviJson(strumenti, remoto.result);
+                return remoto?.result ? remoto : { result: leggiJson(strumenti) ?? { tools: [] } };
+            }
+            case "tools/call": {
+                const a = area();
+                if (!a)
+                    return rifiuto(NON_COLLEGATA);
+                try {
+                    return await chiamaMcp(a, m);
+                }
+                catch (e) {
+                    if (e instanceof Errore)
+                        return rifiuto(e.message);
+                    throw e;
+                }
+            }
+        }
+        return { error: { code: -32601, message: `metodo non gestito: ${String(m.method)}` } };
+    }
+    // Con il file assente watchFile chiama una volta con date a zero: non è un cambio.
+    process.stdout.on("error", () => process.exit(0)); // chi leggeva se n'è andato
+    watchFile(fileConfig(), { interval: 2000 }, (ora, prima) => ora.mtimeMs !== prima.mtimeMs && scrivi({ method: "notifications/tools/list_changed" }));
+    const righe = createInterface({ input: process.stdin });
+    righe.on("line", async (riga) => {
+        let m;
+        try {
+            m = JSON.parse(riga);
+        }
+        catch {
+            return scrivi({ id: null, error: { code: -32700, message: "JSON non valido" } });
+        }
+        if (m.id === undefined)
+            return; // notifica del client: niente risposta
+        scrivi({ id: m.id, ...await risposta(m).catch((e) => ({ error: { code: -32603, message: e.message } })) });
+    });
+    // Claude Code chiude stdin per fermarlo: si finiscono le risposte in corso e il processo esce da solo.
+    righe.on("close", () => unwatchFile(fileConfig()));
+}
+// Le regole per i tool MCP (del plugin e il vecchio server per cartella) e per cerca e leggi da terminale.
+const PERMESSI = [...PREFISSI_MCP.map((p) => p.slice(0, -2)), `Bash(${NOME} cerca:*)`, `Bash(${NOME} leggi:*)`];
 function permettiMcp() {
-    const regola = `mcp__${leggiGenerale().nome_server_mcp}`;
     const p = join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"), "settings.json");
     let s;
     try {
@@ -1067,18 +1195,19 @@ function permettiMcp() {
         throw new Errore(`${p} non è JSON valido: non lo tocco`, { cause: e });
     }
     const allow = ((s.permissions ??= {}).allow ??= []);
-    if (allow.includes(regola))
-        return console.log(`${regola} è già tra i permessi consentiti.`);
-    allow.push(regola);
+    const nuove = PERMESSI.filter((r) => !allow.includes(r));
+    if (!nuove.length)
+        return console.log(`${PERMESSI.join(", ")} sono già tra i permessi consentiti.`);
+    allow.push(...nuove);
     const backup = `${p}.bak-${adesso().replace(/[:.]/g, "-")}`;
     if (existsSync(p))
         copyFileSync(p, backup);
     mkdirSync(dirname(p), { recursive: true });
     writeFileSync(p, JSON.stringify(s, null, 2) + "\n");
-    console.log(`Aggiunto ${regola} ai permessi consentiti di ${p}${existsSync(backup) ? ` (backup: ${backup})` : ""}.`);
+    console.log(`Aggiunti ${nuove.join(", ")} ai permessi consentiti di ${p}${existsSync(backup) ? ` (backup: ${backup})` : ""}.`);
 }
 const COMANDI = {
-    collega, prendi, dirama, status, apri, comandi, on: () => imposta(true), off: () => imposta(false), "permetti-mcp": permettiMcp,
+    collega, prendi, dirama, status, apri, comandi, cerca, leggi, mcp, on: () => imposta(true), off: () => imposta(false), "permetti-mcp": permettiMcp,
 };
 export async function principale(argv) {
     const [comando = "", ...args] = argv;

@@ -39,7 +39,8 @@ describe("riconosci /cantiere", () => {
   test("forme gestite dal comando, compresi chiudi e server di v1", () => {
     for (const p of ["/cantiere", "/cantiere stato", "/cantiere server", "/cantiere server https://x.example nome",
       "/cantiere permessi", "/cantiere on", "/forgia:cantiere off", "/cantiere prendi idoc-converter", "/cantiere dirama mercurius/info-extra --task 3.2",
-      "/cantiere collega poker https://priv.progettazionisoftware.it/cantiere", "/cantiere chiudi -f sospeso", "/cantiere chiudi finito"]) {
+      "/cantiere collega poker https://priv.progettazionisoftware.it/cantiere", "/cantiere chiudi -f sospeso", "/cantiere chiudi finito",
+      "/cantiere cerca istruzioni adonis", "/cantiere leggi adonis idee/appunti.md"]) {
       assert.deepEqual(riconosci(p), { op: null }, p);
     }
   });
@@ -58,7 +59,7 @@ describe("riconosci /cantiere", () => {
 
 describe("areaDi", () => {
   const area = (cartella: string, progetto: string): Area =>
-    ({ cartella, url: "https://x.example", token: "t", committente: "PRIV", progetto, mcp_registrato_il: null });
+    ({ cartella, url: "https://x.example", token: "t", committente: "PRIV", progetto });
   const aree = [area("/srv/lavori", "cantiere"), area("/srv/lavori/poker", "poker")];
   test("la più specifica che contiene la cwd", () => {
     assert.equal(areaDi(aree, "/srv/lavori/poker/web")?.progetto, "poker");
@@ -133,21 +134,24 @@ describe("contaTurno", () => {
   const uso = (nome: string) => JSON.stringify({ type: "assistant", isSidechain: false, message: { role: "assistant", content: [{ type: "tool_use", id: "x", name: nome, input: {} }] } });
 
   test("transcript registrato: Bash ed Edit contano, Task e il turno prima no", () =>
-    assert.deepEqual(contaTurno(file("base.jsonl", TRANSCRIPT), "forgia"), { strumenti: 2, resoconto: false }));
+    assert.deepEqual(contaTurno(file("base.jsonl", TRANSCRIPT)), { strumenti: 2, resoconto: false }));
   test("aggiorna_stato e altri tool MCP del server non contano, ma segnano il resoconto", () =>
-    assert.deepEqual(contaTurno(file("mcp.jsonl", `${TRANSCRIPT}${uso("mcp__forgia__stato_sessione")}\n${uso("mcp__forgia__aggiorna_stato")}\n${uso("mcp__altro__x")}\n`), "forgia"),
+    assert.deepEqual(contaTurno(file("mcp.jsonl", `${TRANSCRIPT}${uso("mcp__plugin_forgia_forgia__stato_sessione")}\n${uso("mcp__plugin_forgia_forgia__aggiorna_stato")}\n${uso("mcp__altro__x")}\n`)),
       { strumenti: 3, resoconto: true }));
+  test("anche con i nomi del vecchio server registrato per cartella", () =>
+    assert.deepEqual(contaTurno(file("vecchio.jsonl", `${TRANSCRIPT}${uso("mcp__forgia__leggi_cantiere")}\n${uso("mcp__forgia__aggiorna_stato")}\n`)),
+      { strumenti: 2, resoconto: true }));
   test("i tool dei subagent (sidechain) non contano", () =>
-    assert.deepEqual(contaTurno(file("side.jsonl", TRANSCRIPT + uso("Bash").replace('"isSidechain":false', '"isSidechain":true') + "\n"), "forgia"),
+    assert.deepEqual(contaTurno(file("side.jsonl", TRANSCRIPT + uso("Bash").replace('"isSidechain":false', '"isSidechain":true') + "\n")),
       { strumenti: 2, resoconto: false }));
   test("riga corrotta, forma inattesa o file assente: non affidabile", () => {
-    assert.equal(contaTurno(file("rotto.jsonl", `${TRANSCRIPT}{non json\n`), "forgia"), null);
-    assert.equal(contaTurno(file("forma.jsonl", `${TRANSCRIPT}{"type":"assistant","message":{"content":"testo"}}\n`), "forgia"), null);
-    assert.equal(contaTurno(join(dir, "manca.jsonl"), "forgia"), null);
+    assert.equal(contaTurno(file("rotto.jsonl", `${TRANSCRIPT}{non json\n`)), null);
+    assert.equal(contaTurno(file("forma.jsonl", `${TRANSCRIPT}{"type":"assistant","message":{"content":"testo"}}\n`)), null);
+    assert.equal(contaTurno(join(dir, "manca.jsonl")), null);
   });
   test("turno più lungo della prima finestra di lettura", () => {
     const grosso = JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "tool_result", content: "x".repeat(600_000) }] } });
-    assert.deepEqual(contaTurno(file("grosso.jsonl", `${TRANSCRIPT}${uso("Read")}\n${grosso}\n${uso("Grep")}\n`), "forgia"), { strumenti: 4, resoconto: false });
+    assert.deepEqual(contaTurno(file("grosso.jsonl", `${TRANSCRIPT}${uso("Read")}\n${grosso}\n${uso("Grep")}\n`)), { strumenti: 4, resoconto: false });
   });
   test("pulizia", () => rmSync(dir, { recursive: true, force: true }));
 });
@@ -155,7 +159,7 @@ describe("contaTurno", () => {
 describe("decidiBlocco", () => {
   const base = {
     attivo: false, conteggio: { strumenti: 5, resoconto: false }, modalita: "forzato" as const, soglia: 3,
-    avvio: "2026-10-14T10:00:00.000Z", registrato: "2026-10-14T09:00:00.000Z",
+    avvio: "2026-10-14T10:00:00.000Z",
   };
   test("tutte le condizioni: blocca", () => assert.equal(decidiBlocco(base), true));
   for (const [caso, variante] of [
@@ -165,8 +169,6 @@ describe("decidiBlocco", () => {
     ["sotto soglia", { conteggio: { strumenti: 2, resoconto: false } }],
     ["resoconto già inviato", { conteggio: { strumenti: 5, resoconto: true } }],
     ["transcript non affidabile", { conteggio: null }],
-    ["MCP registrato dopo l'avvio", { registrato: "2026-10-14T11:00:00.000Z" }],
-    ["MCP mai registrato", { registrato: null }],
     ["avvio reale sconosciuto", { avvio: undefined }],
   ] as const) {
     test(`non blocca: ${caso}`, () => assert.equal(decidiBlocco({ ...base, ...variante }), false));

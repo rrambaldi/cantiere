@@ -50,14 +50,47 @@ In una cwd che non sta in nessuna area, gli hook MUST non mandare eventi e non i
 - **WHEN** l'utente apre Claude Code in `~/tmp/prova`, che non sta in nessuna area
 - **THEN** il server non riceve nulla e Claude non riceve contesto da forgia
 
-### Requirement: Server MCP per cartella
-Il collegamento MUST registrare il server MCP `forgia` per la sola cartella dell'area (`claude mcp
-add --scope local`), con URL `<url>/mcp` e il Bearer del committente, sostituendo una registrazione
-precedente della stessa cartella. Il token MUST passare solo dallo script.
+### Requirement: Server MCP per area
+Il server MCP del plugin (`forgia mcp`, uno per sessione di Claude Code) MUST cercare a ogni richiesta
+l'area della cartella della sessione e inoltrare `tools/list` e `tools/call` a `<url>/mcp` di quell'area,
+con il suo token, accettando la risposta in JSON o in SSE, e rispondere a Claude Code con l'id della sua
+richiesta e solo il `result` o l'`error` del server. Fuori da ogni area, con il server che non risponde
+o con un rifiuto HTTP (per esempio 429 o il 403 della guardia sull'host), `tools/call` MUST rispondere
+con un risultato non di errore con `ok: false` e il motivo, mai con il token.
 
-#### Scenario: Due committenti sulla stessa macchina
-- **WHEN** `~/lavori/poker` è collegata con il token di `CVSTUDIO` e `~/lavori/mercurius` con quello di `PRIV`
-- **THEN** Claude Code in `~/lavori/poker` usa il server MCP con il token di `CVSTUDIO` e in `~/lavori/mercurius` quello di `PRIV`
+#### Scenario: Chiamata in un'area
+- **WHEN** in `~/lavori/poker`, collegata con il token di `CVSTUDIO`, Claude chiama `leggi_cantiere`
+- **THEN** la chiamata arriva a `<url>/mcp` con il token di `CVSTUDIO` e Claude riceve il risultato del server
+
+#### Scenario: Cartella non collegata
+- **WHEN** Claude chiama un tool di forgia in una cartella che non sta in nessuna area
+- **THEN** il tool risponde `ok: false` con il motivo `questa cartella non è collegata a cantiere forgia: lancia /cantiere collega <progetto> <url>`
+
+#### Scenario: Server giù
+- **WHEN** il server dell'area non risponde
+- **THEN** la chiamata risponde `ok: false` con `server non raggiungibile: <url>`, senza il token
+
+#### Scenario: Troppe richieste
+- **WHEN** il server risponde 429 con `{"errore": "Troppe richieste: riprova tra un minuto."}`
+- **THEN** la chiamata risponde, con l'id della richiesta, `ok: false` e `il server risponde 429: Troppe richieste: riprova tra un minuto.`
+
+### Requirement: Elenco dei tool del server MCP
+L'elenco dei tool del server MCP del plugin MUST essere quello del server dell'area (fuori dalle aree,
+di un'area qualunque della configurazione: sono solo definizioni), altrimenti l'ultimo visto, altrimenti
+vuoto. Quando cambia il file di configurazione MUST mandare
+`notifications/tools/list_changed`, così che Claude Code lo chieda di nuovo.
+
+#### Scenario: Ultimo elenco visto
+- **WHEN** una sessione in un'area ha già ricevuto l'elenco dal server e un'altra parte con il server giù
+- **THEN** la seconda riceve lo stesso elenco
+
+#### Scenario: Cartella non collegata
+- **WHEN** una sessione parte in una cartella non collegata e la configurazione ha un'area
+- **THEN** riceve l'elenco del server di quell'area, e i tool rispondono `ok: false` con il motivo
+
+#### Scenario: Cartella collegata a sessione aperta
+- **WHEN** la sessione è già aperta e l'utente collega la cartella
+- **THEN** Claude Code riceve `notifications/tools/list_changed` e le chiamate dopo partono verso il server dell'area
 
 ### Requirement: Presa di un'idea
 `forgia prendi <percorso>` MUST chiamare la presa in lavorazione con la sessione corrente, creare il

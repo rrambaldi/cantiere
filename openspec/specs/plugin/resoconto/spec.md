@@ -17,16 +17,22 @@ uscire senza bloccare.
 
 ### Requirement: Conteggio dal transcript locale
 Il plugin MUST leggere il transcript locale dall'ultimo messaggio reale dell'utente (non un risultato di
-tool) e contare i `tool_use` escludendo `TodoWrite`, i tool `Task*` e i tool `mcp__<nome_server_mcp>__*`.
-`resoconto_inviato` MUST essere vero se nel turno c'è un `tool_use` di `mcp__<nome_server_mcp>__aggiorna_stato`.
+tool) e contare i `tool_use` escludendo `TodoWrite`, i tool `Task*` e i tool di forgia, con il nome che
+dà il plugin (`mcp__plugin_forgia_forgia__*`) o con quello del vecchio server per cartella
+(`mcp__forgia__*`). `resoconto_inviato` MUST essere vero se nel turno c'è un `tool_use` di
+`aggiorna_stato` con uno dei due nomi.
 
 #### Scenario: Turno con lavoro
-- **WHEN** nel turno ci sono 2 `Read`, 1 `Edit`, 1 `TaskUpdate` e 1 `mcp__forgia__stato_sessione`
+- **WHEN** nel turno ci sono 2 `Read`, 1 `Edit`, 1 `TaskUpdate` e 1 `mcp__plugin_forgia_forgia__stato_sessione`
 - **THEN** `strumenti_nel_turno` è 3
 
 #### Scenario: Resoconto già mandato
-- **WHEN** nel turno c'è una chiamata a `mcp__forgia__aggiorna_stato`
+- **WHEN** nel turno c'è una chiamata a `mcp__plugin_forgia_forgia__aggiorna_stato`
 - **THEN** `resoconto_inviato` è vero
+
+#### Scenario: Nomi del vecchio server per cartella
+- **WHEN** nel turno ci sono 1 `Bash`, 1 `Edit`, 1 `mcp__forgia__leggi_cantiere` e 1 `mcp__forgia__aggiorna_stato`
+- **THEN** `strumenti_nel_turno` è 2 e `resoconto_inviato` è vero
 
 ### Requirement: Lettura difensiva del transcript
 Un transcript mancante, troncato, con righe non JSON o con una forma inattesa MUST non far mai
@@ -39,19 +45,20 @@ bloccare lo `Stop`: in quei casi il plugin MUST considerare il conteggio non aff
 ### Requirement: Condizioni di blocco
 Il plugin MUST bloccare lo `Stop` solo se valgono tutte: modalità `forzato` (config locale, altrimenti
 l'ultima ricevuta dal server, altrimenti `forzato`); strumenti contati ≥ `soglia_strumenti`; resoconto
-non inviato; tool MCP disponibili, cioè avvio reale della sessione successivo alla registrazione MCP.
+non inviato; avvio reale della sessione visto dal plugin (`SessionStart` con source `startup` o
+`resume`), perché la sessione partita con il plugin ha il suo server MCP e `aggiorna_stato`.
 Con `leggero` e `off` MUST non bloccare mai.
 
 #### Scenario: Turno grosso senza resoconto
-- **WHEN** modalità `forzato`, soglia 3, 5 strumenti contati, nessun `aggiorna_stato`, sessione avviata dopo la registrazione MCP
+- **WHEN** modalità `forzato`, soglia 3, 5 strumenti contati, nessun `aggiorna_stato`, avvio della sessione visto
 - **THEN** lo `Stop` è bloccato
 
 #### Scenario: Sotto soglia
 - **WHEN** gli strumenti contati sono 2 con soglia 3
 - **THEN** lo `Stop` non è bloccato
 
-#### Scenario: MCP non ancora caricato
-- **WHEN** il setup è stato fatto in questa sessione, quindi la registrazione MCP è successiva all'avvio
+#### Scenario: Avvio non visto
+- **WHEN** il plugin non ha visto l'avvio della sessione
 - **THEN** lo `Stop` non è bloccato
 
 #### Scenario: Modalità leggera

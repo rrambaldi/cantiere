@@ -9,7 +9,7 @@ un hook in modo deterministico, con il session_id giusto.
 
 ### Requirement: Forme del comando
 Il plugin MUST offrire `/cantiere` (anche come `/forgia:cantiere`) con queste forme: `[padre/]<nome> [--padre <padre>] [— descrizione]`,
-`prendi <percorso>`, `collega <progetto> [url]`, `stato`, `permessi`, `on`, `off` e nessun argomento. Il
+`prendi <percorso>`, `cerca <parole>`, `leggi <percorso> [file]`, `collega <progetto> [url]`, `stato`, `permessi`, `on`, `off` e nessun argomento. Il
 comando MUST dichiarare come suggerimento `[[padre/]nome [--padre p] | prendi <percorso> | collega <progetto> [url] | stato | permessi | on | off]`.
 
 #### Scenario: Suggerimento degli argomenti
@@ -17,8 +17,14 @@ comando MUST dichiarare come suggerimento `[[padre/]nome [--padre p] | prendi <p
 - **THEN** Claude Code mostra il suggerimento `[[padre/]nome [--padre p] | prendi <percorso> | collega <progetto> [url] | stato | permessi | on | off]`
 
 ### Requirement: Strumenti consentiti al comando
-Il comando MUST poter usare solo lo script del plugin e i tool `mcp__forgia__apri_cantiere`,
-`mcp__forgia__elenca_cantieri` e `mcp__forgia__stato_sessione`.
+Il comando MUST poterlo lanciare solo l'utente (`disable-model-invocation: true`) e MUST poter usare
+solo lo script del plugin e i tool `apri_cantiere`, `elenca_cantieri` e `stato_sessione`, ciascuno con
+il nome che gli dà il plugin (`mcp__plugin_forgia_forgia__<tool>`) e con quello del vecchio server per
+cartella (`mcp__forgia__<tool>`).
+
+#### Scenario: Tool del plugin
+- **WHEN** durante `/cantiere stato` Claude chiama `mcp__plugin_forgia_forgia__stato_sessione`
+- **THEN** Claude Code non chiede l'approvazione
 
 #### Scenario: Strumento non previsto
 - **WHEN** durante `/cantiere` Claude prova a usare un altro strumento
@@ -27,13 +33,17 @@ Il comando MUST poter usare solo lo script del plugin e i tool `mcp__forgia__apr
 ### Requirement: Riconoscimento deterministico
 In un'area, l'hook del prompt MUST riconoscere un prompt che corrisponde a `^/(\S+:)?cantiere(\s|$)`.
 Con un nome MUST inviare `apri_cantiere` con origine `utente`, il progetto dell'area e la descrizione,
-se c'è. Quando la prima parola è `prendi`, `collega`, `chiudi`, `server`, `stato`, `permessi`, `on` o
-`off`, o non ci sono argomenti, MUST non fare nulla. Un prompt `/cantiere` MUST non generare l'evento
+se c'è. Quando la prima parola è `prendi`, `cerca`, `leggi`, `collega`, `chiudi`, `server`, `stato`,
+`permessi`, `on` o `off`, o non ci sono argomenti, MUST non fare nulla. Un prompt `/cantiere` MUST non generare l'evento
 `prompt`.
 
 #### Scenario: Apertura con descrizione
 - **WHEN** l'utente scrive `/cantiere pdfconverter — conversione dei PDF caricati`
 - **THEN** il server riceve `apri_cantiere` con `nome: "pdfconverter"`, `descrizione: "conversione dei PDF caricati"`, `origine: "utente"` e il progetto dell'area
+
+#### Scenario: Leggere non apre un cantiere
+- **WHEN** l'utente scrive `/cantiere leggi adonis idee/appunti.md` o `/cantiere cerca istruzioni adonis`
+- **THEN** l'hook non manda nessun `apri_cantiere` e la lettura la fa il comando con `forgia leggi` o `forgia cerca`
 
 #### Scenario: Prefisso del plugin
 - **WHEN** l'utente scrive `/forgia:cantiere idoc-converter/preprod`
@@ -104,9 +114,9 @@ una riga, con la versione minima richiesta, invece di tentare il setup.
 ### Requirement: Primo uso in un turno
 `/cantiere collega <progetto> <url>` MUST collegare la cartella nello stesso turno e senza richieste di
 approvazione, salvo la domanda sul progetto inesistente. Alla fine MUST dire che il tracciamento è
-attivo nella cartella, che i tool MCP arrivano dal prossimo avvio e che `/cantiere permessi` li
-consente senza conferme. Fuori da un'area, ogni altra forma MUST rispondere in una riga con
-`/cantiere collega <progetto> <url>`.
+attivo nella cartella, che i tool MCP valgono subito, che i file dei cantieri si leggono con `forgia
+cerca` e `forgia leggi` e che `/cantiere permessi` li consente senza conferme.
+Fuori da un'area, ogni altra forma MUST rispondere in una riga con `/cantiere collega <progetto> <url>`.
 
 #### Scenario: Primo uso con nome
 - **WHEN** la cartella non è collegata, `FORGIA_TOKEN` contiene il token di `CVSTUDIO` e l'utente scrive `/cantiere collega poker https://priv.progettazionisoftware.it/cantiere`

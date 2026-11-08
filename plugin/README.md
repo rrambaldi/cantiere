@@ -16,11 +16,11 @@ La guida completa, server e proxy compresi, è in [`../docs/installazione.md`](.
 2. `/plugin install forgia@forgia`, poi riavvia Claude Code.
 3. Nella cartella dei sorgenti di un progetto, con `FORGIA_TOKEN` impostata al token del committente:
    `/cantiere collega <progetto> <url>`, per esempio
-   `/cantiere collega poker https://priv.progettazionisoftware.it/cantiere`. Verifica URL e token,
-   salva l'area (la radice git, o la cartella se non c'è git), registra il server MCP `forgia` per
-   quella cartella. Se il progetto non esiste nel committente, Claude chiede se crearlo.
-4. Riavvia Claude Code: da qui i tool `mcp__forgia__*` sono disponibili in quella cartella.
-   `/cantiere permessi` li consente senza conferme.
+   `/cantiere collega poker https://priv.progettazionisoftware.it/cantiere`. Verifica URL e token e
+   salva l'area (la radice git, o la cartella se non c'è git). Se il progetto non esiste nel
+   committente, Claude chiede se crearlo. Niente riavvio: i tool MCP valgono subito, anche nella
+   sessione in cui hai collegato.
+4. `/cantiere permessi` consente senza conferme i tool MCP e la lettura dei cantieri da terminale.
 5. Da ora ogni sessione aperta lì dentro è tracciata, con il token del suo committente. Fuori dalle
    cartelle collegate il plugin non manda nulla. `/cantiere stato` per controllare.
 
@@ -28,8 +28,37 @@ Ogni cartella ha il suo committente e il suo progetto: sulla stessa macchina `~/
 andare con il token di CVSTUDIO e `~/lavori/mercurius` con quello di PRIV. Il token non passa mai
 dalla chat. Senza `FORGIA_TOKEN`, lancia da un terminale
 `<cartella del plugin>/bin/forgia collega <progetto> --url <url>`, che lo chiede senza mostrarlo
-(`/cantiere collega` ti dice il percorso intero). In un repo git le sottocartelle usano il server MCP
-della radice; in una cartella senza git, da una sottocartella si rilancia `/cantiere collega`.
+(`/cantiere collega` ti dice il percorso intero). Le sottocartelle di un'area ne fanno parte.
+
+## Server MCP
+
+Il plugin dichiara nel suo `plugin.json` un solo server MCP, `forgia mcp`, che parte con ogni sessione
+di Claude Code: in Claude Code i tool si chiamano `mcp__plugin_forgia_forgia__<tool>`. A ogni chiamata
+cerca l'area della cartella della sessione e la inoltra al server di quell'area con il suo token, che
+non passa mai dalla chat. Per questo una cartella collegata a sessione aperta ha subito i suoi tool, e
+in una cartella non collegata i tool rispondono `ok: false` con il motivo. L'elenco dei tool è quello
+del server dell'area, altrimenti l'ultimo visto; quando cambia la configurazione il plugin avvisa
+Claude Code, che lo rilegge.
+
+Fino alla 26.11.0 `/cantiere collega` registrava un server MCP per cartella (`mcp__forgia__*`): rifare
+`/cantiere collega` lo toglie, oppure `claude mcp remove forgia --scope local` nella cartella.
+
+## Leggere i cantieri
+
+I file di un cantiere (proposal, design, tasks, specs e i file caricati con l'idea dalla dashboard, sotto
+`idee/`) si leggono senza prenderlo: lo stato non cambia, nessun change nasce, e la cartella non deve
+avere `openspec/`. Quando dici a Claude che qualcosa «è nel cantiere», la skill `cantiere-leggi` lo cerca
+da sola, con i tool o da terminale:
+
+| Strada | Cosa fa |
+|---|---|
+| tool `cerca_cantieri(testo, progetto?)` | i cantieri del committente con quelle parole nel percorso, nella descrizione o nei nomi dei file, senza maiuscole né accenti, con i file che combaciano |
+| tool `leggi_cantiere(percorso, file?, progetto?)` | senza `file` l'elenco dei file, con `file` il contenuto |
+| `forgia cerca <parole> [--progetto p] [--json]` | come `cerca_cantieri`, con il token dell'area della cartella |
+| `forgia leggi <percorso> [file] [--progetto p] [--json]` | senza file l'elenco e il contenuto di tutti, con `file` solo quello; il progetto è quello dell'area se non dici altro |
+
+I comandi da terminale non mostrano mai il token, neanche negli errori. Un file oltre 256 KB o binario
+non si legge, con il motivo.
 
 ## Il comando `/cantiere`
 
@@ -42,11 +71,13 @@ della radice; in una cartella senza git, da una sottocartella si rilancia `/cant
 | `/cantiere fork <nome> --task N [— descrizione]` | lascia il cantiere per un lavoro nato dal task N: un cantiere nuovo con il suo change piccolo; quando lo archivi la sessione torna da sola al cantiere di partenza, al task N |
 | `/cantiere collega <progetto> [url]` | collega la cartella (o cambia URL e token di un'area già collegata) |
 | `/cantiere` o `/cantiere stato` | area della cartella, server, ultima sessione |
-| `/cantiere permessi` | aggiunge `mcp__forgia` ai permessi consentiti, con un backup di `settings.json` |
+| `/cantiere cerca <parole>` / `/cantiere leggi <percorso> [file]` | come `forgia cerca` e `forgia leggi` ([Leggere i cantieri](#leggere-i-cantieri)): non aprono né prendono nulla |
+| `/cantiere permessi` | aggiunge ai permessi consentiti `mcp__plugin_forgia_forgia`, `mcp__forgia`, `Bash(forgia cerca:*)` e `Bash(forgia leggi:*)`, con un backup di `settings.json` |
 | `/cantiere on` / `off` | accende o spegne il tracciamento, in modo persistente |
 | `/cantiere comandi on` / `off` | accetta o no i comandi scritti nella dashboard, per l'area della cartella (spenti di default) |
 
-Funziona anche come `/forgia:cantiere`. Un cantiere non si chiude da qui: completato arriva da
+Funziona anche come `/forgia:cantiere`. Per leggere i file di un cantiere senza prenderlo c'è la skill
+`cantiere-leggi` ([Leggere i cantieri](#leggere-i-cantieri)). Un cantiere non si chiude da qui: completato arriva da
 `openspec archive`, sospeso e abbandonato si decidono dalla dashboard.
 
 ## Comandi dalla dashboard
@@ -87,7 +118,8 @@ Configurazione: `$XDG_CONFIG_HOME/forgia/config.json` (di default `~/.config/for
 `%APPDATA%\forgia\`), permessi 0600, con le aree collegate. Una configurazione della versione 1 vale
 come "nessuna area": si ricollega con `/cantiere collega`. Cache, coda e log:
 `$XDG_CACHE_HOME/forgia/` (di default `~/.cache/forgia/`, su Windows `%LOCALAPPDATA%\forgia\`). La
-coda tiene la cartella dell'area di ogni evento, mai il token.
+coda tiene la cartella dell'area di ogni evento, mai il token; `strumenti.json` è l'ultimo elenco dei
+tool MCP visto.
 
 ## Sviluppo
 

@@ -161,16 +161,15 @@ e in Claude Code:
 /cantiere collega poker https://priv.progettazionisoftware.it/cantiere
 ```
 
-Se il progetto non esiste nel committente, Claude chiede se crearlo. Poi riavvia Claude Code in
-quella cartella, così arrivano i tool MCP, e lancia una volta `/cantiere permessi` per usarli senza
-conferme.
+Se il progetto non esiste nel committente, Claude chiede se crearlo. Non serve riavviare: i tool MCP
+li dà il plugin e valgono subito. Lancia una volta `/cantiere permessi`: consente senza conferme i tool
+MCP (`mcp__plugin_forgia_forgia`, e `mcp__forgia` della versione precedente) e la lettura dei cantieri
+da terminale (`Bash(forgia cerca:*)`, `Bash(forgia leggi:*)`), in `~/.claude/settings.json`.
 
 Il token non va scritto in chat. Senza `FORGIA_TOKEN`, `/cantiere collega` ti dà il comando da
 lanciare in un terminale, che chiede il token senza mostrarlo.
 
 - La cartella collegata è la radice git, se c'è: le sottocartelle sono comprese.
-- In una cartella senza git, se apri Claude Code in una sottocartella, rilancia lì
-  `/cantiere collega`: altrimenti gli eventi arrivano ma i tool MCP no.
 - Sulla stessa macchina cartelle diverse possono andare con committenti diversi.
 
 **Verifica**: `/cantiere stato` mostra `CVSTUDIO/poker`, il server raggiungibile e il token
@@ -181,7 +180,10 @@ mascherato.
 Apri Claude Code nella cartella collegata e scrivi il primo messaggio: Claude chiede dove va la
 sessione (un cantiere aperto, un'idea, un cantiere nuovo, oppure lavoro diretto sul progetto). Le
 idee nascono dalla dashboard e si prendono con `/cantiere prendi <percorso>`, che crea il change
-OpenSpec con i file dell'idea in `idee/`. Il resto è in [`plugin/README.md`](../plugin/README.md).
+OpenSpec con i file dell'idea in `idee/`. Per leggere i file di un cantiere senza prenderlo basta
+dire a Claude che qualcosa «è nel cantiere»: la skill `cantiere-leggi` usa `cerca_cantieri` e
+`leggi_cantiere`, o `forgia cerca` e `forgia leggi` da terminale. Il resto è in
+[`plugin/README.md`](../plugin/README.md).
 
 ## Problemi comuni
 
@@ -195,7 +197,8 @@ OpenSpec con i file dell'idea in `idee/`. Il resto è in [`plugin/README.md`](..
 | `/mcp` risponde 403 | `FORGIA_PUBLIC_HOST` diverso dal nome del server | Rilancia `installa.sh --host <nome>` |
 | `/cantiere collega`: "il server usa la versione 1 del contratto, serve la 2" | il server è ancora v1 | Aggiorna il server (passo 1) |
 | 401 dopo aver rigenerato un token | le macchine usano il token vecchio | `/cantiere collega` con il token nuovo, in ogni cartella |
-| Nessun tool `mcp__forgia__*` | Claude Code non riavviato dopo il collegamento, o sottocartella senza git | Riavvia; senza git rilancia `/cantiere collega` dalla sottocartella |
+| Nessun tool `mcp__plugin_forgia_forgia__*` | plugin installato o aggiornato a sessione aperta | Riavvia Claude Code una volta: da lì valgono in ogni cartella |
+| Tool forgia doppi (`mcp__forgia__*` e `mcp__plugin_forgia_forgia__*`) | cartella collegata prima della 26.11.1, con il server MCP registrato per cartella | Rilancia `/cantiere collega`, oppure `claude mcp remove forgia --scope local` nella cartella |
 | Nessun evento da una cartella | cartella non collegata, `.forgia-off`, oppure `forgia off` | `/cantiere stato` |
 | Un file di un change non arriva in dashboard | supera 256 KB: il plugin non lo manda | Dividilo in file più piccoli |
 | Nessun change di un progetto arriva in dashboard | la copia supera 2 MB | Alza `FORGIA_MAX_OPENSPEC` sul server e `client_max_body_size` in nginx |

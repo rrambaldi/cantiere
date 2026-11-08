@@ -82,12 +82,17 @@ gli stessi dati.
 - **THEN** il server risponde 409 con un errore che nomina lo stato del cantiere
 
 ### Requirement: Idee nelle letture
-Le letture dei cantieri MUST includere le idee con il loro stato, la data di creazione e il numero
-di file, così che Claude possa proporle all'avvio della sessione.
+Le letture dei cantieri MUST includere le idee con il loro stato, la data di creazione, il numero di
+file (`file_idea`) e i loro nomi (`file_idea_nomi`, in ordine di nome), così che Claude possa
+proporle all'avvio della sessione e sapere quali file leggere.
 
 #### Scenario: Idee in attesa
 - **WHEN** `poker` ha le idee `idoc-converter` e `report-mensile`
 - **THEN** l'elenco dei cantieri di `poker` le riporta in stato `idea` con il numero dei loro file
+
+#### Scenario: Nomi dei file dell'idea
+- **WHEN** l'idea `Adonis` ha i file `Istruzioni.md` e `note.txt` e si chiama `GET /api/v1/cantieri`
+- **THEN** `Adonis` ha `file_idea: 2` e `file_idea_nomi: ["Istruzioni.md", "note.txt"]`
 
 ### Requirement: Appunti scritti nella dashboard
 La dashboard MUST permettere di scrivere il testo di un file dell'idea in un campo, con un nome a scelta, senza prepararlo come file sul computer. Il testo MUST essere salvato come file `.md` dell'idea e MUST seguire le stesse regole degli altri file (dimensione, numero, solo in stato `idea`).

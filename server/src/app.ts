@@ -5,6 +5,7 @@ import { autentica, CorpoTroppoGrande, creaRateLimit, leggiCorpo, type Committen
 import { di } from "./ambito.ts";
 import { creaProgetto, elencaProgetti, elencaSessioni, formaProgetto, leggiCantieri, riceviEvento, type Ambiente } from "./dominio.ts";
 import { dirama, prendi } from "./idee.ts";
+import { cerca, elencoFile, leggiFile } from "./leggere.ts";
 import { errore422, Rifiuto, schemaEvento, segmenti, separaLuogo } from "./modelli.ts";
 import { ROTTE, VERSIONE_CONTRATTO } from "./nome.ts";
 import { riceviCopia } from "./openspec.ts";
@@ -33,10 +34,12 @@ function json(testo: string): unknown {
   }
 }
 
-// Rotte con il progetto nell'URL: la copia dei change, la presa di un'idea e un ramo verso il progetto.
+// Rotte con il progetto nell'URL: la copia dei change, la presa di un'idea, un ramo verso il progetto e i
+// file di un cantiere. Il nome del file va nella query: un proxy decodifica %2F nel percorso.
 const ROTTA_COPIA = /^\/api\/v1\/progetti\/([^/]+)\/openspec$/;
 const ROTTA_PRESA = /^\/api\/v1\/progetti\/([^/]+)\/cantieri\/(.+)\/prendi$/;
 const ROTTA_RAMI = /^\/api\/v1\/progetti\/([^/]+)\/rami$/;
+const ROTTA_FILE = /^\/api\/v1\/progetti\/([^/]+)\/cantieri\/(.+)\/file$/;
 const decodifica = (s: string) => {
   try {
     return decodeURIComponent(s);
@@ -71,6 +74,8 @@ export function creaApp(amb: Ambiente, log: Log = logJson, cartellaUi = CARTELLA
         const sessioni = await elencaSessioni(amb.db, amb.config, ambito, { progetto, attive: filtro.get("attive") === "1" });
         return [200, { sessioni: sessioni.map(({ cantiere_id, progetto_id, ...s }) => s) }, percorso];
       }
+      case "GET /api/v1/cerca":
+        return [200, { cantieri: await cerca(amb, ambito, filtro.get("testo") ?? "", progetto) }, percorso];
       case "GET /api/v1/progetti":
         return [200, { progetti: await elencaProgetti(amb.db, ambito) }, percorso];
       case "POST /api/v1/progetti": {
@@ -102,6 +107,13 @@ export function creaApp(amb: Ambiente, log: Log = logJson, cartellaUi = CARTELLA
     if (rami && metodo === "POST") {
       const corpoRamo = json(corpo);
       return [200, { cantiere: await dirama(amb, committente, decodifica(rami[1]), corpoRamo) }, "POST rami", (corpoRamo as { session_id?: string } | undefined)?.session_id];
+    }
+    const lettura = ROTTA_FILE.exec(url.pathname);
+    if (lettura && metodo === "GET") {
+      const [nomeProgetto, percorsoCantiere] = [decodifica(lettura[1]), segmenti(lettura[2]).map(decodifica).join("/")];
+      const nome = filtro.get("nome");
+      if (nome !== null) return [200, await leggiFile(amb, ambito, nomeProgetto, percorsoCantiere, nome), "GET file"];
+      return [200, await elencoFile(amb, ambito, nomeProgetto, percorsoCantiere, filtro.get("contenuto") === "1"), "GET file"];
     }
     return [404, null, percorso];
   }

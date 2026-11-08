@@ -4,6 +4,7 @@ import * as z from "zod";
 import { adesso, type Committente } from "./accesso.ts";
 import { di } from "./ambito.ts";
 import { aggiornaStato, leggiCantieri, progettoDellaSessione, riceviEvento, statoSessione, type Ambiente } from "./dominio.ts";
+import { cerca, elencoFile, leggiFile } from "./leggere.ts";
 import { campi, LIMITI, ORIGINI, Rifiuto, STATI_CANTIERE } from "./modelli.ts";
 import { NOME, NOME_VISIBILE, VERSIONE } from "./nome.ts";
 
@@ -29,6 +30,15 @@ const risultato = (testo: string, dati: Record<string, unknown>) => ({
   structuredContent: dati,
 });
 const rifiuto = (motivo: string) => risultato(`Rifiutato. ${motivo}`, { ok: false, cantiere: null, motivo });
+/** Un Rifiuto del dominio diventa un risultato con ok: false, non un errore del tool. */
+async function oRifiuto(fai: () => Promise<ReturnType<typeof risultato>>) {
+  try {
+    return await fai();
+  } catch (errore) {
+    if (errore instanceof Rifiuto) return rifiuto(errore.message);
+    throw errore;
+  }
+}
 
 /** Un server MCP per richiesta HTTP (modalità stateless), legato al committente del token. */
 export function creaServerMcp(amb: Ambiente, committente: Committente): McpServer {
@@ -122,22 +132,18 @@ export function creaServerMcp(amb: Ambiente, committente: Committente): McpServe
       }),
       outputSchema: esitoCantiere,
     },
-    async (a) => {
-      try {
+    (a) =>
+      oRifiuto(async () => {
         const cantiere = await aggiornaStato(amb, committente, a);
         return risultato(`Resoconto registrato${cantiere ? ` nel cantiere "${cantiere.percorso}"` : " nel progetto"}.`, { ok: true, cantiere, motivo: null });
-      } catch (errore) {
-        if (errore instanceof Rifiuto) return rifiuto(errore.message);
-        throw errore;
-      }
-    },
+      }),
   );
 
   server.registerTool(
     "elenca_cantieri",
     {
       description:
-        "Elenca i cantieri dei tuoi progetti (per default idee, aperti e sospesi) con percorso, stato, change e avanzamento dei task, " +
+        "Elenca i cantieri dei tuoi progetti (per default idee, aperti e sospesi) con percorso, stato, descrizione, change, avanzamento dei task e nomi dei file dell'idea, " +
         "e le sessioni attive: host, branch, stato, ultimo fatto e prossimo, età dell'ultimo evento in secondi. " +
         "Serve a scegliere dove va la sessione e a coordinarsi con altre sessioni o macchine prima di toccare lo stesso lavoro; non serve a ogni turno.",
       inputSchema: z.object({
@@ -149,6 +155,57 @@ export function creaServerMcp(amb: Ambiente, committente: Committente): McpServe
       const cantieri = await leggiCantieri(amb.db, amb.config, di(committente.id), { progetto: a.progetto, stati: a.stati ?? ["idea", "aperto", "sospeso"] });
       return risultato(`${cantieri.length} cantieri.`, { cantieri });
     },
+  );
+
+  const ambito = di(committente.id);
+  const progettoDaLeggere = z
+    .string()
+    .min(1)
+    .max(LIMITI.breve)
+    .optional()
+    .describe("Il progetto del cantiere (es. poker). Serve solo se lo stesso percorso c'è in più progetti del committente.");
+
+  server.registerTool(
+    "cerca_cantieri",
+    {
+      description:
+        "Cerca tra i cantieri del tuo committente, in ogni stato, quelli che hanno tutte le parole nel percorso, nella descrizione o nei nomi dei file " +
+        "(senza maiuscole né accenti); per ognuno progetto, percorso, stato, descrizione e nomi dei file. " +
+        "Usalo quando l'utente dice che qualcosa è nel cantiere, in un'idea o negli appunti della dashboard e ne dà un nome approssimativo; poi leggi_cantiere.",
+      inputSchema: z.object({
+        testo: z.string().max(LIMITI.breve).describe('Le parole dell\'utente, es. "istruzioni adonis"; vuoto per tutti i cantieri.'),
+        progetto: progettoDaLeggere.describe("Solo i cantieri di questo progetto, es. poker."),
+      }),
+    },
+    (a) =>
+      oRifiuto(async () => {
+        const cantieri = await cerca(amb, ambito, a.testo, a.progetto);
+        return risultato(`${cantieri.length} cantieri trovati.`, { ok: true, cantieri, motivo: null });
+      }),
+  );
+
+  server.registerTool(
+    "leggi_cantiere",
+    {
+      description:
+        "Legge i file di un cantiere del tuo committente (proposal, design, tasks, specs e i file dell'idea sotto idee/) senza prenderlo: " +
+        "lo stato non cambia e non nasce nessun change. Senza file restituisce l'elenco dei file, con file il suo contenuto. " +
+        "Se non conosci il percorso esatto, prima cerca_cantieri.",
+      inputSchema: z.object({
+        percorso: z.string().min(1).max(LIMITI.breve).describe('Il percorso del cantiere, come in cerca_cantieri o elenca_cantieri (es. "idoc-converter/prototipo").'),
+        file: z.string().min(1).max(LIMITI.breve).optional().describe('Il file da leggere, come nell\'elenco (es. "proposal.md", "idee/appunti.md").'),
+        progetto: progettoDaLeggere,
+      }),
+    },
+    (a) =>
+      oRifiuto(async () => {
+        if (a.file === undefined) {
+          const e = await elencoFile(amb, ambito, a.progetto, a.percorso);
+          return risultato(`Cantiere "${e.percorso}" (${e.progetto}, ${e.stato}): ${e.file.length} file.`, { ok: true, ...e, motivo: null });
+        }
+        const f = await leggiFile(amb, ambito, a.progetto, a.percorso, a.file);
+        return risultato(f.contenuto, { ok: true, ...f, motivo: null });
+      }),
   );
 
   server.registerTool(
